@@ -225,6 +225,15 @@ def _round_val(value: object) -> int:
     return round(value)
 
 
+def _time_constructor(
+    seconds: float = 0, *, hours: float = 0, minutes: float = 0,
+    ms: float = 0, us: float = 0,
+) -> int:
+    """Runtime T() — returns milliseconds (int)."""
+    total_ms = hours * 3_600_000 + minutes * 60_000 + seconds * 1_000 + ms + us / 1_000
+    return int(round(total_ms))
+
+
 STDLIB_FUNCTIONS: dict[str, object] = {
     "ABS": abs,
     "SQRT": math.sqrt,
@@ -248,4 +257,6 @@ STDLIB_FUNCTIONS: dict[str, object] = {
     "EXPT": pow,
     "SHL": _shl,
     "SHR": _shr,
+    "T": _time_constructor,
+    "LT": _time_constructor,
 }

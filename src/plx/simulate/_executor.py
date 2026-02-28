@@ -489,8 +489,9 @@ class ExecutionEngine:
         name = stmt.function_name
 
         if name in STDLIB_FUNCTIONS:
-            args = [self._eval(a.value) for a in stmt.args]
-            STDLIB_FUNCTIONS[name](*args)
+            pos_args = [self._eval(a.value) for a in stmt.args if a.name is None]
+            kw_args = {a.name: self._eval(a.value) for a in stmt.args if a.name is not None}
+            STDLIB_FUNCTIONS[name](*pos_args, **kw_args)
         elif name in self.pou_registry:
             self._call_user_function(name, stmt.args)
         elif self._find_method(name) is not None:
@@ -672,8 +673,9 @@ class ExecutionEngine:
 
         # Stdlib functions
         if name in STDLIB_FUNCTIONS:
-            args = [self._eval(a.value) for a in expr.args]
-            return STDLIB_FUNCTIONS[name](*args)
+            pos_args = [self._eval(a.value) for a in expr.args if a.name is None]
+            kw_args = {a.name: self._eval(a.value) for a in expr.args if a.name is not None}
+            return STDLIB_FUNCTIONS[name](*pos_args, **kw_args)
 
         # User-defined FUNCTION POUs
         if name in self.pou_registry:

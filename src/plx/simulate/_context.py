@@ -253,6 +253,29 @@ class SimulationContext:
         return set(self._state.get("__sfc_active_steps", set()))
 
     # -----------------------------------------------------------------------
+    # Convenience helpers
+    # -----------------------------------------------------------------------
+
+    def set(self, **kwargs: object) -> None:
+        """Set multiple variables at once via keyword arguments.
+
+        Example::
+
+            ctx.set(enable=True, speed=50.0)
+            # equivalent to:
+            # ctx.enable = True
+            # ctx.speed = 50.0
+        """
+        known = object.__getattribute__(self, "_known_vars")
+        for name, value in kwargs.items():
+            if name not in known:
+                raise AttributeError(
+                    f"'{type(self).__name__}' has no variable '{name}'. "
+                    f"Available: {sorted(known)}"
+                )
+            self._state[name] = value
+
+    # -----------------------------------------------------------------------
     # Attribute access
     # -----------------------------------------------------------------------
 
