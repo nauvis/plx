@@ -7,12 +7,14 @@ POUInterface.input_vars vs .static_vars, or GlobalVariableList.variables).
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from typing import Any
+
+from ._base import IRModel
 
 from .types import TypeRef
 
 
-class Variable(BaseModel):
+class Variable(IRModel):
     """A named, typed data element."""
 
     name: str
@@ -23,3 +25,4 @@ class Variable(BaseModel):
     constant: bool = False
     retain: bool = False
     persistent: bool = False
+    metadata: dict[str, Any] = {}

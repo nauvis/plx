@@ -13,9 +13,9 @@ from typing import Any
 
 from plx.model.types import TypeRef
 
-from ._compiler import CompileContext, CompileError
-from ._descriptors import VarDirection
-from ._protocols import CompiledEnum
+from ._compiler_core import CompileContext, CompileError
+from ._descriptors import VarDirection, _collect_descriptors
+from ._protocols import CompiledEnum, CompiledPOU
 
 
 # ---------------------------------------------------------------------------
@@ -157,3 +157,35 @@ def _discover_enums(func: Any) -> dict[str, dict[str, int]]:
             if isinstance(obj, CompiledEnum):
                 known[name] = obj._enum_values
     return known
+
+
+# ---------------------------------------------------------------------------
+# POU helpers (shared by _decorators.py and _sfc.py)
+# ---------------------------------------------------------------------------
+
+def _detect_parent_pou(cls: type) -> str | None:
+    """Walk MRO to find the first parent with a compiled POU (inheritance)."""
+    for base in cls.__mro__[1:]:
+        if base is object:
+            continue
+        if isinstance(base, CompiledPOU):
+            return base._compiled_pou.name
+    return None
+
+
+def _build_var_context(
+    cls: type,
+) -> tuple[dict[str, list], dict[str, VarDirection], dict[str, TypeRef]]:
+    """Collect descriptors and build declared_vars + static_var_types maps."""
+    var_groups = _collect_descriptors(cls)
+    declared_vars: dict[str, VarDirection] = {}
+    static_var_types: dict[str, TypeRef] = {}
+
+    for direction_str, var_list in var_groups.items():
+        direction = VarDirection(direction_str)
+        for v in var_list:
+            declared_vars[v.name] = direction
+            if direction is VarDirection.STATIC:
+                static_var_types[v.name] = v.data_type
+
+    return var_groups, declared_vars, static_var_types

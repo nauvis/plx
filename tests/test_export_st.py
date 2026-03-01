@@ -3,9 +3,14 @@
 from plx.export.st import _build_source_map, to_structured_text
 from plx.model import (
     POU,
+    AccessSpecifier,
+    Language,
+    Method,
     POUType,
     POUInterface,
     Network,
+    Property,
+    PropertyAccessor,
     Variable,
     PrimitiveTypeRef,
     PrimitiveType,
@@ -835,3 +840,157 @@ class TestSourceMap:
             col = entry["column"] - 1  # 0-indexed
             name = entry["name"]
             assert line_text[col:col + len(name)] == name
+
+
+# -----------------------------------------------------------------------
+# New IR fields (Phase 2)
+# -----------------------------------------------------------------------
+
+class TestAbstractPOU:
+    def test_abstract_function_block(self):
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK, name="BaseFB",
+            abstract=True,
+            networks=[],
+        )
+        st = to_structured_text(pou)
+        assert "FUNCTION_BLOCK ABSTRACT BaseFB" in st
+
+    def test_non_abstract_function_block(self):
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK, name="ConcreteFB",
+            networks=[],
+        )
+        st = to_structured_text(pou)
+        assert "FUNCTION_BLOCK ConcreteFB" in st
+        assert "ABSTRACT" not in st
+
+
+class TestMethodAbstractFinal:
+    def test_abstract_method(self):
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK, name="FB1",
+            methods=[Method(name="Run", abstract=True, return_type=_bool())],
+            networks=[],
+        )
+        st = to_structured_text(pou)
+        assert "METHOD ABSTRACT Run : BOOL" in st
+
+    def test_final_method(self):
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK, name="FB1",
+            methods=[Method(name="Run", final=True)],
+            networks=[],
+        )
+        st = to_structured_text(pou)
+        assert "METHOD FINAL Run" in st
+
+    def test_private_abstract_method(self):
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK, name="FB1",
+            methods=[Method(
+                name="InternalRun",
+                access=AccessSpecifier.PRIVATE,
+                abstract=True,
+            )],
+            networks=[],
+        )
+        st = to_structured_text(pou)
+        assert "METHOD PRIVATE ABSTRACT InternalRun" in st
+
+
+class TestPropertyAbstractFinal:
+    def test_abstract_property(self):
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK, name="FB1",
+            properties=[Property(name="Speed", data_type=_real(), abstract=True)],
+            networks=[],
+        )
+        st = to_structured_text(pou)
+        assert "PROPERTY ABSTRACT Speed : REAL" in st
+
+    def test_final_property(self):
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK, name="FB1",
+            properties=[Property(name="Speed", data_type=_real(), final=True)],
+            networks=[],
+        )
+        st = to_structured_text(pou)
+        assert "PROPERTY FINAL Speed : REAL" in st
+
+
+class TestExternalVarsExport:
+    def test_var_external_block(self):
+        pou = POU(
+            pou_type=POUType.PROGRAM, name="Main",
+            interface=POUInterface(
+                external_vars=[Variable(name="global_speed", data_type=_real())],
+            ),
+            networks=[],
+        )
+        st = to_structured_text(pou)
+        assert "VAR_EXTERNAL" in st
+        assert "global_speed : REAL;" in st
+        assert "END_VAR" in st
+
+    def test_no_external_block_when_empty(self):
+        pou = POU(
+            pou_type=POUType.PROGRAM, name="Main",
+            interface=POUInterface(),
+            networks=[],
+        )
+        st = to_structured_text(pou)
+        assert "VAR_EXTERNAL" not in st
+
+
+class TestStructExtends:
+    def test_struct_with_extends(self):
+        proj = Project(
+            name="T",
+            data_types=[StructType(
+                name="Derived",
+                extends="Base",
+                members=[StructMember(name="extra", data_type=_int())],
+            )],
+        )
+        st = to_structured_text(proj)
+        assert "TYPE Derived EXTENDS Base :" in st
+        assert "STRUCT" in st
+
+    def test_struct_without_extends(self):
+        proj = Project(
+            name="T",
+            data_types=[StructType(
+                name="Simple",
+                members=[StructMember(name="x", data_type=_int())],
+            )],
+        )
+        st = to_structured_text(proj)
+        assert "TYPE Simple :" in st
+        assert "EXTENDS" not in st
+
+
+class TestGVLQualifiedOnly:
+    def test_qualified_only(self):
+        proj = Project(
+            name="T",
+            global_variable_lists=[GlobalVariableList(
+                name="GVL",
+                qualified_only=True,
+                variables=[Variable(name="x", data_type=_bool())],
+            )],
+        )
+        st = to_structured_text(proj)
+        assert "{attribute 'qualified_only'}" in st
+        assert "VAR_GLOBAL" in st
+
+    def test_no_qualified_only(self):
+        proj = Project(
+            name="T",
+            global_variable_lists=[GlobalVariableList(
+                name="GVL",
+                variables=[Variable(name="x", data_type=_bool())],
+            )],
+        )
+        st = to_structured_text(proj)
+        assert "qualified_only" not in st

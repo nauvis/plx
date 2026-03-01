@@ -14,6 +14,7 @@ from plx.model.task import Task, TaskType
 
 from ._protocols import CompiledDataType, CompiledGlobalVarList, CompiledPOU
 from ._types import TimeLiteral, LTimeLiteral
+from ._vendor import Vendor, validate_target
 
 
 # ---------------------------------------------------------------------------
@@ -180,8 +181,17 @@ class PlxProject:
         self._gvl_classes: list[type] = list(global_var_lists) if global_var_lists else []
         self._packages: list[str] = list(packages) if packages else []
 
-    def compile(self) -> Project:
-        """Compile all registered POUs and data types, return a Project IR node."""
+    def compile(self, *, target: Vendor | None = None) -> Project:
+        """Compile all registered POUs and data types, return a Project IR node.
+
+        Parameters
+        ----------
+        target
+            Optional vendor target.  When set, a validation pass checks
+            that the compiled IR only uses features supported by the
+            target vendor (e.g. ``Vendor.AB``).  Raises
+            ``VendorValidationError`` if unsupported features are found.
+        """
         # Merge discovered items from packages (if any)
         if self._packages:
             from ._discover import discover
@@ -252,13 +262,18 @@ class PlxProject:
 
         compiled_tasks = [t.compile() for t in self._tasks]
 
-        return Project(
+        result = Project(
             name=self.name,
             data_types=compiled_data_types,
             global_variable_lists=compiled_gvls,
             pous=compiled_pous,
             tasks=compiled_tasks,
         )
+
+        if target is not None:
+            validate_target(result, target)
+
+        return result
 
 
 def project(

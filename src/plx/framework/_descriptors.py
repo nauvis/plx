@@ -18,6 +18,8 @@ from enum import Enum
 from plx.model.types import PrimitiveType, TypeRef
 from plx.model.variables import Variable
 
+from plx.model.types import NamedTypeRef
+
 from ._types import TimeLiteral, LTimeLiteral, _resolve_type_ref
 
 
@@ -30,6 +32,7 @@ class VarDirection(str, Enum):
     INOUT = "inout"
     TEMP = "temp"
     CONSTANT = "constant"
+    EXTERNAL = "external"
 
 
 class VarDescriptor:
@@ -193,6 +196,19 @@ def constant_var(
     )
 
 
+def external_var(
+    type_arg: PrimitiveType | TypeRef | str,
+    *,
+    description: str = "",
+) -> VarDescriptor:
+    """Declare an external variable on a POU class (references a global var)."""
+    return VarDescriptor(
+        direction=VarDirection.EXTERNAL,
+        data_type=_resolve_type_ref(type_arg),
+        description=description,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Collection helper
 # ---------------------------------------------------------------------------
@@ -217,6 +233,7 @@ def _collect_descriptors(cls: type, *, own_only: bool = False) -> dict[str, list
         "static": [],
         "temp": [],
         "constant": [],
+        "external": [],
     }
 
     if own_only:
@@ -233,9 +250,19 @@ def _collect_descriptors(cls: type, *, own_only: bool = False) -> dict[str, list
     seen: set[str] = set()
     collected: list[tuple[str, VarDescriptor]] = []
 
+    from ._protocols import CompiledPOU
+
     for ns in sources:
         for attr_name, value in ns.items():
-            if not isinstance(value, VarDescriptor):
+            if isinstance(value, VarDescriptor):
+                pass  # already a descriptor
+            elif isinstance(value, type) and isinstance(value, CompiledPOU):
+                # Bare FB class assignment: valve_a = ValveCtrl
+                value = VarDescriptor(
+                    direction=VarDirection.STATIC,
+                    data_type=NamedTypeRef(name=value.__name__),
+                )
+            else:
                 continue
             if attr_name in seen:
                 # Child overrides parent — remove the earlier entry
@@ -257,3 +284,23 @@ def _collect_descriptors(cls: type, *, own_only: bool = False) -> dict[str, list
         groups[desc.direction].append(var)
 
     return groups
+
+
+# ---------------------------------------------------------------------------
+# IEC 61131-3 standard function block types
+# ---------------------------------------------------------------------------
+# Pre-built VarDescriptor instances so users can write:
+#     heat_timer = TON
+# instead of:
+#     heat_timer = static_var("TON")
+
+TON = VarDescriptor(direction=VarDirection.STATIC, data_type=NamedTypeRef(name="TON"))
+TOF = VarDescriptor(direction=VarDirection.STATIC, data_type=NamedTypeRef(name="TOF"))
+TP = VarDescriptor(direction=VarDirection.STATIC, data_type=NamedTypeRef(name="TP"))
+R_TRIG = VarDescriptor(direction=VarDirection.STATIC, data_type=NamedTypeRef(name="R_TRIG"))
+F_TRIG = VarDescriptor(direction=VarDirection.STATIC, data_type=NamedTypeRef(name="F_TRIG"))
+CTU = VarDescriptor(direction=VarDirection.STATIC, data_type=NamedTypeRef(name="CTU"))
+CTD = VarDescriptor(direction=VarDirection.STATIC, data_type=NamedTypeRef(name="CTD"))
+CTUD = VarDescriptor(direction=VarDirection.STATIC, data_type=NamedTypeRef(name="CTUD"))
+SR = VarDescriptor(direction=VarDirection.STATIC, data_type=NamedTypeRef(name="SR"))
+RS = VarDescriptor(direction=VarDirection.STATIC, data_type=NamedTypeRef(name="RS"))

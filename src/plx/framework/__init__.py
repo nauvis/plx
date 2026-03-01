@@ -56,6 +56,18 @@ from ._descriptors import (
     inout_var,
     temp_var,
     constant_var,
+    external_var,
+    # IEC 61131-3 standard function block types
+    TON,
+    TOF,
+    TP,
+    R_TRIG,
+    F_TRIG,
+    CTU,
+    CTD,
+    CTUD,
+    SR,
+    RS,
 )
 
 from ._decorators import (
@@ -63,6 +75,11 @@ from ._decorators import (
     program,
     function,
     method,
+    interface,
+)
+
+from ._properties import (
+    fb_property,
 )
 
 from ._sfc import (
@@ -95,6 +112,8 @@ from ._compiler import (
     pulse,
     count_up,
     count_down,
+    set_dominant,
+    reset_dominant,
     CompileError,
 )
 
@@ -103,9 +122,19 @@ from ._discover import (
     DiscoveryResult,
 )
 
+from plx.export.py import (
+    generate,
+    generate_files,
+)
+
 from ._project import (
     project,
     task,
+)
+
+from ._vendor import (
+    Vendor,
+    VendorValidationError,
 )
 
 __all__ = [
@@ -154,11 +183,25 @@ __all__ = [
     "inout_var",
     "temp_var",
     "constant_var",
+    "external_var",
+    # IEC 61131-3 standard function block types
+    "TON",
+    "TOF",
+    "TP",
+    "R_TRIG",
+    "F_TRIG",
+    "CTU",
+    "CTD",
+    "CTUD",
+    "SR",
+    "RS",
     # POU decorators
     "fb",
     "program",
     "function",
     "method",
+    "interface",
+    "fb_property",
     # SFC
     "sfc",
     "step",
@@ -178,6 +221,8 @@ __all__ = [
     "pulse",
     "count_up",
     "count_down",
+    "set_dominant",
+    "reset_dominant",
     # Protocols
     "CompiledPOU",
     "CompiledDataType",
@@ -187,7 +232,13 @@ __all__ = [
     # Discovery
     "discover",
     "DiscoveryResult",
+    # Code generation
+    "generate",
+    "generate_files",
     # Project & tasks
     "project",
     "task",
+    # Vendor targeting
+    "Vendor",
+    "VendorValidationError",
 ]

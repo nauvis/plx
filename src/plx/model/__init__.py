@@ -1,5 +1,6 @@
 """Universal PLC Data Model — public API."""
 
+from ._base import IRModel
 from .expressions import (
     ArrayAccessExpr,
     BinaryExpr,
@@ -88,6 +89,8 @@ from .types import (
 from .variables import Variable
 
 __all__ = [
+    # base
+    "IRModel",
     # types — references
     "PrimitiveType",
     "PrimitiveTypeRef",

@@ -15,7 +15,9 @@ from __future__ import annotations
 from enum import Enum
 from typing import Annotated, Literal, Union
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
+
+from ._base import IRModel
 
 
 # ---------------------------------------------------------------------------
@@ -71,14 +73,14 @@ class PrimitiveType(str, Enum):
 # Type References (used in variable decls, expressions, return types, etc.)
 # ---------------------------------------------------------------------------
 
-class PrimitiveTypeRef(BaseModel):
+class PrimitiveTypeRef(IRModel):
     """Reference to a primitive type (BOOL, INT, REAL, etc.)."""
 
     kind: Literal["primitive"] = "primitive"
     type: PrimitiveType
 
 
-class StringTypeRef(BaseModel):
+class StringTypeRef(IRModel):
     """STRING or WSTRING with optional max length."""
 
     kind: Literal["string"] = "string"
@@ -86,14 +88,14 @@ class StringTypeRef(BaseModel):
     max_length: int | None = None
 
 
-class NamedTypeRef(BaseModel):
+class NamedTypeRef(IRModel):
     """Reference to a named type (UDT, FB type, system type, etc.)."""
 
     kind: Literal["named"] = "named"
     name: str
 
 
-class DimensionRange(BaseModel):
+class DimensionRange(IRModel):
     """Array dimension bounds (inclusive)."""
 
     lower: int = 0
@@ -108,7 +110,7 @@ class DimensionRange(BaseModel):
         return self
 
 
-class ArrayTypeRef(BaseModel):
+class ArrayTypeRef(IRModel):
     """Inline array type: ARRAY[lo..hi, lo..hi] OF element_type."""
 
     kind: Literal["array"] = "array"
@@ -116,14 +118,14 @@ class ArrayTypeRef(BaseModel):
     dimensions: list[DimensionRange]
 
 
-class PointerTypeRef(BaseModel):
+class PointerTypeRef(IRModel):
     """POINTER TO target_type."""
 
     kind: Literal["pointer"] = "pointer"
     target_type: TypeRef
 
 
-class ReferenceTypeRef(BaseModel):
+class ReferenceTypeRef(IRModel):
     """REFERENCE TO target_type."""
 
     kind: Literal["reference"] = "reference"
@@ -147,7 +149,7 @@ TypeRef = Annotated[
 # Type Definitions (live in project.data_types)
 # ---------------------------------------------------------------------------
 
-class StructMember(BaseModel):
+class StructMember(IRModel):
     """Member of a struct or union."""
 
     name: str
@@ -156,24 +158,34 @@ class StructMember(BaseModel):
     description: str = ""
 
 
-class StructType(BaseModel):
-    """Named struct type definition."""
+class StructType(IRModel):
+    """Named struct type definition.
+
+    ``folder`` is a forward-slash-delimited organizational path
+    (e.g. ``"Utilities/Motors"``).  Empty string means root / no folder.
+    Maps to Beckhoff folder tree, Siemens project navigator folders,
+    AB program containers.  Vendor raise passes map to their native model.
+    """
 
     kind: Literal["struct"] = "struct"
     name: str
     folder: str = ""
+    extends: str | None = None
     members: list[StructMember]
 
 
-class EnumMember(BaseModel):
+class EnumMember(IRModel):
     """Member of an enum type."""
 
     name: str
     value: int | None = None
 
 
-class EnumType(BaseModel):
-    """Named enum type definition."""
+class EnumType(IRModel):
+    """Named enum type definition.
+
+    ``folder``: see ``StructType`` for convention.
+    """
 
     kind: Literal["enum"] = "enum"
     name: str
@@ -182,8 +194,11 @@ class EnumType(BaseModel):
     base_type: PrimitiveType | None = None
 
 
-class UnionType(BaseModel):
-    """Named union type definition."""
+class UnionType(IRModel):
+    """Named union type definition.
+
+    ``folder``: see ``StructType`` for convention.
+    """
 
     kind: Literal["union"] = "union"
     name: str
@@ -191,8 +206,11 @@ class UnionType(BaseModel):
     members: list[StructMember]
 
 
-class AliasType(BaseModel):
-    """Type alias (typedef): TYPE MyAlias : base_type; END_TYPE."""
+class AliasType(IRModel):
+    """Type alias (typedef): TYPE MyAlias : base_type; END_TYPE.
+
+    ``folder``: see ``StructType`` for convention.
+    """
 
     kind: Literal["alias"] = "alias"
     name: str
@@ -200,8 +218,11 @@ class AliasType(BaseModel):
     base_type: TypeRef
 
 
-class SubrangeType(BaseModel):
-    """Constrained numeric subrange: TYPE Pct : INT(0..100); END_TYPE."""
+class SubrangeType(IRModel):
+    """Constrained numeric subrange: TYPE Pct : INT(0..100); END_TYPE.
+
+    ``folder``: see ``StructType`` for convention.
+    """
 
     kind: Literal["subrange"] = "subrange"
     name: str

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel
+from ._base import IRModel
 
 from .hardware import Controller
 from .pou import POU
@@ -13,20 +13,28 @@ from .types import TypeDefinition
 from .variables import Variable
 
 
-class GlobalVariableList(BaseModel):
+class GlobalVariableList(IRModel):
     """A named group of global variables.
 
     Maps to Beckhoff GVLs, Siemens tag tables, AB controller/program
     scoped tag collections.
+
+    ``folder`` is a forward-slash-delimited organizational path
+    (e.g. ``"Utilities/Motors"``).  Empty string means root / no folder.
+    Maps to Beckhoff folder tree, Siemens project navigator folders,
+    AB program containers.  Vendor raise passes map to their native model.
     """
 
     name: str
     folder: str = ""
+    scope: Literal["", "controller", "program"] = ""
     description: str = ""
+    qualified_only: bool = False
     variables: list[Variable] = []
+    metadata: dict[str, Any] = {}
 
 
-class LibraryReference(BaseModel):
+class LibraryReference(IRModel):
     """A reference to an external library dependency."""
 
     name: str
@@ -34,7 +42,7 @@ class LibraryReference(BaseModel):
     vendor: str | None = None
 
 
-class Project(BaseModel):
+class Project(IRModel):
     name: str
     description: str = ""
     controller: Controller | None = None

@@ -40,7 +40,7 @@ from plx.model.types import (
 )
 from plx.model.variables import Variable
 
-from ._compiler import (
+from ._compiler_core import (
     CompileError,
     _COUNTER_SENTINELS,
     _EDGE_SENTINELS,

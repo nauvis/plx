@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from enum import Enum
 
-from pydantic import BaseModel, model_validator
+from pydantic import model_validator
+
+from ._base import IRModel
 
 
 class TaskType(str, Enum):
@@ -14,7 +16,7 @@ class TaskType(str, Enum):
     STARTUP = "STARTUP"
 
 
-class Task(BaseModel):
+class Task(IRModel):
     name: str
     task_type: TaskType
     priority: int = 0

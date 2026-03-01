@@ -4,8 +4,8 @@ Provides decorators that compile Python classes into IR type definitions
 (``StructType`` and ``EnumType``).  These are used in ``project()`` via
 the ``data_types`` parameter and can be referenced in variable descriptors.
 
-``@enumeration`` is Beckhoff-only — Allen Bradley and Siemens lack native
-enum support.  This is analogous to the ``@method`` restriction on Rockwell.
+Enums are universal — the raise pass for AB/Siemens will lower
+``EnumType`` to DINT constants.
 
 Examples::
 
@@ -108,9 +108,6 @@ def enumeration(
     """Decorate a class as a PLC enumeration type definition.
 
     Can be used as ``@enumeration`` or ``@enumeration(base_type=DINT)``.
-
-    Note: Enumerations are Beckhoff-only — Allen Bradley and Siemens lack
-    native enum support.
 
     Examples::
 

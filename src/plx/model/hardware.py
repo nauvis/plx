@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from enum import Enum
 
-from pydantic import BaseModel
+from ._base import IRModel
 
 from .types import TypeRef
 
@@ -20,7 +20,7 @@ class IODirection(str, Enum):
     OUTPUT = "OUTPUT"
 
 
-class IOPoint(BaseModel):
+class IOPoint(IRModel):
     """A single I/O point that maps to a PLC variable."""
 
     address: str
@@ -30,7 +30,7 @@ class IOPoint(BaseModel):
     mapped_variable: str | None = None
 
 
-class Module(BaseModel):
+class Module(IRModel):
     """An I/O module (simplified — no rack/slot topology)."""
 
     name: str
@@ -39,7 +39,7 @@ class Module(BaseModel):
     io_points: list[IOPoint] = []
 
 
-class Controller(BaseModel):
+class Controller(IRModel):
     name: str
     model: str = ""
     vendor: str = ""

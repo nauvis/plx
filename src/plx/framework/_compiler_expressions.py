@@ -28,10 +28,11 @@ from plx.model.expressions import (
 )
 from plx.model.types import NamedTypeRef, PrimitiveType, PrimitiveTypeRef, TypeRef
 
-from ._compiler import (
+from ._compiler_core import (
     CompileError,
     _BIT_ACCESS_RE,
     _BINOP_MAP,
+    _BISTABLE_SENTINELS,
     _BUILTIN_FUNCS,
     _CMPOP_MAP,
     _COUNTER_SENTINELS,
@@ -187,6 +188,10 @@ class _ExpressionMixin:
             # Counter sentinels: count_up, count_down
             if name in _COUNTER_SENTINELS:
                 return self._compile_counter_sentinel(name, node)
+
+            # Bistable sentinels: set_dominant, reset_dominant
+            if name in _BISTABLE_SENTINELS:
+                return self._compile_bistable_sentinel(name, node)
 
             # System flag sentinels: first_scan
             if name in _SYSTEM_FLAG_SENTINELS:

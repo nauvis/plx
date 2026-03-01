@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from enum import Enum
 
-from pydantic import BaseModel, model_validator
+from pydantic import model_validator
+
+from ._base import IRModel
 
 from .expressions import Expression
 from .statements import Statement
@@ -26,7 +28,7 @@ class ActionQualifier(str, Enum):
     SL = "SL"     # Stored and time-limited
 
 
-class Action(BaseModel):
+class Action(IRModel):
     name: str
     qualifier: ActionQualifier = ActionQualifier.N
     duration: str | None = None
@@ -44,7 +46,7 @@ class Action(BaseModel):
         return self
 
 
-class Step(BaseModel):
+class Step(IRModel):
     name: str
     is_initial: bool = False
     actions: list[Action] = []
@@ -52,7 +54,7 @@ class Step(BaseModel):
     exit_actions: list[Action] = []
 
 
-class Transition(BaseModel):
+class Transition(IRModel):
     """An SFC transition.
 
     Divergence/convergence is encoded by the graph structure:
@@ -78,7 +80,7 @@ class Transition(BaseModel):
         return self
 
 
-class SFCBody(BaseModel):
+class SFCBody(IRModel):
     steps: list[Step] = []
     transitions: list[Transition] = []
 

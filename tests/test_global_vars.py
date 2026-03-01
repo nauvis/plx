@@ -520,3 +520,53 @@ class TestGlobalVarsFolderKwarg:
         compiled = DescFolderGVL.compile()
         assert compiled.folder == "io"
         assert compiled.description == "IO signals"
+
+
+# ---------------------------------------------------------------------------
+# scope= kwarg
+# ---------------------------------------------------------------------------
+
+class TestGlobalVarsScopeKwarg:
+    def test_scope_controller(self):
+        @global_vars(scope="controller")
+        class ControllerTags:
+            speed: REAL = 0.0
+
+        gvl = ControllerTags.compile()
+        assert gvl.scope == "controller"
+
+    def test_scope_program(self):
+        @global_vars(scope="program")
+        class ProgramTags:
+            local_flag: BOOL = False
+
+        gvl = ProgramTags.compile()
+        assert gvl.scope == "program"
+
+    def test_scope_default_empty(self):
+        @global_vars
+        class NoScope:
+            x: INT = 0
+
+        assert NoScope.compile().scope == ""
+
+    def test_scope_with_folder_and_description(self):
+        @global_vars(description="Motor IO", folder="io/motors", scope="controller")
+        class MotorIO:
+            run = global_var(BOOL, address="%Q0.0")
+
+        gvl = MotorIO.compile()
+        assert gvl.scope == "controller"
+        assert gvl.folder == "io/motors"
+        assert gvl.description == "Motor IO"
+
+    def test_scope_json_roundtrip(self):
+        @global_vars(scope="controller")
+        class ScopeRT:
+            v: BOOL = True
+
+        compiled = ScopeRT.compile()
+        json_str = compiled.model_dump_json()
+        restored = GlobalVariableList.model_validate_json(json_str)
+        assert restored.scope == "controller"
+        assert restored == compiled

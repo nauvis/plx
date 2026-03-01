@@ -22,9 +22,10 @@ from plx.model.statements import FBInvocation
 from plx.model.types import NamedTypeRef, PrimitiveType, PrimitiveTypeRef
 from plx.model.variables import Variable
 
-from ._compiler import (
+from ._compiler_core import (
     CompileContext,
     CompileError,
+    _BISTABLE_SENTINELS,
     _COUNTER_SENTINELS,
     _EDGE_SENTINELS,
     _SYSTEM_FLAG_SENTINELS,
@@ -213,6 +214,37 @@ class _SentinelMixin:
         return MemberAccessExpr(
             struct=VariableRef(name=instance_name),
             member="Q",
+        )
+
+    def _compile_bistable_sentinel(self, name: str, node: ast.Call) -> Expression:
+        """Compile set_dominant/reset_dominant sentinel into SR/RS."""
+        fb_type, set_input, reset_input = _BISTABLE_SENTINELS[name]
+
+        if len(node.args) < 2:
+            raise CompileError(
+                f"{name}() requires two arguments: set_signal and reset_signal",
+                node, self.ctx,
+            )
+
+        set_signal = self.compile_expression(node.args[0])
+        reset_signal = self.compile_expression(node.args[1])
+
+        instance_name = self.ctx.next_auto_name(fb_type.lower())
+
+        self.ctx.generated_static_vars.append(Variable(
+            name=instance_name,
+            data_type=NamedTypeRef(name=fb_type),
+        ))
+
+        self.ctx.pending_fb_invocations.append(FBInvocation(
+            instance_name=instance_name,
+            fb_type=fb_type,
+            inputs={set_input: set_signal, reset_input: reset_signal},
+        ))
+
+        return MemberAccessExpr(
+            struct=VariableRef(name=instance_name),
+            member="Q1",
         )
 
     def _compile_system_flag_sentinel(self, name: str, node: ast.Call) -> Expression:

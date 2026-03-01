@@ -5,7 +5,9 @@ from __future__ import annotations
 from enum import Enum
 from typing import Annotated, Literal, Union
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from ._base import IRModel
 
 from .types import TypeRef
 
@@ -14,7 +16,7 @@ class SystemFlag(str, Enum):
     FIRST_SCAN = "first_scan"
 
 
-class SystemFlagExpr(BaseModel):
+class SystemFlagExpr(IRModel):
     """Reference to a system-level PLC flag (e.g. first scan)."""
 
     kind: Literal["system_flag"] = "system_flag"
@@ -48,7 +50,7 @@ class UnaryOp(str, Enum):
     NOT = "NOT"
 
 
-class LiteralExpr(BaseModel):
+class LiteralExpr(IRModel):
     """A typed constant value (e.g. TRUE, 42, 3.14, T#5s)."""
 
     kind: Literal["literal"] = "literal"
@@ -56,27 +58,27 @@ class LiteralExpr(BaseModel):
     data_type: TypeRef | None = None
 
 
-class VariableRef(BaseModel):
+class VariableRef(IRModel):
     """Reference to a variable by name."""
 
     kind: Literal["variable_ref"] = "variable_ref"
     name: str
 
 
-class BinaryExpr(BaseModel):
+class BinaryExpr(IRModel):
     kind: Literal["binary"] = "binary"
     op: BinaryOp
     left: Expression
     right: Expression
 
 
-class UnaryExpr(BaseModel):
+class UnaryExpr(IRModel):
     kind: Literal["unary"] = "unary"
     op: UnaryOp
     operand: Expression
 
 
-class CallArg(BaseModel):
+class CallArg(IRModel):
     """A single argument in a function/FB call.
 
     Positional if *name* is None, named otherwise.
@@ -86,7 +88,7 @@ class CallArg(BaseModel):
     value: Expression
 
 
-class FunctionCallExpr(BaseModel):
+class FunctionCallExpr(IRModel):
     """Inline function call that returns a value."""
 
     kind: Literal["function_call"] = "function_call"
@@ -94,7 +96,7 @@ class FunctionCallExpr(BaseModel):
     args: list[CallArg] = []
 
 
-class ArrayAccessExpr(BaseModel):
+class ArrayAccessExpr(IRModel):
     """Array subscript: arr[i] or arr[i, j]."""
 
     kind: Literal["array_access"] = "array_access"
@@ -102,7 +104,7 @@ class ArrayAccessExpr(BaseModel):
     indices: list[Expression]
 
 
-class MemberAccessExpr(BaseModel):
+class MemberAccessExpr(IRModel):
     """Struct/FB member access: expr.member."""
 
     kind: Literal["member_access"] = "member_access"
@@ -110,7 +112,7 @@ class MemberAccessExpr(BaseModel):
     member: str
 
 
-class BitAccessExpr(BaseModel):
+class BitAccessExpr(IRModel):
     """Bit-level access on an integer/word variable: var.bit5."""
 
     kind: Literal["bit_access"] = "bit_access"
@@ -118,7 +120,7 @@ class BitAccessExpr(BaseModel):
     bit_index: int
 
 
-class TypeConversionExpr(BaseModel):
+class TypeConversionExpr(IRModel):
     """Explicit type conversion: INT_TO_REAL(x)."""
 
     kind: Literal["type_conversion"] = "type_conversion"

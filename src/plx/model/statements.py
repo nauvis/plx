@@ -4,30 +4,32 @@ from __future__ import annotations
 
 from typing import Annotated, Literal, Union
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
+
+from ._base import IRModel
 
 from .expressions import CallArg, Expression
 
 
-class Assignment(BaseModel):
+class Assignment(IRModel):
     kind: Literal["assignment"] = "assignment"
     target: Expression
     value: Expression
 
 
-class IfBranch(BaseModel):
+class IfBranch(IRModel):
     condition: Expression
     body: list[Statement]
 
 
-class IfStatement(BaseModel):
+class IfStatement(IRModel):
     kind: Literal["if"] = "if"
     if_branch: IfBranch
     elsif_branches: list[IfBranch] = []
     else_body: list[Statement] = []
 
 
-class CaseRange(BaseModel):
+class CaseRange(IRModel):
     """An inclusive integer range for a CASE branch (e.g. 20..29)."""
 
     start: int
@@ -42,7 +44,7 @@ class CaseRange(BaseModel):
         return self
 
 
-class CaseBranch(BaseModel):
+class CaseBranch(IRModel):
     """One branch of a CASE statement.
 
     Matches if the selector equals any value in *values*
@@ -54,14 +56,14 @@ class CaseBranch(BaseModel):
     body: list[Statement] = []
 
 
-class CaseStatement(BaseModel):
+class CaseStatement(IRModel):
     kind: Literal["case"] = "case"
     selector: Expression
     branches: list[CaseBranch]
     else_body: list[Statement] = []
 
 
-class ForStatement(BaseModel):
+class ForStatement(IRModel):
     kind: Literal["for"] = "for"
     loop_var: str
     from_expr: Expression
@@ -70,32 +72,32 @@ class ForStatement(BaseModel):
     body: list[Statement]
 
 
-class WhileStatement(BaseModel):
+class WhileStatement(IRModel):
     kind: Literal["while"] = "while"
     condition: Expression
     body: list[Statement]
 
 
-class RepeatStatement(BaseModel):
+class RepeatStatement(IRModel):
     kind: Literal["repeat"] = "repeat"
     body: list[Statement]
     until: Expression
 
 
-class ExitStatement(BaseModel):
+class ExitStatement(IRModel):
     kind: Literal["exit"] = "exit"
 
 
-class ContinueStatement(BaseModel):
+class ContinueStatement(IRModel):
     kind: Literal["continue"] = "continue"
 
 
-class ReturnStatement(BaseModel):
+class ReturnStatement(IRModel):
     kind: Literal["return"] = "return"
     value: Expression | None = None
 
 
-class FunctionCallStatement(BaseModel):
+class FunctionCallStatement(IRModel):
     """Call a function as a statement (discarding return value)."""
 
     kind: Literal["function_call_stmt"] = "function_call_stmt"
@@ -103,7 +105,7 @@ class FunctionCallStatement(BaseModel):
     args: list[CallArg] = []
 
 
-class FBInvocation(BaseModel):
+class FBInvocation(IRModel):
     """Invoke a function block instance.
 
     *inputs*: parameter_name → value expression  (the := assignments)
@@ -117,7 +119,7 @@ class FBInvocation(BaseModel):
     outputs: dict[str, Expression] = {}
 
 
-class EmptyStatement(BaseModel):
+class EmptyStatement(IRModel):
     kind: Literal["empty"] = "empty"
 
 

@@ -108,6 +108,19 @@ def to_structured_text(target: Union[Project, POU], *, source_map: bool = False)
     return st_text, smap
 
 
+def format_statement(stmt: Statement) -> str:
+    """Format a single IR statement as Structured Text."""
+    w = STWriter()
+    w._write_stmt(stmt)
+    return w.getvalue().rstrip("\n")
+
+
+def format_expression(expr: Expression) -> str:
+    """Format a single IR expression as Structured Text."""
+    w = STWriter()
+    return w._expr(expr)
+
+
 # ---------------------------------------------------------------------------
 # Operator maps
 # ---------------------------------------------------------------------------
@@ -235,7 +248,10 @@ class STWriter:
             self._write_subrange_type(td)
 
     def _write_struct_type(self, td: StructType) -> None:
-        self._line(f"TYPE {td.name} :")
+        if td.extends:
+            self._line(f"TYPE {td.name} EXTENDS {td.extends} :")
+        else:
+            self._line(f"TYPE {td.name} :")
         self._line("STRUCT")
         self._indent_inc()
         for m in td.members:
@@ -295,6 +311,8 @@ class STWriter:
     def write_global_variable_list(self, gvl: GlobalVariableList) -> None:
         if gvl.description:
             self._line(f"// {gvl.description}")
+        if gvl.qualified_only:
+            self._line("{attribute 'qualified_only'}")
         self._line("VAR_GLOBAL")
         self._indent_inc()
         for v in gvl.variables:
@@ -313,6 +331,8 @@ class STWriter:
 
         # Header
         keyword = pou.pou_type.value
+        if pou.abstract:
+            keyword = f"{keyword} ABSTRACT"
         header = f"{keyword} {pou.name}"
         if pou.extends:
             header += f" EXTENDS {pou.extends}"
@@ -372,6 +392,7 @@ class STWriter:
         self._write_var_block("VAR", iface.static_vars)
         self._write_var_block("VAR_TEMP", iface.temp_vars)
         self._write_var_block("VAR CONSTANT", iface.constant_vars)
+        self._write_var_block("VAR_EXTERNAL", iface.external_vars)
 
     def _write_var_block(self, keyword: str, variables: list[Variable]) -> None:
         if not variables:
@@ -698,6 +719,10 @@ class STWriter:
         header = f"METHOD"
         if method.access != AccessSpecifier.PUBLIC:
             header += f" {method.access.value}"
+        if method.abstract:
+            header += " ABSTRACT"
+        if method.final:
+            header += " FINAL"
         header += f" {method.name}"
         if method.return_type is not None:
             header += f" : {self._type_ref(method.return_type)}"
@@ -721,6 +746,10 @@ class STWriter:
         header = f"PROPERTY"
         if prop.access != AccessSpecifier.PUBLIC:
             header += f" {prop.access.value}"
+        if prop.abstract:
+            header += " ABSTRACT"
+        if prop.final:
+            header += " FINAL"
         header += f" {prop.name} : {self._type_ref(prop.data_type)}"
         self._line(header)
 
@@ -758,6 +787,7 @@ def _collect_variable_names(target: Union[Project, POU]) -> set[str]:
         for var_list in (
             iface.input_vars, iface.output_vars, iface.inout_vars,
             iface.static_vars, iface.temp_vars, iface.constant_vars,
+            iface.external_vars,
         ):
             for v in var_list:
                 names.add(v.name)
@@ -766,7 +796,7 @@ def _collect_variable_names(target: Union[Project, POU]) -> set[str]:
 
 _VAR_BLOCK_KEYWORDS = frozenset({
     "VAR_INPUT", "VAR_OUTPUT", "VAR_IN_OUT", "VAR", "VAR_TEMP",
-    "VAR CONSTANT", "VAR_GLOBAL",
+    "VAR CONSTANT", "VAR_GLOBAL", "VAR_EXTERNAL",
 })
 
 

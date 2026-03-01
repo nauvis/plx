@@ -26,7 +26,7 @@ Examples::
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from plx.model.project import GlobalVariableList
 from plx.model.types import PrimitiveType, TypeRef
@@ -115,6 +115,7 @@ def global_vars(
     *,
     description: str = "",
     folder: str = "",
+    scope: Literal["", "controller", "program"] = "",
 ) -> Any:
     """Decorate a class as a global variable list.
 
@@ -181,6 +182,7 @@ def global_vars(
         compiled = GlobalVariableList(
             name=cls.__name__,
             folder=folder,
+            scope=scope,
             description=description,
             variables=variables,
         )

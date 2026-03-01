@@ -29,14 +29,21 @@ from plx.model.pou import (
 from plx.model.types import TypeRef
 from plx.model.variables import Variable
 
-from ._compiler import ASTCompiler, CompileContext, CompileError, resolve_annotation
+from ._compiler import ASTCompiler
+from ._compiler_core import CompileContext, CompileError, resolve_annotation
 from ._compilation_helpers import (
     _build_compile_context,
+    _build_var_context,
+    _detect_parent_pou,
     _discover_enums,
     _parse_function_source,
 )
-from ._descriptors import VarDescriptor, VarDirection, _collect_descriptors
-from ._protocols import CompiledPOU
+from ._descriptors import VarDescriptor, VarDirection
+from ._properties import (
+    PropDescriptor,
+    _collect_properties,
+    _compile_property,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -333,34 +340,6 @@ def _split_body_by_comments(
 # Core compilation pipeline
 # ---------------------------------------------------------------------------
 
-def _detect_parent_pou(cls: type) -> str | None:
-    """Walk MRO to find the first parent with a compiled POU (inheritance)."""
-    for base in cls.__mro__[1:]:
-        if base is object:
-            continue
-        if isinstance(base, CompiledPOU):
-            return base._compiled_pou.name
-    return None
-
-
-def _build_var_context(
-    cls: type,
-) -> tuple[dict[str, list], dict[str, VarDirection], dict[str, TypeRef]]:
-    """Collect descriptors and build declared_vars + static_var_types maps."""
-    var_groups = _collect_descriptors(cls)
-    declared_vars: dict[str, VarDirection] = {}
-    static_var_types: dict[str, TypeRef] = {}
-
-    for direction_str, var_list in var_groups.items():
-        direction = VarDirection(direction_str)
-        for v in var_list:
-            declared_vars[v.name] = direction
-            if direction is VarDirection.STATIC:
-                static_var_types[v.name] = v.data_type
-
-    return var_groups, declared_vars, static_var_types
-
-
 def _parse_logic_source(cls: type) -> tuple[ast.FunctionDef, str, int]:
     """Extract logic() source, parse to AST, validate signature.
 
@@ -416,11 +395,33 @@ def _compile_all_methods(
     return compiled_methods
 
 
+def _compile_all_properties(
+    cls: type,
+    declared_vars: dict[str, VarDirection],
+    static_var_types: dict[str, TypeRef],
+    source_file: str,
+) -> list:
+    """Compile all @fb_property-decorated properties on *cls*."""
+    from plx.model.pou import Property as PropertyModel
+    compiled: list[PropertyModel] = []
+    for prop_name, marker in _collect_properties(cls):
+        compiled.append(_compile_property(
+            prop_name=prop_name,
+            marker=marker,
+            cls=cls,
+            declared_vars=declared_vars,
+            static_var_types=static_var_types,
+            source_file=source_file,
+        ))
+    return compiled
+
+
 def _compile_pou_class(
     cls: type,
     pou_type: POUType,
     language: Language | None = None,
     folder: str = "",
+    implements: list[str] | None = None,
 ) -> type:
     """Core compilation pipeline shared by @fb, @program, @function."""
 
@@ -454,6 +455,7 @@ def _compile_pou_class(
 
     networks = _compile_logic_networks(func_def, ctx, source)
     compiled_methods = _compile_all_methods(cls, declared_vars, static_var_types, source_file)
+    compiled_properties = _compile_all_properties(cls, declared_vars, static_var_types, source_file)
 
     interface = POUInterface(
         input_vars=var_groups["input"],
@@ -462,6 +464,7 @@ def _compile_pou_class(
         static_vars=var_groups["static"] + ctx.generated_static_vars,
         temp_vars=var_groups["temp"] + ctx.generated_temp_vars,
         constant_vars=var_groups["constant"],
+        external_vars=var_groups["external"],
     )
 
     pou = POU(
@@ -471,9 +474,11 @@ def _compile_pou_class(
         language=language,
         return_type=return_type,
         extends=extends,
+        implements=implements or [],
         interface=interface,
         networks=networks,
         methods=compiled_methods,
+        properties=compiled_properties,
     )
 
     cls._compiled_pou = pou
@@ -490,32 +495,6 @@ def _compile_pou_class(
 # ---------------------------------------------------------------------------
 # Public decorators
 # ---------------------------------------------------------------------------
-
-def fb(cls: type = None, *, language: str | None = None, folder: str = "") -> Any:
-    """Decorate a class as a FUNCTION_BLOCK POU.
-
-    Example::
-
-        @fb
-        class MyFB:
-            sensor = input_var(BOOL)
-            output = output_var(BOOL)
-
-            def logic(self):
-                self.output = self.sensor
-
-        @fb(language="LD")
-        class LadderFB:
-            ...
-    """
-    lang = _validate_language(language)
-    if cls is not None:
-        return _compile_pou_class(cls, POUType.FUNCTION_BLOCK, language=lang, folder=folder)
-
-    def decorator(c: type) -> type:
-        return _compile_pou_class(c, POUType.FUNCTION_BLOCK, language=lang, folder=folder)
-    return decorator
-
 
 def program(cls: type = None, *, language: str | None = None, folder: str = "") -> Any:
     """Decorate a class as a PROGRAM POU.
@@ -542,6 +521,51 @@ def program(cls: type = None, *, language: str | None = None, folder: str = "") 
     return decorator
 
 
+def fb(cls: type = None, *, language: str | None = None, folder: str = "", implements: list[type] | None = None) -> Any:
+    """Decorate a class as a FUNCTION_BLOCK POU.
+
+    Example::
+
+        @fb
+        class MyFB:
+            sensor = input_var(BOOL)
+            output = output_var(BOOL)
+
+            def logic(self):
+                self.output = self.sensor
+
+        @fb(language="LD")
+        class LadderFB:
+            ...
+
+        @fb(implements=[IMoveable])
+        class Motor:
+            ...
+    """
+    lang = _validate_language(language)
+    impl = _resolve_implements(implements)
+    if cls is not None:
+        return _compile_pou_class(cls, POUType.FUNCTION_BLOCK, language=lang, folder=folder, implements=impl)
+
+    def decorator(c: type) -> type:
+        return _compile_pou_class(c, POUType.FUNCTION_BLOCK, language=lang, folder=folder, implements=impl)
+    return decorator
+
+
+def _resolve_implements(implements: list[type] | None) -> list[str]:
+    """Resolve implements list to interface names."""
+    if implements is None:
+        return []
+    names: list[str] = []
+    for iface_cls in implements:
+        if not getattr(iface_cls, "__plx_interface__", False):
+            raise CompileError(
+                f"'{iface_cls.__name__}' is not an @interface-decorated class"
+            )
+        names.append(iface_cls._compiled_pou.name)
+    return names
+
+
 def function(cls: type = None, *, language: str | None = None, folder: str = "") -> Any:
     """Decorate a class as a FUNCTION POU.
 
@@ -565,3 +589,106 @@ def function(cls: type = None, *, language: str | None = None, folder: str = "")
     def decorator(c: type) -> type:
         return _compile_pou_class(c, POUType.FUNCTION, language=lang, folder=folder)
     return decorator
+
+
+# ---------------------------------------------------------------------------
+# @interface decorator
+# ---------------------------------------------------------------------------
+
+def interface(cls: type) -> type:
+    """Decorate a class as an IEC 61131-3 INTERFACE.
+
+    Methods decorated with ``@method`` are collected as signatures only
+    (parameters + return type, no body compilation).  Supports ``extends``
+    via Python class inheritance from another ``@interface``.
+
+    Example::
+
+        @interface
+        class IMoveable:
+            @method
+            def move_to(self, target: REAL) -> BOOL: ...
+
+        @interface
+        class IResettable(IMoveable):
+            @method
+            def reset(self): ...
+    """
+    # Determine extends from parent interfaces
+    extends: str | None = None
+    for base in cls.__mro__[1:]:
+        if base is object:
+            continue
+        if getattr(base, "__plx_interface__", False):
+            extends = base._compiled_pou.name
+            break
+
+    # Collect @method-decorated functions as signatures only
+    method_irs: list[Method] = []
+    for method_name, method_func, method_access in _collect_methods(cls):
+        # Extract parameters and return type — no body compilation
+        func_def, _, _ = _parse_function_source(
+            method_func,
+            f"{cls.__name__}.{method_name}()",
+            validate_self_only=False,
+        )
+
+        method_input_vars: list[Variable] = []
+        for arg in func_def.args.args:
+            if arg.arg == "self":
+                continue
+            if arg.annotation is None:
+                raise CompileError(
+                    f"Interface method parameter '{arg.arg}' in "
+                    f"{cls.__name__}.{method_name}() must have a type annotation"
+                )
+            type_ref = resolve_annotation(
+                arg.annotation,
+                location_hint=f"{cls.__name__}.{method_name}()",
+            )
+            method_input_vars.append(Variable(name=arg.arg, data_type=type_ref))
+
+        return_type: TypeRef | None = None
+        if func_def.returns is not None:
+            return_type = resolve_annotation(
+                func_def.returns,
+                location_hint=f"{cls.__name__}.{method_name}()",
+            )
+
+        method_irs.append(Method(
+            name=method_name,
+            return_type=return_type,
+            access=method_access,
+            interface=POUInterface(input_vars=method_input_vars),
+        ))
+
+    # Collect @fb_property signatures
+    property_irs = []
+    for prop_name, marker in _collect_properties(cls):
+        from plx.model.pou import Property as PropertyModel
+        property_irs.append(PropertyModel(
+            name=prop_name,
+            data_type=marker.data_type,
+            access=marker.access,
+            abstract=marker.abstract,
+            final=marker.final,
+        ))
+
+    pou = POU(
+        pou_type=POUType.INTERFACE,
+        name=cls.__name__,
+        extends=extends,
+        methods=method_irs,
+        properties=property_irs,
+    )
+
+    cls._compiled_pou = pou
+    cls.__plx_interface__ = True
+
+    @classmethod
+    def compile(klass: type) -> POU:
+        return klass._compiled_pou
+
+    cls.compile = compile
+
+    return cls

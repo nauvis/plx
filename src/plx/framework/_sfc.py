@@ -37,17 +37,16 @@ from plx.model.sfc import (
 from plx.model.types import TypeRef
 from plx.model.variables import Variable
 
-from ._compiler import ASTCompiler, CompileContext, CompileError
+from ._compiler import ASTCompiler
+from ._compiler_core import CompileError
 from ._compilation_helpers import (
     _build_compile_context,
+    _build_var_context,
+    _detect_parent_pou,
     _discover_enums,
     _parse_function_source,
 )
-from ._decorators import (
-    _build_var_context,
-    _compile_all_methods,
-    _detect_parent_pou,
-)
+from ._decorators import _compile_all_methods, _compile_all_properties
 from ._descriptors import VarDirection
 
 
@@ -519,6 +518,9 @@ def _compile_sfc_class(cls: type, pou_type: POUType, folder: str = "") -> type:
     compiled_methods = _compile_all_methods(
         cls, declared_vars, static_var_types, source_file,
     )
+    compiled_properties = _compile_all_properties(
+        cls, declared_vars, static_var_types, source_file,
+    )
 
     interface = POUInterface(
         input_vars=var_groups["input"],
@@ -527,6 +529,7 @@ def _compile_sfc_class(cls: type, pou_type: POUType, folder: str = "") -> type:
         static_vars=var_groups["static"] + all_generated_static,
         temp_vars=var_groups["temp"] + all_generated_temp,
         constant_vars=var_groups["constant"],
+        external_vars=var_groups["external"],
     )
 
     pou = POU(
@@ -537,6 +540,7 @@ def _compile_sfc_class(cls: type, pou_type: POUType, folder: str = "") -> type:
         interface=interface,
         sfc_body=sfc_body,
         methods=compiled_methods,
+        properties=compiled_properties,
     )
 
     cls._compiled_pou = pou

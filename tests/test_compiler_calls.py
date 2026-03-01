@@ -429,3 +429,72 @@ if first_scan() and self.enable:
         assert isinstance(cond, BinaryExpr)
         assert isinstance(cond.left, SystemFlagExpr)
         assert isinstance(cond.right, VariableRef)
+
+
+# ---------------------------------------------------------------------------
+# Bistable sentinels (set_dominant, reset_dominant)
+# ---------------------------------------------------------------------------
+
+class TestSetDominant:
+    def test_basic(self):
+        ctx = CompileContext()
+        stmts = compile_stmts("self.output = set_dominant(self.set_sig, self.reset_sig)", ctx)
+        assert len(stmts) == 2
+        assert isinstance(stmts[0], FBInvocation)
+        assert stmts[0].fb_type == "SR"
+        assert "SET1" in stmts[0].inputs
+        assert "RESET" in stmts[0].inputs
+
+        assert isinstance(stmts[1], Assignment)
+        assert isinstance(stmts[1].value, MemberAccessExpr)
+        assert stmts[1].value.member == "Q1"
+
+    def test_generates_static_var(self):
+        ctx = CompileContext()
+        compile_stmts("self.output = set_dominant(self.s, self.r)", ctx)
+        assert len(ctx.generated_static_vars) == 1
+        var = ctx.generated_static_vars[0]
+        assert var.data_type == NamedTypeRef(name="SR")
+        assert var.name.startswith("__sr_")
+
+    def test_requires_two_args(self):
+        import pytest
+        ctx = CompileContext()
+        with pytest.raises(Exception, match="two arguments"):
+            compile_stmts("self.output = set_dominant(self.s)", ctx)
+
+
+class TestResetDominant:
+    def test_basic(self):
+        ctx = CompileContext()
+        stmts = compile_stmts("self.output = reset_dominant(self.set_sig, self.reset_sig)", ctx)
+        assert len(stmts) == 2
+        assert isinstance(stmts[0], FBInvocation)
+        assert stmts[0].fb_type == "RS"
+        assert "SET" in stmts[0].inputs
+        assert "RESET1" in stmts[0].inputs
+
+        assert isinstance(stmts[1], Assignment)
+        assert isinstance(stmts[1].value, MemberAccessExpr)
+        assert stmts[1].value.member == "Q1"
+
+    def test_generates_static_var(self):
+        ctx = CompileContext()
+        compile_stmts("self.output = reset_dominant(self.s, self.r)", ctx)
+        assert len(ctx.generated_static_vars) == 1
+        var = ctx.generated_static_vars[0]
+        assert var.data_type == NamedTypeRef(name="RS")
+        assert var.name.startswith("__rs_")
+
+    def test_in_if_condition(self):
+        ctx = CompileContext()
+        stmts = compile_stmts("""\
+if reset_dominant(self.s, self.r):
+    self.active = True
+""", ctx)
+        assert len(stmts) == 2
+        assert isinstance(stmts[0], FBInvocation)
+        assert isinstance(stmts[1], IfStatement)
+        cond = stmts[1].if_branch.condition
+        assert isinstance(cond, MemberAccessExpr)
+        assert cond.member == "Q1"

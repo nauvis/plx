@@ -12,6 +12,7 @@ from plx.framework._descriptors import (
     inout_var,
     temp_var,
     constant_var,
+    external_var,
 )
 from plx.framework._types import T, LT, TimeLiteral
 from plx.model.types import (
@@ -359,3 +360,35 @@ class TestConstantVarIntegration:
         assert cv.name == "MAX_RPM"
         assert cv.constant is True
         assert cv.initial_value == "3600.0"
+
+
+# ---------------------------------------------------------------------------
+# external_var
+# ---------------------------------------------------------------------------
+
+class TestExternalVar:
+    def test_basic(self):
+        v = external_var(PrimitiveType.REAL)
+        assert isinstance(v, VarDescriptor)
+        assert v.direction == "external"
+        assert v.data_type == PrimitiveTypeRef(type=PrimitiveType.REAL)
+        assert v.initial_value is None
+        assert v.description == ""
+
+    def test_with_description(self):
+        v = external_var(PrimitiveType.INT, description="Global counter")
+        assert v.description == "Global counter"
+
+    def test_string_type(self):
+        v = external_var("SystemConfig")
+        assert v.data_type == NamedTypeRef(name="SystemConfig")
+
+    def test_collect_descriptors_includes_external(self):
+        class MyProg:
+            speed = external_var(PrimitiveType.REAL)
+            cmd = input_var(PrimitiveType.BOOL)
+
+        groups = _collect_descriptors(MyProg)
+        assert len(groups["external"]) == 1
+        assert groups["external"][0].name == "speed"
+        assert len(groups["input"]) == 1
