@@ -11,8 +11,11 @@ from typing import Any
 from plx.model.pou import POU, POUType
 from plx.model.project import Project
 from plx.model.task import Task, TaskType
+from plx.model.types import ArrayTypeRef, NamedTypeRef
+from plx.model.variables import Variable
 
 from ._protocols import CompiledDataType, CompiledGlobalVarList, CompiledPOU
+from ._registry import lookup_pou, lookup_type
 from ._types import TimeLiteral, LTimeLiteral
 from ._vendor import Vendor, validate_target
 
@@ -158,6 +161,89 @@ def task(
 
 
 # ---------------------------------------------------------------------------
+# Transitive dependency resolution
+# ---------------------------------------------------------------------------
+
+def _collect_named_refs(variables: list[Variable]) -> set[str]:
+    """Extract all NamedTypeRef names from a list of variables."""
+    names: set[str] = set()
+    for var in variables:
+        _collect_type_ref_names(var.data_type, names)
+    return names
+
+
+def _collect_type_ref_names(type_ref: object, names: set[str]) -> None:
+    """Recursively extract NamedTypeRef names from a TypeRef."""
+    if isinstance(type_ref, NamedTypeRef):
+        names.add(type_ref.name)
+    elif isinstance(type_ref, ArrayTypeRef):
+        _collect_type_ref_names(type_ref.element_type, names)
+
+
+def _resolve_transitive_deps(
+    pou_classes: list[type],
+    data_type_classes: list[type],
+) -> None:
+    """Walk compiled POUs to find referenced POUs/types and add them.
+
+    Modifies *pou_classes* and *data_type_classes* in place.  Looks up
+    names via the global registry; unresolved names (IEC standard types
+    like TON, TOF, etc.) are silently skipped.
+    """
+    pou_ids: set[int] = {id(c) for c in pou_classes}
+    type_ids: set[int] = {id(c) for c in data_type_classes}
+
+    # Queue: POU classes whose dependencies haven't been examined yet
+    queue = list(pou_classes)
+    while queue:
+        cls = queue.pop()
+        pou: POU = cls.compile()
+
+        # Collect all NamedTypeRef names from this POU
+        names: set[str] = set()
+
+        # Interface vars (all sections)
+        iface = pou.interface
+        for var_list in (
+            iface.input_vars, iface.output_vars, iface.inout_vars,
+            iface.static_vars, iface.temp_vars, iface.constant_vars,
+            iface.external_vars,
+        ):
+            names |= _collect_named_refs(var_list)
+
+        # Methods — their interfaces too
+        for m in pou.methods:
+            mi = m.interface
+            for var_list in (
+                mi.input_vars, mi.output_vars, mi.inout_vars,
+                mi.static_vars, mi.temp_vars, mi.constant_vars,
+                mi.external_vars,
+            ):
+                names |= _collect_named_refs(var_list)
+
+        # FB inheritance
+        if pou.extends:
+            names.add(pou.extends)
+
+        # Implements
+        for iface_name in pou.implements:
+            names.add(iface_name)
+
+        # Resolve each name
+        for name in names:
+            dep_pou = lookup_pou(name)
+            if dep_pou is not None and id(dep_pou) not in pou_ids:
+                pou_classes.append(dep_pou)
+                pou_ids.add(id(dep_pou))
+                queue.append(dep_pou)
+
+            dep_type = lookup_type(name)
+            if dep_type is not None and id(dep_type) not in type_ids:
+                data_type_classes.append(dep_type)
+                type_ids.add(id(dep_type))
+
+
+# ---------------------------------------------------------------------------
 # Project builder
 # ---------------------------------------------------------------------------
 
@@ -219,6 +305,10 @@ class PlxProject:
                 if id(t) not in explicit_ids:
                     self._tasks.append(t)
                     explicit_ids.add(id(t))
+
+        # Resolve transitive dependencies — auto-include POUs and types
+        # referenced via NamedTypeRef in static vars, extends, implements, etc.
+        _resolve_transitive_deps(self._pou_classes, self._data_type_classes)
 
         # Compile data types
         compiled_data_types = []

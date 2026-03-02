@@ -86,8 +86,8 @@ class CompileContext:
     _auto_counter: int = 0
 
     def next_auto_name(self, prefix: str) -> str:
-        """Generate a unique instance name like ``__ton_0``."""
-        name = f"__{prefix}_{self._auto_counter}"
+        """Generate a unique instance name like ``_plx_ton_0``."""
+        name = f"_plx_{prefix}_{self._auto_counter}"
         self._auto_counter += 1
         return name
 
@@ -114,6 +114,12 @@ _REJECTED_BINOP_MESSAGES: dict[type, str] = {
     ast.BitOr: "Bitwise | is not supported in logic(). Use 'or' for logical OR.",
 }
 
+_REJECTED_AUGOP_MESSAGES: dict[type, str] = {
+    ast.FloorDiv: "Floor division (//=) is not supported — PLC division has no floor variant. Use /= instead.",
+    ast.BitAnd: "Bitwise &= is not supported in logic(). Use 'and' for logical AND.",
+    ast.BitOr: "Bitwise |= is not supported in logic(). Use 'or' for logical OR.",
+}
+
 _CMPOP_MAP: dict[type, BinaryOp] = {
     ast.Eq: BinaryOp.EQ,
     ast.NotEq: BinaryOp.NE,
@@ -121,6 +127,13 @@ _CMPOP_MAP: dict[type, BinaryOp] = {
     ast.GtE: BinaryOp.GE,
     ast.Lt: BinaryOp.LT,
     ast.LtE: BinaryOp.LE,
+}
+
+_REJECTED_CMPOP_MESSAGES: dict[type, str] = {
+    ast.In: "'in' is not supported in PLC logic. Use: if x == 1 or x == 2 or x == 3",
+    ast.NotIn: "'not in' is not supported in PLC logic. Use: if x != 1 and x != 2 and x != 3",
+    ast.Is: "'is' is not supported in PLC logic. Use == for equality.",
+    ast.IsNot: "'is not' is not supported in PLC logic. Use != for inequality.",
 }
 
 _TYPE_CONV_RE = re.compile(r"^([A-Z_][A-Za-z0-9_]*)_TO_([A-Z_][A-Za-z0-9_]*)$")
@@ -141,6 +154,34 @@ _PYTHON_BUILTIN_MAP: dict[str, str] = {
     "min": "MIN",
     "max": "MAX",
     "len": "LEN",
+}
+
+_REJECTED_BUILTINS: dict[str, str] = {
+    "print": "print() does not exist in PLC logic.",
+    "input": "input() does not exist in PLC logic.",
+    "open": "open() does not exist in PLC logic.",
+    "str": "str() is not supported. Use type conversion functions like INT_TO_STRING().",
+    "int": "int() is not supported. Use type conversion functions like REAL_TO_INT().",
+    "float": "float() is not supported. Use type conversion functions like INT_TO_REAL().",
+    "bool": "bool() is not supported. Use type conversion functions like INT_TO_BOOL().",
+    "type": "type() is not supported. PLCs are statically typed.",
+    "isinstance": "isinstance() is not supported. PLCs are statically typed.",
+    "list": "list() is not supported. Use ARRAY or @struct.",
+    "dict": "dict() is not supported. Use @struct.",
+    "set": "set() is not supported. Use ARRAY or @struct.",
+    "tuple": "tuple() is not supported. Use ARRAY or @struct.",
+    "enumerate": "enumerate() is not supported. Use a for loop with range().",
+    "zip": "zip() is not supported. Use a for loop with range().",
+    "map": "map() is not supported. Use a for loop with range().",
+    "filter": "filter() is not supported. Use a for loop with range().",
+    "sorted": "sorted() is not supported. Use a for loop with range().",
+    "reversed": "reversed() is not supported. Use a for loop with range().",
+    "sum": "sum() is not supported. Use a for loop with range().",
+    "any": "any() is not supported. Use a for loop with range().",
+    "all": "all() is not supported. Use a for loop with range().",
+    "round": "round() is not supported. Use IEC ROUND() (uppercase).",
+    "repr": "repr() does not exist in PLC logic.",
+    "format": "format() does not exist in PLC logic.",
 }
 
 # Sentinel function names
@@ -171,42 +212,42 @@ _SYSTEM_FLAG_SENTINELS = {
 
 # Complete set of rejected AST node types
 _REJECTED_NODES: dict[type, str] = {
-    ast.FunctionDef: "Function definitions are not allowed in PLC logic",
-    ast.AsyncFunctionDef: "Async functions are not allowed in PLC logic",
-    ast.ClassDef: "Class definitions are not allowed in PLC logic",
-    ast.Delete: "del statements are not allowed in PLC logic",
-    ast.With: "with statements are not allowed in PLC logic",
-    ast.AsyncWith: "async with statements are not allowed in PLC logic",
-    ast.AsyncFor: "async for statements are not allowed in PLC logic",
-    ast.Raise: "raise statements are not allowed in PLC logic",
-    ast.Try: "try/except statements are not allowed in PLC logic",
-    ast.Assert: "assert statements are not allowed in PLC logic",
-    ast.Import: "import statements are not allowed in PLC logic",
-    ast.ImportFrom: "import statements are not allowed in PLC logic",
-    ast.Global: "global statements are not allowed in PLC logic",
-    ast.Nonlocal: "nonlocal statements are not allowed in PLC logic",
-    ast.NamedExpr: "Walrus operator (:=) is not allowed in PLC logic",
-    ast.Lambda: "Lambda expressions are not allowed in PLC logic",
-    ast.Dict: "Dict literals are not allowed in PLC logic",
-    ast.Set: "Set literals are not allowed in PLC logic",
-    ast.List: "List literals are not allowed in PLC logic",
-    ast.Tuple: "Tuple literals are not allowed in PLC logic",
-    ast.ListComp: "List comprehensions are not allowed in PLC logic",
-    ast.SetComp: "Set comprehensions are not allowed in PLC logic",
-    ast.DictComp: "Dict comprehensions are not allowed in PLC logic",
-    ast.GeneratorExp: "Generator expressions are not allowed in PLC logic",
-    ast.Await: "await expressions are not allowed in PLC logic",
-    ast.Yield: "yield expressions are not allowed in PLC logic",
-    ast.YieldFrom: "yield from expressions are not allowed in PLC logic",
-    ast.FormattedValue: "f-string expressions are not allowed in PLC logic",
-    ast.JoinedStr: "f-strings are not allowed in PLC logic",
-    ast.Starred: "Star unpacking is not allowed in PLC logic",
-    ast.Slice: "Slice operations are not allowed in PLC logic",
+    ast.FunctionDef: "Function definitions are not allowed in PLC logic. Define reusable logic as a separate @fb or @function class.",
+    ast.AsyncFunctionDef: "Async functions are not allowed in PLC logic. PLCs execute synchronously in scan cycles.",
+    ast.ClassDef: "Class definitions are not allowed in PLC logic. Define types at module level with @struct or @fb.",
+    ast.Delete: "del statements are not allowed in PLC logic. PLC variables persist for the life of the program.",
+    ast.With: "with statements are not allowed in PLC logic. Context managers don't exist in PLC.",
+    ast.AsyncWith: "async with statements are not allowed in PLC logic. PLCs execute synchronously in scan cycles.",
+    ast.AsyncFor: "async for statements are not allowed in PLC logic. PLCs execute synchronously in scan cycles.",
+    ast.Raise: "raise statements are not allowed in PLC logic. PLCs don't have exceptions — use if/else and error flags.",
+    ast.Try: "try/except statements are not allowed in PLC logic. PLCs don't have exceptions — use if/else and error flags.",
+    ast.Assert: "assert statements are not allowed in PLC logic. Use if/else to validate conditions and set fault flags.",
+    ast.Import: "import statements are not allowed in PLC logic. Imports belong at module level, outside logic().",
+    ast.ImportFrom: "import statements are not allowed in PLC logic. Imports belong at module level, outside logic().",
+    ast.Global: "global statements are not allowed in PLC logic. Use global_var() to define global variables.",
+    ast.Nonlocal: "nonlocal statements are not allowed in PLC logic.",
+    ast.NamedExpr: "Walrus operator (:=) is not allowed in PLC logic. Assign to a temp variable on a separate line.",
+    ast.Lambda: "Lambda expressions are not allowed in PLC logic. Define reusable logic as a separate @fb or @function class.",
+    ast.Dict: "Dict literals are not allowed in PLC logic. Use @struct to define structured data.",
+    ast.Set: "Set literals are not allowed in PLC logic. Use ARRAY or @struct.",
+    ast.List: "List literals are not allowed in PLC logic. Use ARRAY or @struct.",
+    ast.Tuple: "Tuple literals are not allowed in PLC logic. Use ARRAY or @struct.",
+    ast.ListComp: "List comprehensions are not allowed in PLC logic. Use a for loop with range().",
+    ast.SetComp: "Set comprehensions are not allowed in PLC logic. Use a for loop with range().",
+    ast.DictComp: "Dict comprehensions are not allowed in PLC logic. Use a for loop with range().",
+    ast.GeneratorExp: "Generator expressions are not allowed in PLC logic. Use a for loop with range().",
+    ast.Await: "await expressions are not allowed in PLC logic. PLCs execute synchronously in scan cycles.",
+    ast.Yield: "yield expressions are not allowed in PLC logic. PLCs execute synchronously in scan cycles.",
+    ast.YieldFrom: "yield from expressions are not allowed in PLC logic. PLCs execute synchronously in scan cycles.",
+    ast.FormattedValue: "f-string expressions are not allowed in PLC logic. Use CONCAT() for string assembly.",
+    ast.JoinedStr: "f-strings are not allowed in PLC logic. Use CONCAT() for string assembly.",
+    ast.Starred: "Star unpacking is not allowed in PLC logic. Assign each variable on a separate line.",
+    ast.Slice: "Slice operations are not allowed in PLC logic. Access array elements individually with a single index: arr[i].",
 }
 
 # Also reject TryStar if available (Python 3.11+)
 if hasattr(ast, "TryStar"):
-    _REJECTED_NODES[ast.TryStar] = "try/except* statements are not allowed in PLC logic"
+    _REJECTED_NODES[ast.TryStar] = "try/except* statements are not allowed in PLC logic. PLCs don't have exceptions — use if/else and error flags."
 
 
 # ---------------------------------------------------------------------------

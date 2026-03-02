@@ -53,7 +53,7 @@ class TestDelayed:
         assert len(ctx.generated_static_vars) == 1
         var = ctx.generated_static_vars[0]
         assert var.data_type == NamedTypeRef(name="TON")
-        assert var.name.startswith("__ton_")
+        assert var.name.startswith("_plx_ton_")
 
     def test_ms_duration(self):
         ctx = CompileContext()
@@ -277,7 +277,7 @@ class TestCountUp:
         assert len(ctx.generated_static_vars) == 1
         var = ctx.generated_static_vars[0]
         assert var.data_type == NamedTypeRef(name="CTU")
-        assert var.name.startswith("__ctu_")
+        assert var.name.startswith("_plx_ctu_")
 
     def test_with_reset(self):
         ctx = CompileContext()
@@ -455,7 +455,7 @@ class TestSetDominant:
         assert len(ctx.generated_static_vars) == 1
         var = ctx.generated_static_vars[0]
         assert var.data_type == NamedTypeRef(name="SR")
-        assert var.name.startswith("__sr_")
+        assert var.name.startswith("_plx_sr_")
 
     def test_requires_two_args(self):
         import pytest
@@ -484,7 +484,7 @@ class TestResetDominant:
         assert len(ctx.generated_static_vars) == 1
         var = ctx.generated_static_vars[0]
         assert var.data_type == NamedTypeRef(name="RS")
-        assert var.name.startswith("__rs_")
+        assert var.name.startswith("_plx_rs_")
 
     def test_in_if_condition(self):
         ctx = CompileContext()

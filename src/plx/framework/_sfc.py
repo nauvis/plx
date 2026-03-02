@@ -48,6 +48,7 @@ from ._compilation_helpers import (
 )
 from ._decorators import _compile_all_methods, _compile_all_properties
 from ._descriptors import VarDirection
+from ._registry import register_pou
 
 
 # ---------------------------------------------------------------------------
@@ -544,6 +545,7 @@ def _compile_sfc_class(cls: type, pou_type: POUType, folder: str = "") -> type:
     )
 
     cls._compiled_pou = pou
+    register_pou(cls)
 
     @classmethod
     def compile(klass: type) -> POU:

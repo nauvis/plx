@@ -40,6 +40,7 @@ from plx.model.types import (
 )
 
 from ._descriptors import _format_initial
+from ._registry import register_type
 from ._types import _resolve_type_ref
 
 
@@ -82,6 +83,7 @@ def struct(cls: type | None = None, *, folder: str = "") -> Any:
         compiled = StructType(name=cls.__name__, members=members, folder=folder)
         cls._compiled_type = compiled
         cls.__plx_struct__ = True
+        register_type(cls)
 
         @classmethod  # type: ignore[misc]
         def compile(klass: type) -> StructType:
@@ -153,6 +155,7 @@ def enumeration(
         cls._compiled_type = compiled
         cls._enum_values = enum_values
         cls.__plx_enum__ = True
+        register_type(cls)
 
         @classmethod  # type: ignore[misc]
         def compile(klass: type) -> EnumType:

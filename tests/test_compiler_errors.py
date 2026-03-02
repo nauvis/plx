@@ -117,7 +117,7 @@ class TestRejectedExpressions:
 
     def test_generator_exp(self):
         with pytest.raises(CompileError, match="Generator"):
-            compile_expr("sum(x for x in items)")
+            compile_expr("ABS(x for x in items)")
 
     def test_fstring(self):
         with pytest.raises(CompileError, match="f-string"):
@@ -199,3 +199,212 @@ class TestMatMultRejected:
         ctx = CompileContext(declared_vars={"a": VarDirection.STATIC, "b": VarDirection.STATIC})
         with pytest.raises(CompileError, match="Unsupported binary operator"):
             compile_stmts("self.a = self.a @ self.b", ctx)
+
+
+# ---------------------------------------------------------------------------
+# Multiple assignment targets (silent bug fix)
+# ---------------------------------------------------------------------------
+
+class TestMultipleAssignment:
+    def test_chained_assignment_rejected(self):
+        """a = b = 5 must be rejected (was silently dropping second target)."""
+        ctx = CompileContext(declared_vars={"a": VarDirection.STATIC, "b": VarDirection.STATIC})
+        with pytest.raises(CompileError, match="Multiple assignment targets"):
+            compile_stmts("self.a = self.b = 5", ctx)
+
+    def test_triple_assignment_rejected(self):
+        ctx = CompileContext(declared_vars={"a": VarDirection.STATIC, "b": VarDirection.STATIC, "c": VarDirection.STATIC})
+        with pytest.raises(CompileError, match="Multiple assignment targets"):
+            compile_stmts("self.a = self.b = self.c = 5", ctx)
+
+    def test_single_assignment_still_works(self):
+        ctx = CompileContext(declared_vars={"x": VarDirection.STATIC})
+        stmts = compile_stmts("self.x = 5", ctx)
+        assert len(stmts) == 1
+
+
+# ---------------------------------------------------------------------------
+# Tuple unpacking
+# ---------------------------------------------------------------------------
+
+class TestTupleUnpacking:
+    def test_tuple_unpacking_rejected(self):
+        ctx = CompileContext(declared_vars={"a": VarDirection.TEMP, "b": VarDirection.TEMP})
+        with pytest.raises(CompileError, match="Tuple unpacking"):
+            compile_stmts("a, b = 1, 2", ctx)
+
+    def test_tuple_unpacking_guidance(self):
+        ctx = CompileContext(declared_vars={"a": VarDirection.TEMP, "b": VarDirection.TEMP})
+        with pytest.raises(CompileError, match="separate line"):
+            compile_stmts("a, b = 1, 2", ctx)
+
+
+# ---------------------------------------------------------------------------
+# Comparison operators
+# ---------------------------------------------------------------------------
+
+class TestComparisonOperators:
+    def test_in_rejected(self):
+        with pytest.raises(CompileError, match="'in' is not supported"):
+            compile_expr("x in items")
+
+    def test_not_in_rejected(self):
+        with pytest.raises(CompileError, match="'not in' is not supported"):
+            compile_expr("x not in items")
+
+    def test_is_rejected(self):
+        with pytest.raises(CompileError, match="'is' is not supported"):
+            compile_expr("x is y")
+
+    def test_is_not_rejected(self):
+        with pytest.raises(CompileError, match="'is not' is not supported"):
+            compile_expr("x is not y")
+
+
+# ---------------------------------------------------------------------------
+# Rejected Python builtins
+# ---------------------------------------------------------------------------
+
+class TestRejectedBuiltins:
+    def test_print_rejected_as_expr(self):
+        with pytest.raises(CompileError, match="print.*does not exist"):
+            compile_expr("print('hello')")
+
+    def test_print_rejected_as_stmt(self):
+        with pytest.raises(CompileError, match="print.*does not exist"):
+            compile_stmts("print('hello')")
+
+    def test_str_rejected(self):
+        with pytest.raises(CompileError, match="str.*type conversion"):
+            compile_expr("str(42)")
+
+    def test_int_rejected(self):
+        with pytest.raises(CompileError, match="int.*type conversion"):
+            compile_expr("int(3.14)")
+
+    def test_float_rejected(self):
+        with pytest.raises(CompileError, match="float.*type conversion"):
+            compile_expr("float(42)")
+
+    def test_isinstance_rejected(self):
+        with pytest.raises(CompileError, match="isinstance.*statically typed"):
+            compile_expr("isinstance(x, int)")
+
+    def test_type_rejected(self):
+        with pytest.raises(CompileError, match="type.*statically typed"):
+            compile_expr("type(x)")
+
+    def test_round_rejected(self):
+        with pytest.raises(CompileError, match="round.*ROUND"):
+            compile_expr("round(3.14)")
+
+    def test_sum_rejected(self):
+        with pytest.raises(CompileError, match="sum.*for loop"):
+            compile_expr("sum(values)")
+
+    def test_enumerate_rejected(self):
+        with pytest.raises(CompileError, match="enumerate.*for loop"):
+            compile_expr("enumerate(items)")
+
+
+# ---------------------------------------------------------------------------
+# None constant
+# ---------------------------------------------------------------------------
+
+class TestNoneConstant:
+    def test_none_assignment_rejected(self):
+        ctx = CompileContext(declared_vars={"x": VarDirection.STATIC})
+        with pytest.raises(CompileError, match="None does not exist"):
+            compile_stmts("self.x = None", ctx)
+
+    def test_none_guidance(self):
+        ctx = CompileContext(declared_vars={"x": VarDirection.STATIC})
+        with pytest.raises(CompileError, match="0.*FALSE"):
+            compile_stmts("self.x = None", ctx)
+
+
+# ---------------------------------------------------------------------------
+# Augmented assignment errors
+# ---------------------------------------------------------------------------
+
+class TestAugAssignErrors:
+    def test_floordiv_augassign(self):
+        ctx = CompileContext(declared_vars={"x": VarDirection.STATIC})
+        with pytest.raises(CompileError, match="//="):
+            compile_stmts("self.x //= 2", ctx)
+
+    def test_bitand_augassign(self):
+        ctx = CompileContext(declared_vars={"x": VarDirection.STATIC})
+        with pytest.raises(CompileError, match="&="):
+            compile_stmts("self.x &= 0xFF", ctx)
+
+    def test_bitor_augassign(self):
+        ctx = CompileContext(declared_vars={"x": VarDirection.STATIC})
+        with pytest.raises(CompileError, match=r"\|="):
+            compile_stmts("self.x |= 0x01", ctx)
+
+
+# ---------------------------------------------------------------------------
+# Improved guidance in rejected nodes
+# ---------------------------------------------------------------------------
+
+class TestImprovedGuidance:
+    def test_function_def_guidance(self):
+        with pytest.raises(CompileError, match="@fb.*@function"):
+            compile_stmts("def foo(): pass")
+
+    def test_try_guidance(self):
+        with pytest.raises(CompileError, match="if/else.*error flags"):
+            compile_stmts("try:\n    pass\nexcept:\n    pass")
+
+    def test_raise_guidance(self):
+        with pytest.raises(CompileError, match="if/else.*error flags"):
+            compile_stmts("raise ValueError()")
+
+    def test_assert_guidance(self):
+        with pytest.raises(CompileError, match="if/else.*fault flags"):
+            compile_stmts("assert True")
+
+    def test_with_guidance(self):
+        with pytest.raises(CompileError, match="Context managers"):
+            compile_stmts("with open('f') as f: pass")
+
+    def test_walrus_guidance(self):
+        with pytest.raises(CompileError, match="temp variable.*separate line"):
+            compile_expr("(x := 5)")
+
+    def test_lambda_guidance(self):
+        with pytest.raises(CompileError, match="@fb.*@function"):
+            compile_expr("lambda x: x")
+
+    def test_list_guidance(self):
+        with pytest.raises(CompileError, match="ARRAY.*@struct"):
+            compile_expr("[1, 2, 3]")
+
+    def test_dict_guidance(self):
+        with pytest.raises(CompileError, match="@struct"):
+            compile_expr("{'a': 1}")
+
+    def test_fstring_guidance(self):
+        with pytest.raises(CompileError, match="CONCAT"):
+            compile_expr("f'hello {x}'")
+
+    def test_slice_guidance(self):
+        with pytest.raises(CompileError, match="single index"):
+            compile_expr("arr[1:3]")
+
+    def test_list_comp_guidance(self):
+        with pytest.raises(CompileError, match="for loop"):
+            compile_expr("[x for x in range(10)]")
+
+    def test_global_guidance(self):
+        with pytest.raises(CompileError, match="global_var"):
+            compile_stmts("global x")
+
+    def test_import_guidance(self):
+        with pytest.raises(CompileError, match="module level"):
+            compile_stmts("import os")
+
+    def test_delete_guidance(self):
+        with pytest.raises(CompileError, match="persist"):
+            compile_stmts("del x")

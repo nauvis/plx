@@ -31,6 +31,7 @@ from plx.model.variables import Variable
 
 from ._compiler import ASTCompiler
 from ._compiler_core import CompileContext, CompileError, resolve_annotation
+from ._registry import register_pou
 from ._compilation_helpers import (
     _build_compile_context,
     _build_var_context,
@@ -482,6 +483,7 @@ def _compile_pou_class(
     )
 
     cls._compiled_pou = pou
+    register_pou(cls)
 
     @classmethod
     def compile(klass: type) -> POU:
@@ -684,6 +686,7 @@ def interface(cls: type) -> type:
 
     cls._compiled_pou = pou
     cls.__plx_interface__ = True
+    register_pou(cls)
 
     @classmethod
     def compile(klass: type) -> POU:

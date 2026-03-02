@@ -245,7 +245,7 @@ class TestActions:
 
         pou = Sentinel.compile()
         # Should generate static vars for the timer FB
-        assert any(v.name.startswith("__ton_") for v in pou.interface.static_vars)
+        assert any(v.name.startswith("_plx_ton_") for v in pou.interface.static_vars)
 
 
 # ---------------------------------------------------------------------------

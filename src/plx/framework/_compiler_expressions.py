@@ -39,6 +39,8 @@ from ._compiler_core import (
     _EDGE_SENTINELS,
     _PYTHON_BUILTIN_MAP,
     _REJECTED_BINOP_MESSAGES,
+    _REJECTED_BUILTINS,
+    _REJECTED_CMPOP_MESSAGES,
     _SYSTEM_FLAG_SENTINELS,
     _TIMER_SENTINELS,
     _TYPE_CONV_RE,
@@ -67,6 +69,11 @@ class _ExpressionMixin:
             return LiteralExpr(value=str(value))
         if isinstance(value, str):
             return LiteralExpr(value=f"'{value}'")
+        if value is None:
+            raise CompileError(
+                "None does not exist in PLC logic. Use 0, 0.0, FALSE, or '' depending on type.",
+                node, self.ctx,
+            )
         raise CompileError(f"Unsupported constant type: {type(value).__name__}", node, self.ctx)
 
     def _compile_name(self, node: ast.Name) -> Expression:
@@ -136,6 +143,9 @@ class _ExpressionMixin:
         for cmp_op, comparator in zip(node.ops, node.comparators):
             op = _CMPOP_MAP.get(type(cmp_op))
             if op is None:
+                rejected = _REJECTED_CMPOP_MESSAGES.get(type(cmp_op))
+                if rejected:
+                    raise CompileError(rejected, node, self.ctx)
                 raise CompileError(
                     f"Unsupported comparison operator: {type(cmp_op).__name__}",
                     node, self.ctx,
@@ -203,6 +213,10 @@ class _ExpressionMixin:
                     "range() can only be used in a for loop",
                     node, self.ctx,
                 )
+
+            # Rejected Python builtins
+            if name in _REJECTED_BUILTINS:
+                raise CompileError(_REJECTED_BUILTINS[name], node, self.ctx)
 
             # Python builtins → IEC functions
             if name in _PYTHON_BUILTIN_MAP:

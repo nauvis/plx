@@ -45,7 +45,9 @@ from ._compiler_core import (
     _COUNTER_SENTINELS,
     _EDGE_SENTINELS,
     _PYTHON_BUILTIN_MAP,
+    _REJECTED_AUGOP_MESSAGES,
     _REJECTED_BINOP_MESSAGES,
+    _REJECTED_BUILTINS,
     _BINOP_MAP,
     _SYSTEM_FLAG_SENTINELS,
     _TIMER_SENTINELS,
@@ -65,6 +67,12 @@ class _StatementMixin:
     """Mixin providing statement compilation methods for ASTCompiler."""
 
     def _compile_assign(self, node: ast.Assign) -> list[Statement]:
+        if len(node.targets) > 1:
+            raise CompileError(
+                "Multiple assignment targets (a = b = value) are not supported. "
+                "Assign each variable on a separate line.",
+                node, self.ctx,
+            )
         target_node = node.targets[0]
         target = self._compile_target(target_node, node)
         value, pending = self._compile_expr_and_flush(node.value)
@@ -88,13 +96,19 @@ class _StatementMixin:
             return VariableRef(name=name)
         if isinstance(target_node, ast.Subscript):
             return self.compile_expression(target_node)
+        if isinstance(target_node, ast.Tuple):
+            raise CompileError(
+                "Tuple unpacking (a, b = ...) is not supported in PLC logic. "
+                "Assign each variable on a separate line.",
+                stmt_node, self.ctx,
+            )
         raise CompileError(
             f"Unsupported assignment target: {type(target_node).__name__}",
             stmt_node, self.ctx,
         )
 
     def _compile_augassign(self, node: ast.AugAssign) -> list[Statement]:
-        rejected_msg = _REJECTED_BINOP_MESSAGES.get(type(node.op))
+        rejected_msg = _REJECTED_AUGOP_MESSAGES.get(type(node.op))
         if rejected_msg is not None:
             raise CompileError(rejected_msg, node, self.ctx)
         target = self._compile_target(node.target, node)
@@ -368,6 +382,9 @@ class _StatementMixin:
                     f"not as a standalone statement",
                     call_node, self.ctx,
                 )
+            # Rejected Python builtins
+            if name in _REJECTED_BUILTINS:
+                raise CompileError(_REJECTED_BUILTINS[name], call_node, self.ctx)
             mapped = _PYTHON_BUILTIN_MAP.get(name, name)
             args = self._compile_call_args(call_node)
             return FunctionCallStatement(function_name=mapped, args=args)
