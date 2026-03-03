@@ -416,3 +416,25 @@ class TestBitAccess:
         result = compile_expr("self.data.bitmap")
         assert isinstance(result, MemberAccessExpr)
         assert result.member == "bitmap"
+
+
+# ---------------------------------------------------------------------------
+# IEC type name as type conversion
+# ---------------------------------------------------------------------------
+
+class TestIECTypeNameConversion:
+    def test_iec_type_name_conversion(self):
+        """INT(x), SINT(x), LREAL(x) → TypeConversionExpr."""
+        for type_name in ("INT", "SINT", "LREAL", "DINT", "UINT", "UDINT"):
+            result = compile_expr(f"{type_name}(x)")
+            assert isinstance(result, TypeConversionExpr), f"{type_name}(x) should be TypeConversionExpr"
+            assert isinstance(result.target_type, PrimitiveTypeRef)
+            assert result.target_type.type == PrimitiveType(type_name)
+            assert isinstance(result.source, VariableRef)
+            assert result.source.name == "x"
+
+    def test_iec_type_name_multi_arg_falls_through(self):
+        """INT(x, y) should NOT be a type conversion — falls through to FunctionCallExpr."""
+        result = compile_expr("INT(x, y)")
+        assert isinstance(result, FunctionCallExpr)
+        assert result.function_name == "INT"

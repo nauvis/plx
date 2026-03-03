@@ -11,7 +11,7 @@ from typing import Any, overload
 from plx.model.pou import POU, POUType
 from plx.model.project import Project
 from plx.model.task import Task, TaskType
-from plx.model.types import ArrayTypeRef, NamedTypeRef
+from plx.model.types import ArrayTypeRef, NamedTypeRef, PointerTypeRef, ReferenceTypeRef
 from plx.model.variables import Variable
 
 from ._errors import ProjectAssemblyError
@@ -165,6 +165,9 @@ def task(
 # Transitive dependency resolution
 # ---------------------------------------------------------------------------
 
+_MAX_DEP_ITERATIONS = 10_000
+
+
 def _collect_named_refs(variables: list[Variable]) -> set[str]:
     """Extract all NamedTypeRef names from a list of variables."""
     names: set[str] = set()
@@ -179,6 +182,8 @@ def _collect_type_ref_names(type_ref: object, names: set[str]) -> None:
         names.add(type_ref.name)
     elif isinstance(type_ref, ArrayTypeRef):
         _collect_type_ref_names(type_ref.element_type, names)
+    elif isinstance(type_ref, (PointerTypeRef, ReferenceTypeRef)):
+        _collect_type_ref_names(type_ref.target_type, names)
 
 
 def _resolve_transitive_deps(
@@ -196,7 +201,14 @@ def _resolve_transitive_deps(
 
     # Queue: POU classes whose dependencies haven't been examined yet
     queue = list(pou_classes)
+    iterations = 0
     while queue:
+        iterations += 1
+        if iterations > _MAX_DEP_ITERATIONS:
+            raise ProjectAssemblyError(
+                f"Transitive dependency resolution exceeded {_MAX_DEP_ITERATIONS} "
+                f"iterations — possible circular dependency or corrupt registry"
+            )
         cls = queue.pop()
         if not hasattr(cls, "compile"):
             raise ProjectAssemblyError(f"{cls.__name__} is not a compiled POU")

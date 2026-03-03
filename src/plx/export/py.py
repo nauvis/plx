@@ -128,7 +128,7 @@ def generate_files(project: Project) -> dict[str, str]:
 
         fw._line()
         if pou.pou_type == POUType.INTERFACE:
-            fw._write_interface_comment(pou)
+            fw._write_interface(pou)
         else:
             fw._write_pou(pou)
         files[f"{pou.name}.py"] = fw.getvalue()
@@ -147,9 +147,8 @@ def generate_files(project: Project) -> dict[str, str]:
         pw._line(f"from .{gvl.name} import {gvl.name}")
         all_names.append(gvl.name)
     for pou in project.pous:
-        if pou.pou_type != POUType.INTERFACE:
-            pw._line(f"from .{pou.name} import {pou.name}")
-            all_names.append(pou.name)
+        pw._line(f"from .{pou.name} import {pou.name}")
+        all_names.append(pou.name)
 
     pw._line()
     pw._write_project_assembly(project)
@@ -377,7 +376,7 @@ class PyWriter:
         fbs = _topo_sort_fbs(fbs)
 
         for iface in interfaces:
-            self._write_interface_comment(iface)
+            self._write_interface(iface)
             self._line()
 
         for pou in functions:
@@ -541,11 +540,11 @@ class PyWriter:
             self._write_method(m)
             has_vars = True
 
-        # Properties — commented
+        # Properties
         for prop in pou.properties:
             if has_vars:
                 self._line()
-            self._write_property_comment(prop)
+            self._write_property(prop)
             has_vars = True
 
         # Actions — commented
@@ -584,16 +583,55 @@ class PyWriter:
         self._indent_dec()
         self._indent_dec()
 
-    def _write_interface_comment(self, pou: POU) -> None:
-        """Emit an INTERFACE POU as a comment block."""
-        self._line(f"# INTERFACE {pou.name}")
+    def _write_interface(self, pou: POU) -> None:
+        """Emit an INTERFACE POU as valid @interface code."""
+        self._line("@interface")
         if pou.extends:
-            self._line(f"#   EXTENDS {pou.extends}")
+            self._line(f"class {pou.name}({pou.extends}):")
+        else:
+            self._line(f"class {pou.name}:")
+        self._indent_inc()
+
+        has_content = False
+
+        # Method stubs
         for m in pou.methods:
+            if has_content:
+                self._line()
+            if m.access != AccessSpecifier.PUBLIC:
+                self._line(f"@method(access=AccessSpecifier.{m.access.value})")
+            else:
+                self._line("@method")
+            params: list[str] = ["self"]
+            for v in m.interface.input_vars:
+                params.append(f"{v.name}: {self._type_ref(v.data_type)}")
             ret = f" -> {self._type_ref(m.return_type)}" if m.return_type else ""
-            self._line(f"#   METHOD {m.name}{ret}")
+            self._line(f"def {m.name}({', '.join(params)}){ret}: ...")
+            has_content = True
+
+        # Property stubs
         for prop in pou.properties:
-            self._line(f"#   PROPERTY {prop.name}: {self._type_ref(prop.data_type)}")
+            if has_content:
+                self._line()
+            kwargs: list[str] = []
+            if prop.access != AccessSpecifier.PUBLIC:
+                kwargs.append(f"access=AccessSpecifier.{prop.access.value}")
+            if prop.abstract:
+                kwargs.append("abstract=True")
+            if prop.final:
+                kwargs.append("final=True")
+            type_str = self._type_ref(prop.data_type)
+            if kwargs:
+                self._line(f"@fb_property({type_str}, {', '.join(kwargs)})")
+            else:
+                self._line(f"@fb_property({type_str})")
+            self._line(f"def {prop.name}(self): ...")
+            has_content = True
+
+        if not has_content:
+            self._line("pass")
+
+        self._indent_dec()
 
     # ======================================================================
     # Variable descriptors
@@ -733,9 +771,76 @@ class PyWriter:
         self._indent_dec()
         self._self_vars = saved_self_vars
 
-    def _write_property_comment(self, prop: Property) -> None:
-        """Emit a property as a commented stub."""
-        self._line(f"# PROPERTY {prop.name}: {self._type_ref(prop.data_type)}")
+    def _write_property(self, prop: Property) -> None:
+        """Emit a property as valid @fb_property code."""
+        # Build decorator kwargs
+        kwargs: list[str] = []
+        if prop.access != AccessSpecifier.PUBLIC:
+            kwargs.append(f"access=AccessSpecifier.{prop.access.value}")
+        if prop.abstract:
+            kwargs.append("abstract=True")
+        if prop.final:
+            kwargs.append("final=True")
+
+        type_str = self._type_ref(prop.data_type)
+        if kwargs:
+            self._line(f"@fb_property({type_str}, {', '.join(kwargs)})")
+        else:
+            self._line(f"@fb_property({type_str})")
+
+        # Save/restore self_vars for property scope
+        saved_self_vars = self._self_vars
+
+        # Getter
+        self._line(f"def {prop.name}(self):")
+        self._indent_inc()
+        if prop.getter is not None:
+            # Include local_vars if present
+            for v in prop.getter.local_vars:
+                self._write_annotation_var(v, "Temp")
+            stmts = []
+            for net in prop.getter.networks:
+                if net.comment:
+                    stmts.append(("comment", net.comment))
+                for s in net.statements:
+                    stmts.append(("stmt", s))
+            if not stmts:
+                self._line("pass")
+            else:
+                for kind, item in stmts:
+                    if kind == "comment":
+                        self._line(f"# {item}")
+                    else:
+                        self._write_stmt(item)
+        else:
+            self._line("pass")
+        self._indent_dec()
+
+        # Setter
+        if prop.setter is not None:
+            self._line()
+            self._line(f"@{prop.name}.setter")
+            self._line(f"def {prop.name}(self, {prop.name}: {type_str}):")
+            self._indent_inc()
+            for v in prop.setter.local_vars:
+                self._write_annotation_var(v, "Temp")
+            stmts = []
+            for net in prop.setter.networks:
+                if net.comment:
+                    stmts.append(("comment", net.comment))
+                for s in net.statements:
+                    stmts.append(("stmt", s))
+            if not stmts:
+                self._line("pass")
+            else:
+                for kind, item in stmts:
+                    if kind == "comment":
+                        self._line(f"# {item}")
+                    else:
+                        self._write_stmt(item)
+            self._indent_dec()
+
+        self._self_vars = saved_self_vars
 
     def _write_action_comment(self, action: POUAction) -> None:
         """Emit a POU action as a commented stub."""
@@ -1116,7 +1221,7 @@ class PyWriter:
         return f"{self._expr(expr.struct, 10)}.{expr.member}"
 
     def _expr_bit_access(self, expr: BitAccessExpr, _prec: int) -> str:
-        return f"{self._expr(expr.target, 10)}.{expr.bit_index}"
+        return f"{self._expr(expr.target, 10)}.bit{expr.bit_index}"
 
     def _expr_type_conversion(self, expr: TypeConversionExpr, _prec: int) -> str:
         target = self._type_ref(expr.target_type)
@@ -1355,6 +1460,10 @@ def _collect_pou_deps(pou: POU, project: Project) -> dict[str, list[str]]:
     # extends reference
     if pou.extends:
         referenced.add(pou.extends)
+
+    # implements references
+    for iface_name in pou.implements:
+        referenced.add(iface_name)
 
     # Filter to project-level names only
     deps: dict[str, list[str]] = {}

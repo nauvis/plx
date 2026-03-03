@@ -10,6 +10,7 @@ previously existed in _compiler.py.
 from __future__ import annotations
 
 import ast
+import dataclasses
 import re
 from dataclasses import dataclass, field
 
@@ -222,6 +223,59 @@ _BISTABLE_SENTINELS = {
 _SYSTEM_FLAG_SENTINELS = {
     "first_scan": SystemFlag.FIRST_SCAN,
 }
+
+
+# ---------------------------------------------------------------------------
+# Unified sentinel registry
+# ---------------------------------------------------------------------------
+
+@dataclasses.dataclass(frozen=True)
+class SentinelDef:
+    """Metadata for a single sentinel function."""
+
+    name: str                   # Python function name (e.g. "delayed")
+    category: str               # "timer" | "edge" | "counter" | "bistable" | "system_flag"
+    fb_type: str                # IEC FB type (e.g. "TON", "R_TRIG")
+    params: dict[str, str] = dataclasses.field(default_factory=dict)
+    system_flag: SystemFlag | None = None
+
+
+SENTINEL_REGISTRY: dict[str, SentinelDef] = {}
+
+for _name, (_fb, _input_name, _pt_name) in _TIMER_SENTINELS.items():
+    SENTINEL_REGISTRY[_name] = SentinelDef(
+        name=_name, category="timer", fb_type=_fb,
+        params={"signal": _input_name, "duration": _pt_name},
+    )
+
+for _name, _fb in _EDGE_SENTINELS.items():
+    SENTINEL_REGISTRY[_name] = SentinelDef(
+        name=_name, category="edge", fb_type=_fb,
+        params={"signal": "CLK"},
+    )
+
+for _name, (_fb, _count_input, _pv_input, _ctrl_input) in _COUNTER_SENTINELS.items():
+    SENTINEL_REGISTRY[_name] = SentinelDef(
+        name=_name, category="counter", fb_type=_fb,
+        params={"signal": _count_input, "preset": _pv_input, "control": _ctrl_input},
+    )
+
+for _name, (_fb, _set_input, _reset_input) in _BISTABLE_SENTINELS.items():
+    SENTINEL_REGISTRY[_name] = SentinelDef(
+        name=_name, category="bistable", fb_type=_fb,
+        params={"set": _set_input, "reset": _reset_input},
+    )
+
+for _name, _flag in _SYSTEM_FLAG_SENTINELS.items():
+    SENTINEL_REGISTRY[_name] = SentinelDef(
+        name=_name, category="system_flag", fb_type="",
+        system_flag=_flag,
+    )
+
+# Clean up loop variables
+del _name, _fb, _input_name, _pt_name, _count_input, _pv_input, _ctrl_input
+del _set_input, _reset_input, _flag
+
 
 # Complete set of rejected AST node types
 _REJECTED_NODES: dict[type, str] = {

@@ -34,6 +34,7 @@ from plx.model.pou import (
     POUInterface,
     POUType,
     Property,
+    PropertyAccessor,
 )
 from plx.model.project import GlobalVariableList, Project
 from plx.model.sfc import Action, ActionQualifier, SFCBody, Step, Transition
@@ -398,7 +399,7 @@ class TestExpressions:
             target=VariableRef(name="status"),
             bit_index=5,
         )
-        assert w._expr(expr) == "self.status.5"
+        assert w._expr(expr) == "self.status.bit5"
 
     def test_shift_ops(self):
         w = _make_writer()
@@ -1217,7 +1218,7 @@ class TestFullProject:
         derived_pos = out.index("class Derived(BaseFB):")
         assert base_pos < derived_pos
 
-    def test_interface_commented(self):
+    def test_interface_as_code(self):
         proj = Project(
             name="IfaceProj",
             pous=[
@@ -1229,8 +1230,9 @@ class TestFullProject:
             ],
         )
         out = generate(proj)
-        assert "# INTERFACE IMotor" in out
-        assert "#   METHOD Start" in out
+        assert "@interface" in out
+        assert "class IMotor:" in out
+        assert "def Start(self): ..." in out
 
 
 # ===========================================================================
@@ -1668,3 +1670,220 @@ class TestGenerateFiles:
         files = generate_files(proj)
         for fname, code in files.items():
             compile(code, f"<{fname}>", "exec")
+
+
+# ===========================================================================
+# Property export
+# ===========================================================================
+
+class TestPropertyExport:
+    def test_property_getter_only(self):
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="Motor",
+            interface=POUInterface(
+                static_vars=[Variable(name="_speed", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL))],
+            ),
+            properties=[
+                Property(
+                    name="speed",
+                    data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
+                    getter=PropertyAccessor(
+                        networks=[Network(statements=[
+                            ReturnStatement(value=VariableRef(name="_speed")),
+                        ])],
+                    ),
+                ),
+            ],
+            networks=[Network(statements=[EmptyStatement()])],
+        )
+        code = generate(Project(name="Test", pous=[pou]))
+        assert "@fb_property(float)" in code
+        assert "def speed(self):" in code
+        assert "return self._speed" in code
+        assert "@speed.setter" not in code
+
+    def test_property_getter_setter(self):
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="Tank",
+            interface=POUInterface(
+                static_vars=[Variable(name="_level", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL))],
+            ),
+            properties=[
+                Property(
+                    name="level",
+                    data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
+                    getter=PropertyAccessor(
+                        networks=[Network(statements=[
+                            ReturnStatement(value=VariableRef(name="_level")),
+                        ])],
+                    ),
+                    setter=PropertyAccessor(
+                        networks=[Network(statements=[
+                            Assignment(
+                                target=VariableRef(name="_level"),
+                                value=VariableRef(name="level"),
+                            ),
+                        ])],
+                    ),
+                ),
+            ],
+            networks=[Network(statements=[EmptyStatement()])],
+        )
+        code = generate(Project(name="Test", pous=[pou]))
+        assert "@fb_property(float)" in code
+        assert "def level(self):" in code
+        assert "@level.setter" in code
+        assert "def level(self, level: float):" in code
+
+    def test_property_abstract(self):
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="Base",
+            properties=[
+                Property(
+                    name="speed",
+                    data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
+                    abstract=True,
+                ),
+            ],
+            networks=[Network(statements=[EmptyStatement()])],
+        )
+        code = generate(Project(name="Test", pous=[pou]))
+        assert "abstract=True" in code
+        assert "def speed(self):" in code
+        assert "pass" in code
+
+    def test_property_access_and_final(self):
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="Sealed",
+            interface=POUInterface(
+                static_vars=[Variable(name="_val", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL))],
+            ),
+            properties=[
+                Property(
+                    name="value",
+                    data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
+                    access=AccessSpecifier.PROTECTED,
+                    final=True,
+                    getter=PropertyAccessor(
+                        networks=[Network(statements=[
+                            ReturnStatement(value=VariableRef(name="_val")),
+                        ])],
+                    ),
+                ),
+            ],
+            networks=[Network(statements=[EmptyStatement()])],
+        )
+        code = generate(Project(name="Test", pous=[pou]))
+        assert "access=AccessSpecifier.PROTECTED" in code
+        assert "final=True" in code
+
+
+# ===========================================================================
+# Interface export
+# ===========================================================================
+
+class TestInterfaceExport:
+    def test_interface_export(self):
+        pou = POU(
+            pou_type=POUType.INTERFACE,
+            name="IMoveable",
+            methods=[
+                Method(
+                    name="move_to",
+                    return_type=PrimitiveTypeRef(type=PrimitiveType.BOOL),
+                    interface=POUInterface(
+                        input_vars=[Variable(name="target", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL))],
+                    ),
+                ),
+            ],
+            properties=[
+                Property(
+                    name="position",
+                    data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
+                ),
+            ],
+        )
+        code = generate(Project(name="Test", pous=[pou]))
+        assert "@interface" in code
+        assert "class IMoveable:" in code
+        assert "@method" in code
+        assert "def move_to(self, target: float) -> bool: ..." in code
+        assert "@fb_property(float)" in code
+        assert "def position(self): ..." in code
+
+    def test_interface_extends(self):
+        base = POU(
+            pou_type=POUType.INTERFACE,
+            name="IBase",
+            methods=[
+                Method(name="reset", interface=POUInterface()),
+            ],
+        )
+        derived = POU(
+            pou_type=POUType.INTERFACE,
+            name="IDerived",
+            extends="IBase",
+            methods=[
+                Method(name="run", interface=POUInterface()),
+            ],
+        )
+        code = generate(Project(name="Test", pous=[base, derived]))
+        assert "class IDerived(IBase):" in code
+
+    def test_interface_import_in_generate_files(self):
+        iface = POU(
+            pou_type=POUType.INTERFACE,
+            name="IMoveable",
+            methods=[
+                Method(name="move", interface=POUInterface()),
+            ],
+        )
+        fb_pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="Motor",
+            implements=["IMoveable"],
+            networks=[Network(statements=[EmptyStatement()])],
+        )
+        proj = Project(name="Test", pous=[iface, fb_pou])
+        files = generate_files(proj)
+        # Interface should appear in project.py imports
+        assert "from .IMoveable import IMoveable" in files["project.py"]
+        # FB should import the interface it implements
+        assert "from .IMoveable import IMoveable" in files["Motor.py"]
+
+
+# ===========================================================================
+# Type conversion export
+# ===========================================================================
+
+class TestTypeConversionExport:
+    def test_type_conversion_iec_name(self):
+        """IEC type names like INT(x), SINT(x), LREAL(x) round-trip correctly."""
+        w = _make_writer()
+        # Types NOT in _PYTHON_TYPE_NAMES keep their IEC name
+        for type_name in ("INT", "SINT", "LREAL", "UINT", "UDINT", "LINT"):
+            prim = PrimitiveType(type_name)
+            expr = TypeConversionExpr(
+                target_type=PrimitiveTypeRef(type=prim),
+                source=VariableRef(name="x"),
+            )
+            assert w._expr(expr) == f"{type_name}(x)", f"Failed for {type_name}"
+
+    def test_type_conversion_python_mapped(self):
+        """BOOL/DINT/REAL map to Python builtins bool()/int()/float()."""
+        w = _make_writer()
+        cases = [
+            (PrimitiveType.BOOL, "bool(x)"),
+            (PrimitiveType.DINT, "int(x)"),
+            (PrimitiveType.REAL, "float(x)"),
+        ]
+        for prim, expected in cases:
+            expr = TypeConversionExpr(
+                target_type=PrimitiveTypeRef(type=prim),
+                source=VariableRef(name="x"),
+            )
+            assert w._expr(expr) == expected

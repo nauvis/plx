@@ -3,10 +3,25 @@
 import ast
 import textwrap
 
+import pytest
+
 from plx.framework._compiler import ASTCompiler, CompileContext
+from plx.framework._registry import _snapshot_registries, _restore_registries
 from plx.model.pou import Network, POU, POUInterface, POUType
 from plx.model.types import PrimitiveTypeRef
 from plx.model.variables import Variable
+
+
+@pytest.fixture(autouse=True)
+def _registry_isolation():
+    """Snapshot registries before each test and restore after.
+
+    Prevents cross-test pollution from @fb/@struct decorations while
+    preserving module-level registrations that exist at import time.
+    """
+    snapshot = _snapshot_registries()
+    yield
+    _restore_registries(snapshot)
 
 
 def compile_stmts(source: str, ctx: CompileContext | None = None) -> list:

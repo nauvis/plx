@@ -30,20 +30,16 @@ from plx.model.types import NamedTypeRef, PrimitiveType, PrimitiveTypeRef, TypeR
 
 from ._compiler_core import (
     CompileError,
+    SENTINEL_REGISTRY,
     _BIT_ACCESS_RE,
     _BINOP_MAP,
-    _BISTABLE_SENTINELS,
     _BUILTIN_FUNCS,
     _CMPOP_MAP,
-    _COUNTER_SENTINELS,
-    _EDGE_SENTINELS,
     _PYTHON_BUILTIN_MAP,
     _PYTHON_TYPE_CONV_MAP,
     _REJECTED_BINOP_MESSAGES,
     _REJECTED_BUILTINS,
     _REJECTED_CMPOP_MESSAGES,
-    _SYSTEM_FLAG_SENTINELS,
-    _TIMER_SENTINELS,
     _TYPE_CONV_RE,
 )
 
@@ -188,25 +184,18 @@ class _ExpressionMixin:
         if isinstance(func, ast.Name):
             name = func.id
 
-            # Timer sentinels: delayed, sustained, pulse
-            if name in _TIMER_SENTINELS:
-                return self._compile_timer_sentinel(name, node)
-
-            # Edge sentinels: rising, falling
-            if name in _EDGE_SENTINELS:
-                return self._compile_edge_sentinel(name, node)
-
-            # Counter sentinels: count_up, count_down
-            if name in _COUNTER_SENTINELS:
-                return self._compile_counter_sentinel(name, node)
-
-            # Bistable sentinels: set_dominant, reset_dominant
-            if name in _BISTABLE_SENTINELS:
-                return self._compile_bistable_sentinel(name, node)
-
-            # System flag sentinels: first_scan
-            if name in _SYSTEM_FLAG_SENTINELS:
-                return self._compile_system_flag_sentinel(name, node)
+            # Sentinel functions (timers, edges, counters, bistables, system flags)
+            sentinel = SENTINEL_REGISTRY.get(name)
+            if sentinel is not None:
+                _sentinel_dispatch = {
+                    "timer": self._compile_timer_sentinel,
+                    "edge": self._compile_edge_sentinel,
+                    "counter": self._compile_counter_sentinel,
+                    "bistable": self._compile_bistable_sentinel,
+                    "system_flag": self._compile_system_flag_sentinel,
+                }
+                handler = _sentinel_dispatch[sentinel.category]
+                return handler(name, node)
 
             # range() — error (only valid in for)
             if name == "range":
@@ -248,6 +237,18 @@ class _ExpressionMixin:
                 except ValueError:
                     target_type = NamedTypeRef(name=target_type_name)
                 return TypeConversionExpr(target_type=target_type, source=source)
+
+            # Direct IEC type name as conversion: INT(x), SINT(x), LREAL(x)
+            if len(node.args) == 1 and not node.keywords:
+                try:
+                    prim = PrimitiveType(name)
+                    source = self.compile_expression(node.args[0])
+                    return TypeConversionExpr(
+                        target_type=PrimitiveTypeRef(type=prim),
+                        source=source,
+                    )
+                except ValueError:
+                    pass
 
             # IEC built-in functions (uppercase)
             if name.upper() in _BUILTIN_FUNCS and name == name.upper():

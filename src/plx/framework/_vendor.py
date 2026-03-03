@@ -471,3 +471,45 @@ _WARNINGS = [
     _check_fb_translation,
     _check_oop_flattening,
 ]
+
+
+# ---------------------------------------------------------------------------
+# Extension registration — allows private vendor repos to add checks
+# ---------------------------------------------------------------------------
+
+_BUILTIN_CHECK_COUNT = len(_CHECKS)
+_BUILTIN_WARNING_COUNT = len(_WARNINGS)
+_BUILTIN_FB_WARNINGS: dict[str, dict[Vendor, str]] = {
+    k: dict(v) for k, v in _FB_TRANSLATION_WARNINGS.items()
+}
+
+
+def register_vendor_check(check_fn) -> None:
+    """Register an additional vendor validation check.
+
+    check_fn signature: (project: Project, target: Vendor, errors: list) -> None
+    """
+    _CHECKS.append(check_fn)
+
+
+def register_vendor_warning(warning_fn) -> None:
+    """Register an additional vendor portability warning.
+
+    warning_fn signature: (project: Project, target: Vendor, warnings: list) -> None
+    """
+    _WARNINGS.append(warning_fn)
+
+
+def register_fb_translation_warning(fb_type: str, vendor: Vendor, message: str) -> None:
+    """Register an FB translation warning for a specific vendor."""
+    _FB_TRANSLATION_WARNINGS.setdefault(fb_type, {})[vendor] = message
+
+
+def _clear_vendor_extensions() -> None:
+    """Remove all registered extensions, restoring built-in checks only. For tests."""
+    del _CHECKS[_BUILTIN_CHECK_COUNT:]
+    del _WARNINGS[_BUILTIN_WARNING_COUNT:]
+    _FB_TRANSLATION_WARNINGS.clear()
+    _FB_TRANSLATION_WARNINGS.update(
+        {k: dict(v) for k, v in _BUILTIN_FB_WARNINGS.items()}
+    )
