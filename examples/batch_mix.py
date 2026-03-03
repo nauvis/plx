@@ -6,12 +6,18 @@ and a CIP (clean-in-place) cycle flushes the system.
 """
 
 from plx.framework import (
-    BOOL, DINT, REAL, TIME,
+    TIME,
     T,
-    fb, program, function,
-    input_var, output_var, static_var,
-    delayed, rising, sustained,
+    fb,
+    program,
+    function,
+    Input,
+    Output,
+    delayed,
+    rising,
+    sustained,
     project,
+    Field,
 )
 
 # -- States ----------------------------------------------------------------
@@ -34,13 +40,13 @@ FAULT      = 99
 
 @fb
 class ValveCtrl:
-    cmd_open    = input_var(BOOL, description="Command to open")
-    feedback    = input_var(BOOL, description="Open limit switch")
-    fault_time  = input_var(TIME, initial=T(3), description="Fault timeout")
+    cmd_open: Input[bool] = Field(description="Command to open")
+    feedback: Input[bool] = Field(description="Open limit switch")
+    fault_time: Input[TIME] = Field(initial=T(3), description="Fault timeout")
 
-    valve_out   = output_var(BOOL, description="Solenoid output")
-    is_open     = output_var(BOOL, description="Confirmed open")
-    fault       = output_var(BOOL, description="Failed to open in time")
+    valve_out: Output[bool] = Field(description="Solenoid output")
+    is_open: Output[bool] = Field(description="Confirmed open")
+    fault: Output[bool] = Field(description="Failed to open in time")
 
     def logic(self):
         self.valve_out = self.cmd_open
@@ -60,14 +66,14 @@ class ValveCtrl:
 
 @fb
 class VolumeDose:
-    start       = input_var(BOOL, description="Start dosing")
-    flow_pulse  = input_var(BOOL, description="Flowmeter pulse input")
-    target_vol  = input_var(REAL, description="Target volume (liters)")
-    vol_per_pulse = input_var(REAL, initial=0.1, description="Liters per pulse")
+    start: Input[bool] = Field(description="Start dosing")
+    flow_pulse: Input[bool] = Field(description="Flowmeter pulse input")
+    target_vol: Input[float] = Field(description="Target volume (liters)")
+    vol_per_pulse: Input[float] = Field(initial=0.1, description="Liters per pulse")
 
-    done        = output_var(BOOL, description="Target reached")
-    actual_vol  = output_var(REAL, description="Accumulated volume")
-    valve_cmd   = output_var(BOOL, description="Open command to valve")
+    done: Output[bool] = Field(description="Target reached")
+    actual_vol: Output[float] = Field(description="Accumulated volume")
+    valve_cmd: Output[bool] = Field(description="Open command to valve")
 
     def logic(self):
         if not self.start:
@@ -93,38 +99,38 @@ class VolumeDose:
 @program
 class BatchMix:
     # --- operator commands ---
-    cmd_start   = input_var(BOOL, description="Start batch")
-    cmd_reset   = input_var(BOOL, description="Reset after fault/complete")
-    cmd_cip     = input_var(BOOL, description="Start CIP cycle")
+    cmd_start: Input[bool] = Field(description="Start batch")
+    cmd_reset: Input[bool] = Field(description="Reset after fault/complete")
+    cmd_cip: Input[bool] = Field(description="Start CIP cycle")
 
     # --- field I/O ---
-    level       = input_var(REAL, description="Tank level (liters)")
-    level_low   = input_var(BOOL, description="Low level switch")
-    flow_a      = input_var(BOOL, description="Ingredient A flow pulse")
-    flow_b      = input_var(BOOL, description="Ingredient B flow pulse")
-    flow_c      = input_var(BOOL, description="Ingredient C flow pulse")
+    level: Input[float] = Field(description="Tank level (liters)")
+    level_low: Input[bool] = Field(description="Low level switch")
+    flow_a: Input[bool] = Field(description="Ingredient A flow pulse")
+    flow_b: Input[bool] = Field(description="Ingredient B flow pulse")
+    flow_c: Input[bool] = Field(description="Ingredient C flow pulse")
 
     # --- outputs ---
-    valve_a     = output_var(BOOL, description="Ingredient A valve")
-    valve_b     = output_var(BOOL, description="Ingredient B valve")
-    valve_c     = output_var(BOOL, description="Ingredient C valve")
-    drain_valve = output_var(BOOL, description="Drain valve")
-    cip_valve   = output_var(BOOL, description="CIP supply valve")
-    agitator    = output_var(BOOL, description="Mixer motor")
+    valve_a: Output[bool] = Field(description="Ingredient A valve")
+    valve_b: Output[bool] = Field(description="Ingredient B valve")
+    valve_c: Output[bool] = Field(description="Ingredient C valve")
+    drain_valve: Output[bool] = Field(description="Drain valve")
+    cip_valve: Output[bool] = Field(description="CIP supply valve")
+    agitator: Output[bool] = Field(description="Mixer motor")
 
     # --- status ---
-    state       = output_var(DINT, description="Current step")
-    batch_done  = output_var(BOOL, description="Batch complete")
-    cip_done    = output_var(BOOL, description="CIP complete")
+    state: Output[int] = Field(description="Current step")
+    batch_done: Output[bool] = Field(description="Batch complete")
+    cip_done: Output[bool] = Field(description="CIP complete")
 
     # --- internal ---
-    step         = static_var(DINT, initial=0)
-    dose_a_start = static_var(BOOL, initial=False)
-    dose_b_start = static_var(BOOL, initial=False)
-    dose_c_start = static_var(BOOL, initial=False)
-    dose_a_done  = static_var(BOOL, initial=False)
-    dose_b_done  = static_var(BOOL, initial=False)
-    dose_c_done  = static_var(BOOL, initial=False)
+    step: int = 0
+    dose_a_start: bool = False
+    dose_b_start: bool = False
+    dose_c_start: bool = False
+    dose_a_done: bool = False
+    dose_b_done: bool = False
+    dose_c_done: bool = False
 
     def logic(self):
         # Reset command returns to idle from complete or fault

@@ -236,7 +236,7 @@ _REJECTED_NODES: dict[type, str] = {
     ast.Assert: "assert statements are not allowed in PLC logic. Use if/else to validate conditions and set fault flags.",
     ast.Import: "import statements are not allowed in PLC logic. Imports belong at module level, outside logic().",
     ast.ImportFrom: "import statements are not allowed in PLC logic. Imports belong at module level, outside logic().",
-    ast.Global: "global statements are not allowed in PLC logic. Use global_var() to define global variables.",
+    ast.Global: "global statements are not allowed in PLC logic. Use @global_vars to define global variables.",
     ast.Nonlocal: "nonlocal statements are not allowed in PLC logic.",
     ast.NamedExpr: "Walrus operator (:=) is not allowed in PLC logic. Assign to a temp variable on a separate line.",
     ast.Lambda: "Lambda expressions are not allowed in PLC logic. Define reusable logic as a separate @fb or @function class.",

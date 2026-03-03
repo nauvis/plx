@@ -1,10 +1,11 @@
-"""Tests for @global_vars decorator and global_var() constructor."""
+"""Tests for @global_vars decorator and Field() metadata."""
 
 import pytest
 
 from plx.framework._data_types import struct, enumeration
 from plx.framework._decorators import fb
-from plx.framework._global_vars import GlobalVarDescriptor, global_var, global_vars
+from plx.framework._global_vars import global_vars
+from plx.framework._descriptors import Field
 from plx.framework._project import project
 from plx.framework._protocols import CompiledGlobalVarList
 from plx.framework._types import (
@@ -73,21 +74,14 @@ class TestBareAnnotations:
 
 
 # ---------------------------------------------------------------------------
-# global_var() descriptor style
+# Field() style
 # ---------------------------------------------------------------------------
 
-class TestGlobalVarDescriptor:
-    def test_global_var_used_as_decorator_error(self):
-        """Using @global_var (singular) instead of @global_vars gives a clear error."""
-        with pytest.raises(TypeError, match="Did you mean @global_vars"):
-            @global_var
-            class IO:
-                motor: BOOL = False
-
+class TestFieldStyle:
     def test_basic(self):
         @global_vars
         class IO:
-            motor = global_var(BOOL)
+            motor: BOOL
 
         gvl = IO.compile()
         assert len(gvl.variables) == 1
@@ -97,7 +91,7 @@ class TestGlobalVarDescriptor:
     def test_initial_value(self):
         @global_vars
         class WithInit:
-            speed = global_var(REAL, initial=75.0)
+            speed: REAL = 75.0
 
         gvl = WithInit.compile()
         assert gvl.variables[0].initial_value == "75.0"
@@ -105,7 +99,7 @@ class TestGlobalVarDescriptor:
     def test_description(self):
         @global_vars
         class WithDesc:
-            temp = global_var(REAL, description="Process temperature in C")
+            temp: REAL = Field(description="Process temperature in C")
 
         gvl = WithDesc.compile()
         assert gvl.variables[0].description == "Process temperature in C"
@@ -113,7 +107,7 @@ class TestGlobalVarDescriptor:
     def test_constant(self):
         @global_vars
         class Constants:
-            pi = global_var(REAL, initial=3.14159, constant=True)
+            pi: REAL = Field(initial=3.14159, constant=True)
 
         gvl = Constants.compile()
         assert gvl.variables[0].constant is True
@@ -121,7 +115,7 @@ class TestGlobalVarDescriptor:
     def test_retain(self):
         @global_vars
         class Retained:
-            counter = global_var(DINT, retain=True)
+            counter: DINT = Field(retain=True)
 
         gvl = Retained.compile()
         assert gvl.variables[0].retain is True
@@ -129,7 +123,7 @@ class TestGlobalVarDescriptor:
     def test_persistent(self):
         @global_vars
         class Persistent:
-            recipe_id = global_var(DINT, persistent=True)
+            recipe_id: DINT = Field(persistent=True)
 
         gvl = Persistent.compile()
         assert gvl.variables[0].persistent is True
@@ -137,7 +131,7 @@ class TestGlobalVarDescriptor:
     def test_address(self):
         @global_vars
         class HardwiredIO:
-            motor_run = global_var(BOOL, address="%Q0.0")
+            motor_run: BOOL = Field(address="%Q0.0")
 
         gvl = HardwiredIO.compile()
         assert gvl.variables[0].address == "%Q0.0"
@@ -145,11 +139,9 @@ class TestGlobalVarDescriptor:
     def test_all_fields(self):
         @global_vars
         class FullSpec:
-            valve = global_var(
-                BOOL,
+            valve: BOOL = Field(
                 initial=False,
                 description="Main valve",
-                constant=False,
                 retain=True,
                 persistent=True,
                 address="%Q1.0",
@@ -181,23 +173,23 @@ class TestGlobalVarDescriptor:
 
 
 # ---------------------------------------------------------------------------
-# Hybrid: mix bare annotations and global_var() descriptors
+# Hybrid: mix bare annotations and Field() descriptors
 # ---------------------------------------------------------------------------
 
 class TestHybridStyle:
-    def test_mixed_bare_and_descriptor(self):
+    def test_mixed_bare_and_field(self):
         @global_vars
         class Hybrid:
             simple_flag: BOOL = False
-            retained_counter = global_var(DINT, retain=True, initial=0)
+            retained_counter: DINT = Field(retain=True, initial=0)
 
         gvl = Hybrid.compile()
         assert len(gvl.variables) == 2
-        # Descriptors come first (collected in first pass), then bare annotations
-        assert gvl.variables[0].name == "retained_counter"
-        assert gvl.variables[0].retain is True
-        assert gvl.variables[1].name == "simple_flag"
-        assert gvl.variables[1].initial_value == "FALSE"
+        # All annotations, so order follows declaration order
+        assert gvl.variables[0].name == "simple_flag"
+        assert gvl.variables[0].initial_value == "FALSE"
+        assert gvl.variables[1].name == "retained_counter"
+        assert gvl.variables[1].retain is True
 
 
 # ---------------------------------------------------------------------------
@@ -247,7 +239,7 @@ class TestTypeConstructors:
     def test_string_type(self):
         @global_vars
         class WithString:
-            name = global_var(STRING(80))
+            name: STRING(80)
 
         gvl = WithString.compile()
         assert isinstance(gvl.variables[0].data_type, StringTypeRef)
@@ -280,7 +272,7 @@ class TestTypeConstructors:
     def test_pointer_type(self):
         @global_vars
         class WithPtr:
-            ptr = global_var(POINTER_TO(INT))
+            ptr: POINTER_TO(INT)
 
         gvl = WithPtr.compile()
         assert gvl.variables[0].data_type.kind == "pointer"
@@ -288,7 +280,7 @@ class TestTypeConstructors:
     def test_array_in_descriptor(self):
         @global_vars
         class ArrDesc:
-            data = global_var(ARRAY(DINT, 5), initial="[0,0,0,0,0]")
+            data: ARRAY(DINT, 5) = "[0,0,0,0,0]"
 
         gvl = ArrDesc.compile()
         assert isinstance(gvl.variables[0].data_type, ArrayTypeRef)
@@ -484,9 +476,9 @@ class TestExports:
         from plx.framework import global_vars as gv
         assert gv is global_vars
 
-    def test_global_var_importable(self):
-        from plx.framework import global_var as g
-        assert g is global_var
+    def test_field_importable(self):
+        from plx.framework import Field as f
+        assert f is Field
 
     def test_compiled_global_var_list_importable(self):
         from plx.framework import CompiledGlobalVarList as proto
@@ -515,7 +507,7 @@ class TestGlobalVarsFolderKwarg:
     def test_global_vars_folder_with_description(self):
         @global_vars(description="IO signals", folder="io")
         class DescFolderGVL:
-            motor = global_var(BOOL, address="%Q0.0")
+            motor: BOOL = Field(address="%Q0.0")
 
         compiled = DescFolderGVL.compile()
         assert compiled.folder == "io"
@@ -553,7 +545,7 @@ class TestGlobalVarsScopeKwarg:
     def test_scope_with_folder_and_description(self):
         @global_vars(description="Motor IO", folder="io/motors", scope="controller")
         class MotorIO:
-            run = global_var(BOOL, address="%Q0.0")
+            run: BOOL = Field(address="%Q0.0")
 
         gvl = MotorIO.compile()
         assert gvl.scope == "controller"

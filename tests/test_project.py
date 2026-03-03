@@ -3,7 +3,7 @@
 import pytest
 
 from plx.framework._decorators import fb, function, program
-from plx.framework._descriptors import input_var, output_var, static_var
+from plx.framework._descriptors import Input, Field, Output
 from plx.framework._project import PlxProject, project
 from plx.framework._types import BOOL, DINT, REAL
 from plx.model.pou import POUType
@@ -12,8 +12,8 @@ from plx.model.project import Project
 
 @fb
 class _TestFB:
-    x = input_var(BOOL)
-    y = output_var(BOOL)
+    x: Input[BOOL]
+    y: Output[BOOL]
 
     def logic(self):
         self.y = self.x
@@ -21,7 +21,7 @@ class _TestFB:
 
 @program
 class _TestProgram:
-    running = input_var(BOOL)
+    running: Input[BOOL]
 
     def logic(self):
         pass
@@ -29,7 +29,7 @@ class _TestProgram:
 
 @function
 class _TestFunc:
-    a = input_var(REAL)
+    a: Input[REAL]
 
     def logic(self) -> REAL:
         return self.a + 1.0

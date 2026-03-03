@@ -737,7 +737,7 @@ class TestGlobalVarLists:
         w = _make_writer()
         w._write_global_variable_list(gvl)
         out = w.getvalue().strip()
-        assert 'valve = global_var(bool, address="%Q0.0", retain=True)' in out
+        assert 'valve: bool = Field(retain=True, address="%Q0.0")' in out
 
     def test_gvl_with_description(self):
         gvl = GlobalVariableList(
@@ -861,7 +861,7 @@ class TestPOUEmission:
         w = _make_writer()
         w._write_pou(pou)
         out = w.getvalue().strip()
-        assert "timer = TON" in out
+        assert "timer: TON" in out
 
     def test_method(self):
         pou = POU(
@@ -1241,13 +1241,13 @@ class TestRoundTrip:
     def test_simple_fb_round_trip(self):
         """Compile framework → IR → generate Python → verify it's valid Python."""
         from plx.framework._decorators import fb
-        from plx.framework._descriptors import input_var, output_var
+        from plx.framework._descriptors import Input, Output
         from plx.framework._types import BOOL
 
         @fb
         class RoundTripFB:
-            sensor = input_var(BOOL)
-            valve = output_var(BOOL)
+            sensor: Input[BOOL]
+            valve: Output[BOOL]
 
             def logic(self):
                 self.valve = self.sensor
@@ -1267,12 +1267,12 @@ class TestRoundTrip:
 
     def test_function_round_trip(self):
         from plx.framework._decorators import function
-        from plx.framework._descriptors import input_var
+        from plx.framework._descriptors import Input
         from plx.framework._types import REAL
 
         @function
         class AddOne:
-            x = input_var(REAL)
+            x: Input[REAL]
 
             def logic(self) -> REAL:
                 return self.x + 1.0
@@ -1286,13 +1286,13 @@ class TestRoundTrip:
 
     def test_if_else_round_trip(self):
         from plx.framework._decorators import fb
-        from plx.framework._descriptors import input_var, output_var
+        from plx.framework._descriptors import Input, Output
         from plx.framework._types import BOOL, DINT
 
         @fb
         class IfElseFB:
-            enable = input_var(BOOL)
-            count = output_var(DINT)
+            enable: Input[BOOL]
+            count: Output[DINT]
 
             def logic(self):
                 if self.enable:
@@ -1310,12 +1310,12 @@ class TestRoundTrip:
 
     def test_for_loop_round_trip(self):
         from plx.framework._decorators import fb
-        from plx.framework._descriptors import output_var, temp_var
+        from plx.framework._descriptors import Output
         from plx.framework._types import DINT
 
         @fb
         class ForLoopFB:
-            total = output_var(DINT)
+            total: Output[DINT]
 
             def logic(self):
                 for i in range(0, 10):
@@ -1353,7 +1353,7 @@ class TestRoundTrip:
         assert "class Mode:" in code
 
     def test_global_vars_round_trip(self):
-        from plx.framework._global_vars import global_var, global_vars
+        from plx.framework._global_vars import global_vars
         from plx.framework._types import BOOL, REAL
 
         @global_vars
@@ -1372,14 +1372,14 @@ class TestRoundTrip:
 
     def test_project_assembly_round_trip(self):
         from plx.framework._decorators import fb, program
-        from plx.framework._descriptors import input_var, output_var
+        from plx.framework._descriptors import Input, Output
         from plx.framework._project import project, task
         from plx.framework._types import BOOL, T
 
         @fb
         class MotorCtrl:
-            cmd = input_var(BOOL)
-            out = output_var(BOOL)
+            cmd: Input[BOOL]
+            out: Output[BOOL]
 
             def logic(self):
                 self.out = self.cmd
@@ -1426,8 +1426,8 @@ class TestAnnotationSyntaxEmission:
         assert "ref: InOut[float]" in out
         assert "count: int = 0" in out
 
-    def test_metadata_falls_back_to_descriptor(self):
-        """Variables with description/retain should use descriptor syntax."""
+    def test_metadata_uses_field_syntax(self):
+        """Variables with description/retain should use annotation + Field() syntax."""
         pou = POU(
             pou_type=POUType.FUNCTION_BLOCK,
             name="MetaFB",
@@ -1441,12 +1441,12 @@ class TestAnnotationSyntaxEmission:
         w = _make_writer()
         w._write_pou(pou)
         out = w.getvalue()
-        assert 'sensor = input_var(bool, description="Main sensor")' in out
-        assert "valve = output_var(bool, retain=True)" in out
-        assert 'count = static_var(int, address="%MW100")' in out
+        assert 'sensor: Input[bool] = Field(description="Main sensor")' in out
+        assert "valve: Output[bool] = Field(retain=True)" in out
+        assert 'count: int = Field(address="%MW100")' in out
 
     def test_standard_fb_shorthand_preserved(self):
-        """Standard FB types (TON, etc.) should still use shorthand."""
+        """Standard FB types (TON, etc.) should still use annotation shorthand."""
         pou = POU(
             pou_type=POUType.FUNCTION_BLOCK,
             name="TimerFB",
@@ -1458,7 +1458,7 @@ class TestAnnotationSyntaxEmission:
         w = _make_writer()
         w._write_pou(pou)
         out = w.getvalue()
-        assert "timer = TON" in out
+        assert "timer: TON" in out
 
     def test_static_var_no_initial_uses_annotation(self):
         """Static var without initial value uses bare annotation."""

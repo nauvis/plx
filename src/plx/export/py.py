@@ -212,8 +212,8 @@ _FUNC_REMAP: dict[str, str] = {
     "MAX": "max",
 }
 
-# Standard FB types that get shorthand syntax: timer = TON
-_STANDARD_FB_TYPES = {"TON", "TOF", "TP", "RTO", "R_TRIG", "F_TRIG", "CTU", "CTD"}
+# Standard FB types that get shorthand syntax: timer: TON
+_STANDARD_FB_TYPES = {"TON", "TOF", "TP", "RTO", "R_TRIG", "F_TRIG", "CTU", "CTD", "CTUD", "SR", "RS"}
 
 # IEC time literal regex: T#1h2m3s4ms5us or subsets
 _IEC_TIME_RE = re.compile(
@@ -488,39 +488,15 @@ class PyWriter:
 
     def _write_global_var(self, v: Variable) -> None:
         """Emit a single global variable declaration."""
-        has_complex = (
-            v.address is not None
-            or v.retain
-            or v.persistent
-            or v.constant
-            or v.description
-        )
+        type_str = self._type_ref(v.data_type)
 
-        if has_complex:
-            # Use global_var() descriptor
-            type_str = self._type_ref(v.data_type)
-            kwargs: list[str] = []
-            if v.initial_value is not None:
-                kwargs.append(f"initial={_format_initial_value(v.initial_value)}")
-            if v.address is not None:
-                kwargs.append(f'address="{v.address}"')
-            if v.retain:
-                kwargs.append("retain=True")
-            if v.persistent:
-                kwargs.append("persistent=True")
-            if v.constant:
-                kwargs.append("constant=True")
-            if v.description:
-                kwargs.append(f'description="{v.description}"')
-            args = f"{type_str}, {', '.join(kwargs)}" if kwargs else type_str
-            self._line(f"{v.name} = global_var({args})")
+        if self._has_metadata(v):
+            field_args = self._build_field_kwargs(v)
+            self._line(f"{v.name}: {type_str} = Field({field_args})")
+        elif v.initial_value is not None:
+            self._line(f"{v.name}: {type_str} = {_format_initial_value(v.initial_value)}")
         else:
-            # Simple annotation style
-            type_str = self._type_ref(v.data_type)
-            if v.initial_value is not None:
-                self._line(f"{v.name}: {type_str} = {_format_initial_value(v.initial_value)}")
-            else:
-                self._line(f"{v.name}: {type_str}")
+            self._line(f"{v.name}: {type_str}")
 
     # ======================================================================
     # POUs
@@ -628,62 +604,32 @@ class PyWriter:
         """Emit variable declarations. Returns True if any were emitted."""
         any_emitted = False
         for v in iface.input_vars:
-            self._write_annotation_or_descriptor(v, "input_var", "Input")
+            self._write_annotation_var(v, "Input")
             any_emitted = True
         for v in iface.output_vars:
-            self._write_annotation_or_descriptor(v, "output_var", "Output")
+            self._write_annotation_var(v, "Output")
             any_emitted = True
         for v in iface.inout_vars:
-            self._write_annotation_or_descriptor(v, "inout_var", "InOut")
+            self._write_annotation_var(v, "InOut")
             any_emitted = True
         for v in iface.static_vars:
             self._write_static_var(v)
             any_emitted = True
         for v in iface.temp_vars:
-            self._write_var_descriptor(v, "temp_var")
+            self._write_annotation_var(v, "Temp")
             any_emitted = True
         for v in iface.constant_vars:
-            self._write_var_descriptor(v, "constant_var")
+            self._write_annotation_var(v, "Constant")
             any_emitted = True
         return any_emitted
 
     def _has_metadata(self, v: Variable) -> bool:
-        """Check if a variable has metadata that requires descriptor syntax."""
+        """Check if a variable has metadata beyond initial value."""
         return bool(v.description or v.retain or v.persistent or v.address is not None or v.constant)
 
-    def _write_annotation_or_descriptor(self, v: Variable, func: str, wrapper: str) -> None:
-        """Emit annotation syntax when possible, falling back to descriptor."""
-        if self._has_metadata(v):
-            self._write_var_descriptor(v, func)
-            return
-        type_str = self._type_ref(v.data_type)
-        if v.initial_value is not None:
-            self._line(f"{v.name}: {wrapper}[{type_str}] = {_format_initial_value(v.initial_value)}")
-        else:
-            self._line(f"{v.name}: {wrapper}[{type_str}]")
-
-    def _write_static_var(self, v: Variable) -> None:
-        """Emit a static variable, using shorthand for standard FB types."""
-        if isinstance(v.data_type, NamedTypeRef) and v.data_type.name in _STANDARD_FB_TYPES:
-            # Check if it's a simple FB instance (no extra fields)
-            if not self._has_metadata(v) and v.initial_value is None:
-                self._line(f"{v.name} = {v.data_type.name}")
-                return
-        # No metadata → annotation syntax
-        if not self._has_metadata(v):
-            type_str = self._type_ref(v.data_type)
-            if v.initial_value is not None:
-                self._line(f"{v.name}: {type_str} = {_format_initial_value(v.initial_value)}")
-            else:
-                self._line(f"{v.name}: {type_str}")
-            return
-        self._write_var_descriptor(v, "static_var")
-
-    def _write_var_descriptor(self, v: Variable, func: str) -> None:
-        """Emit a variable descriptor call like: name = input_var(BOOL, initial=True)."""
-        type_str = self._type_ref(v.data_type)
+    def _build_field_kwargs(self, v: Variable) -> str:
+        """Build Field() argument string from variable metadata."""
         kwargs: list[str] = []
-
         if v.initial_value is not None:
             kwargs.append(f"initial={_format_initial_value(v.initial_value)}")
         if v.description:
@@ -696,13 +642,38 @@ class PyWriter:
             kwargs.append(f'address="{v.address}"')
         if v.constant:
             kwargs.append("constant=True")
+        return ", ".join(kwargs)
 
-        if kwargs:
-            args = f"{type_str}, {', '.join(kwargs)}"
+    def _write_annotation_var(self, v: Variable, wrapper: str) -> None:
+        """Emit annotation syntax, using Field() when metadata is present."""
+        type_str = self._type_ref(v.data_type)
+        if self._has_metadata(v):
+            field_args = self._build_field_kwargs(v)
+            self._line(f"{v.name}: {wrapper}[{type_str}] = Field({field_args})")
+        elif v.initial_value is not None:
+            self._line(f"{v.name}: {wrapper}[{type_str}] = {_format_initial_value(v.initial_value)}")
         else:
-            args = type_str
+            self._line(f"{v.name}: {wrapper}[{type_str}]")
 
-        self._line(f"{v.name} = {func}({args})")
+    def _write_static_var(self, v: Variable) -> None:
+        """Emit a static variable, using shorthand for standard FB types."""
+        if isinstance(v.data_type, NamedTypeRef) and v.data_type.name in _STANDARD_FB_TYPES:
+            # Standard FB instance: timer: TON
+            if not self._has_metadata(v) and v.initial_value is None:
+                self._line(f"{v.name}: {v.data_type.name}")
+                return
+        # With metadata → use Field()
+        if self._has_metadata(v):
+            type_str = self._type_ref(v.data_type)
+            field_args = self._build_field_kwargs(v)
+            self._line(f"{v.name}: {type_str} = Field({field_args})")
+            return
+        # Simple annotation
+        type_str = self._type_ref(v.data_type)
+        if v.initial_value is not None:
+            self._line(f"{v.name}: {type_str} = {_format_initial_value(v.initial_value)}")
+        else:
+            self._line(f"{v.name}: {type_str}")
 
     # ======================================================================
     # Methods
@@ -731,15 +702,15 @@ class PyWriter:
 
         self._indent_inc()
 
-        # Non-input vars as local descriptors
+        # Non-input vars as local declarations
         for v in m.interface.output_vars:
-            self._write_var_descriptor(v, "output_var")
+            self._write_annotation_var(v, "Output")
         for v in m.interface.inout_vars:
-            self._write_var_descriptor(v, "inout_var")
+            self._write_annotation_var(v, "InOut")
         for v in m.interface.static_vars:
             self._write_static_var(v)
         for v in m.interface.temp_vars:
-            self._write_var_descriptor(v, "temp_var")
+            self._write_annotation_var(v, "Temp")
 
         stmts = []
         for net in m.networks:

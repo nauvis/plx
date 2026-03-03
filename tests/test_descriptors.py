@@ -1,20 +1,21 @@
-"""Tests for variable descriptors."""
+"""Tests for variable descriptors (annotation + Field() syntax)."""
 
 import pytest
 
 from plx.framework._descriptors import (
-    VarDescriptor,
+    Input,
+    Output,
+    InOut,
+    Static,
+    Temp,
+    Constant,
+    External,
+    Field,
+    FieldDescriptor,
     _collect_descriptors,
     _format_initial,
-    input_var,
-    output_var,
-    static_var,
-    inout_var,
-    temp_var,
-    constant_var,
-    external_var,
 )
-from plx.framework._types import T, LT, TimeLiteral
+from plx.framework._types import T, LT, TimeLiteral, REAL, BOOL, INT, DINT
 from plx.model.types import (
     NamedTypeRef,
     PrimitiveType,
@@ -59,139 +60,323 @@ class TestFormatInitial:
 
 
 # ---------------------------------------------------------------------------
-# Constructor functions
+# Field() function
 # ---------------------------------------------------------------------------
 
-class TestInputVar:
+class TestField:
     def test_basic(self):
-        v = input_var(PrimitiveType.BOOL)
-        assert isinstance(v, VarDescriptor)
-        assert v.direction == "input"
-        assert v.data_type == PrimitiveTypeRef(type=PrimitiveType.BOOL)
-        assert v.initial_value is None
-        assert v.description == ""
+        f = Field()
+        assert isinstance(f, FieldDescriptor)
+        assert f.initial_value is None
+        assert f.description == ""
+        assert f.retain is False
+        assert f.persistent is False
+        assert f.constant is False
+        assert f.address is None
 
     def test_with_initial(self):
-        v = input_var(PrimitiveType.REAL, initial=0.0)
-        assert v.initial_value == "0.0"
-
-    def test_with_description(self):
-        v = input_var(PrimitiveType.INT, description="Sensor count")
-        assert v.description == "Sensor count"
-
-    def test_string_type(self):
-        v = input_var("MyUDT")
-        assert v.data_type == NamedTypeRef(name="MyUDT")
-
-    def test_retain(self):
-        v = input_var(PrimitiveType.BOOL, retain=True)
-        assert v.retain is True
-
-    def test_address(self):
-        v = input_var(PrimitiveType.BOOL, address="%I0.0")
-        assert v.address == "%I0.0"
-
-
-class TestPythonBuiltinTypes:
-    def test_input_var_python_bool(self):
-        v = input_var(bool)
-        assert isinstance(v, VarDescriptor)
-        assert v.data_type == PrimitiveTypeRef(type=PrimitiveType.BOOL)
-
-    def test_static_var_python_int(self):
-        v = static_var(int, initial=0)
-        assert v.data_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
-        assert v.initial_value == "0"
-
-    def test_output_var_python_float(self):
-        v = output_var(float)
-        assert v.data_type == PrimitiveTypeRef(type=PrimitiveType.REAL)
-
-    def test_static_var_python_str(self):
-        v = static_var(str)
-        assert v.data_type == StringTypeRef(wide=False, max_length=255)
-
-
-class TestOutputVar:
-    def test_basic(self):
-        v = output_var(PrimitiveType.BOOL)
-        assert v.direction == "output"
+        f = Field(initial=42)
+        assert f.initial_value == "42"
 
     def test_with_initial_bool(self):
-        v = output_var(PrimitiveType.BOOL, initial=False)
-        assert v.initial_value == "FALSE"
+        f = Field(initial=True)
+        assert f.initial_value == "TRUE"
 
-    def test_retain(self):
-        v = output_var(PrimitiveType.REAL, retain=True)
-        assert v.retain is True
-
-    def test_address(self):
-        v = output_var(PrimitiveType.REAL, address="%Q0.0")
-        assert v.address == "%Q0.0"
-
-
-class TestStaticVar:
-    def test_basic(self):
-        v = static_var(PrimitiveType.DINT)
-        assert v.direction == "static"
-
-    def test_with_time_initial(self):
-        v = static_var(PrimitiveType.TIME, initial=T(5))
-        assert v.initial_value == "T#5s"
-
-    def test_retain(self):
-        v = static_var(PrimitiveType.DINT, retain=True)
-        assert v.retain is True
-
-    def test_persistent(self):
-        v = static_var(PrimitiveType.DINT, persistent=True)
-        assert v.persistent is True
-
-    def test_constant(self):
-        v = static_var(PrimitiveType.DINT, constant=True)
-        assert v.constant is True
-
-    def test_address(self):
-        v = static_var(PrimitiveType.DINT, address="%MW100")
-        assert v.address == "%MW100"
-
-
-class TestInoutVar:
-    def test_basic(self):
-        v = inout_var(PrimitiveType.REAL)
-        assert v.direction == "inout"
-        assert v.initial_value is None
+    def test_with_initial_time(self):
+        f = Field(initial=T(5))
+        assert f.initial_value == "T#5s"
 
     def test_with_description(self):
-        v = inout_var(PrimitiveType.INT, description="Shared counter")
-        assert v.description == "Shared counter"
+        f = Field(description="Sensor input")
+        assert f.description == "Sensor input"
 
-    def test_rejects_retain(self):
-        with pytest.raises(TypeError):
-            inout_var(PrimitiveType.BOOL, retain=True)
+    def test_with_retain(self):
+        f = Field(retain=True)
+        assert f.retain is True
 
-    def test_rejects_address(self):
-        with pytest.raises(TypeError):
-            inout_var(PrimitiveType.BOOL, address="%I0.0")
+    def test_with_persistent(self):
+        f = Field(persistent=True)
+        assert f.persistent is True
+
+    def test_with_address(self):
+        f = Field(address="%I0.0")
+        assert f.address == "%I0.0"
+
+    def test_with_constant(self):
+        f = Field(constant=True)
+        assert f.constant is True
+
+    def test_all_kwargs(self):
+        f = Field(initial=0.0, description="Speed", retain=True,
+                  persistent=True, address="%MW100")
+        assert f.initial_value == "0.0"
+        assert f.description == "Speed"
+        assert f.retain is True
+        assert f.persistent is True
+        assert f.address == "%MW100"
 
 
-class TestTempVar:
-    def test_basic(self):
-        v = temp_var(PrimitiveType.INT)
-        assert v.direction == "temp"
-        assert v.description == ""
+# ---------------------------------------------------------------------------
+# Annotation wrappers
+# ---------------------------------------------------------------------------
 
-    def test_with_initial(self):
-        v = temp_var(PrimitiveType.REAL, initial=0.0)
+class TestAnnotationWrappers:
+    def test_input_annotation(self):
+        class MyFB:
+            sensor: Input[bool]
+
+        groups = _collect_descriptors(MyFB)
+        assert len(groups["input"]) == 1
+        assert groups["input"][0].name == "sensor"
+        assert groups["input"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.BOOL)
+
+    def test_output_annotation(self):
+        class MyFB:
+            valve: Output[float]
+
+        groups = _collect_descriptors(MyFB)
+        assert len(groups["output"]) == 1
+        assert groups["output"][0].name == "valve"
+        assert groups["output"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.REAL)
+
+    def test_inout_annotation(self):
+        class MyFB:
+            ref_speed: InOut[int]
+
+        groups = _collect_descriptors(MyFB)
+        assert len(groups["inout"]) == 1
+        assert groups["inout"][0].name == "ref_speed"
+        assert groups["inout"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
+
+    def test_static_wrapper(self):
+        class MyFB:
+            count: Static[int]
+
+        groups = _collect_descriptors(MyFB)
+        assert len(groups["static"]) == 1
+        assert groups["static"][0].name == "count"
+        assert groups["static"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
+
+    def test_temp_wrapper(self):
+        class MyFB:
+            scratch: Temp[int]
+
+        groups = _collect_descriptors(MyFB)
+        assert len(groups["temp"]) == 1
+        assert groups["temp"][0].name == "scratch"
+        assert groups["temp"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
+
+    def test_constant_wrapper(self):
+        class MyFB:
+            PI: Constant[float] = 3.14
+
+        groups = _collect_descriptors(MyFB)
+        assert len(groups["constant"]) == 1
+        assert groups["constant"][0].name == "PI"
+        assert groups["constant"][0].constant is True
+        assert groups["constant"][0].initial_value == "3.14"
+
+    def test_external_wrapper(self):
+        class MyFB:
+            ext: External[int]
+
+        groups = _collect_descriptors(MyFB)
+        assert len(groups["external"]) == 1
+        assert groups["external"][0].name == "ext"
+
+    def test_bare_annotation_is_static(self):
+        class MyFB:
+            count: int = 0
+
+        groups = _collect_descriptors(MyFB)
+        assert len(groups["static"]) == 1
+        assert groups["static"][0].name == "count"
+        assert groups["static"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
+        assert groups["static"][0].initial_value == "0"
+
+    def test_bare_annotation_no_default(self):
+        class MyFB:
+            flag: bool
+
+        groups = _collect_descriptors(MyFB)
+        assert len(groups["static"]) == 1
+        assert groups["static"][0].name == "flag"
+        assert groups["static"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.BOOL)
+        assert groups["static"][0].initial_value is None
+
+
+# ---------------------------------------------------------------------------
+# Field() with annotation wrappers
+# ---------------------------------------------------------------------------
+
+class TestAnnotationWithField:
+    def test_input_with_field(self):
+        class MyFB:
+            sensor: Input[bool] = Field(address="%I0.0", description="Proximity")
+
+        groups = _collect_descriptors(MyFB)
+        v = groups["input"][0]
+        assert v.name == "sensor"
+        assert v.address == "%I0.0"
+        assert v.description == "Proximity"
+
+    def test_output_with_field(self):
+        class MyFB:
+            speed: Output[float] = Field(initial=60.0, retain=True)
+
+        groups = _collect_descriptors(MyFB)
+        v = groups["output"][0]
+        assert v.name == "speed"
+        assert v.initial_value == "60.0"
+        assert v.retain is True
+
+    def test_static_with_field(self):
+        class MyFB:
+            state: int = Field(retain=True)
+
+        groups = _collect_descriptors(MyFB)
+        v = groups["static"][0]
+        assert v.name == "state"
+        assert v.retain is True
+
+    def test_static_wrapper_with_field(self):
+        class MyFB:
+            state: Static[int] = Field(retain=True)
+
+        groups = _collect_descriptors(MyFB)
+        v = groups["static"][0]
+        assert v.name == "state"
+        assert v.retain is True
+
+    def test_constant_with_field(self):
+        class MyFB:
+            PI: Constant[float] = Field(initial=3.14, description="Pi constant")
+
+        groups = _collect_descriptors(MyFB)
+        v = groups["constant"][0]
+        assert v.name == "PI"
+        assert v.constant is True
+        assert v.initial_value == "3.14"
+        assert v.description == "Pi constant"
+
+    def test_input_with_initial_default(self):
+        class MyFB:
+            speed: Input[float] = 0.0
+
+        groups = _collect_descriptors(MyFB)
+        v = groups["input"][0]
         assert v.initial_value == "0.0"
 
-    def test_rejects_retain(self):
-        with pytest.raises(TypeError):
-            temp_var(PrimitiveType.BOOL, retain=True)
+    def test_output_with_initial_default(self):
+        class MyFB:
+            valve: Output[bool] = False
 
-    def test_rejects_address(self):
-        with pytest.raises(TypeError):
-            temp_var(PrimitiveType.BOOL, address="%Q0.0")
+        groups = _collect_descriptors(MyFB)
+        v = groups["output"][0]
+        assert v.initial_value == "FALSE"
+
+
+# ---------------------------------------------------------------------------
+# Field validation per direction
+# ---------------------------------------------------------------------------
+
+class TestFieldValidation:
+    def test_temp_rejects_retain(self):
+        with pytest.raises(TypeError, match="retain"):
+            class MyFB:
+                x: Temp[bool] = Field(retain=True)
+            _collect_descriptors(MyFB)
+
+    def test_temp_rejects_address(self):
+        with pytest.raises(TypeError, match="address"):
+            class MyFB:
+                x: Temp[bool] = Field(address="%I0.0")
+            _collect_descriptors(MyFB)
+
+    def test_temp_rejects_description(self):
+        with pytest.raises(TypeError, match="description"):
+            class MyFB:
+                x: Temp[bool] = Field(description="nope")
+            _collect_descriptors(MyFB)
+
+    def test_inout_rejects_initial(self):
+        with pytest.raises(TypeError, match="initial"):
+            class MyFB:
+                x: InOut[bool] = Field(initial=True)
+            _collect_descriptors(MyFB)
+
+    def test_inout_rejects_retain(self):
+        with pytest.raises(TypeError, match="retain"):
+            class MyFB:
+                x: InOut[bool] = Field(retain=True)
+            _collect_descriptors(MyFB)
+
+    def test_inout_rejects_address(self):
+        with pytest.raises(TypeError, match="address"):
+            class MyFB:
+                x: InOut[bool] = Field(address="%I0.0")
+            _collect_descriptors(MyFB)
+
+    def test_external_rejects_initial(self):
+        with pytest.raises(TypeError, match="initial"):
+            class MyFB:
+                x: External[int] = Field(initial=0)
+            _collect_descriptors(MyFB)
+
+    def test_external_rejects_retain(self):
+        with pytest.raises(TypeError, match="retain"):
+            class MyFB:
+                x: External[int] = Field(retain=True)
+            _collect_descriptors(MyFB)
+
+    def test_constant_rejects_retain(self):
+        with pytest.raises(TypeError, match="retain"):
+            class MyFB:
+                x: Constant[float] = Field(initial=3.14, retain=True)
+            _collect_descriptors(MyFB)
+
+    def test_constant_rejects_address(self):
+        with pytest.raises(TypeError, match="address"):
+            class MyFB:
+                x: Constant[int] = Field(initial=0, address="%MW0")
+            _collect_descriptors(MyFB)
+
+    def test_constant_requires_initial(self):
+        with pytest.raises(TypeError, match="requires an initial"):
+            class MyFB:
+                x: Constant[int]
+            _collect_descriptors(MyFB)
+
+
+# ---------------------------------------------------------------------------
+# Python builtin types
+# ---------------------------------------------------------------------------
+
+class TestPythonBuiltinTypes:
+    def test_input_bool(self):
+        class MyFB:
+            sensor: Input[bool]
+        groups = _collect_descriptors(MyFB)
+        assert groups["input"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.BOOL)
+
+    def test_static_int(self):
+        class MyFB:
+            count: int = 0
+        groups = _collect_descriptors(MyFB)
+        assert groups["static"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
+        assert groups["static"][0].initial_value == "0"
+
+    def test_output_float(self):
+        class MyFB:
+            valve: Output[float]
+        groups = _collect_descriptors(MyFB)
+        assert groups["output"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.REAL)
+
+    def test_static_str(self):
+        class MyFB:
+            name: str
+        groups = _collect_descriptors(MyFB)
+        assert groups["static"][0].data_type == StringTypeRef(wide=False, max_length=255)
 
 
 # ---------------------------------------------------------------------------
@@ -201,9 +386,9 @@ class TestTempVar:
 class TestCollectDescriptors:
     def test_basic_collection(self):
         class MyFB:
-            sensor = input_var(PrimitiveType.BOOL)
-            valve = output_var(PrimitiveType.BOOL)
-            count = static_var(PrimitiveType.DINT, initial=0)
+            sensor: Input[BOOL]
+            valve: Output[BOOL]
+            count: DINT = 0
 
         groups = _collect_descriptors(MyFB)
         assert len(groups["input"]) == 1
@@ -214,14 +399,14 @@ class TestCollectDescriptors:
 
     def test_variable_names(self):
         class MyFB:
-            sensor = input_var(PrimitiveType.BOOL)
+            sensor: Input[BOOL]
 
         groups = _collect_descriptors(MyFB)
         assert groups["input"][0].name == "sensor"
 
     def test_variable_types(self):
         class MyFB:
-            speed = input_var(PrimitiveType.REAL)
+            speed: Input[REAL]
 
         groups = _collect_descriptors(MyFB)
         v = groups["input"][0]
@@ -230,21 +415,21 @@ class TestCollectDescriptors:
 
     def test_initial_value_preserved(self):
         class MyFB:
-            count = static_var(PrimitiveType.DINT, initial=10)
+            count: DINT = 10
 
         groups = _collect_descriptors(MyFB)
         assert groups["static"][0].initial_value == "10"
 
     def test_description_preserved(self):
         class MyFB:
-            temp = input_var(PrimitiveType.REAL, description="Temperature")
+            temp: Input[REAL] = Field(description="Temperature")
 
         groups = _collect_descriptors(MyFB)
         assert groups["input"][0].description == "Temperature"
 
     def test_non_descriptors_ignored(self):
         class MyFB:
-            sensor = input_var(PrimitiveType.BOOL)
+            sensor: Input[BOOL]
             some_constant = 42
             some_method = lambda self: None
 
@@ -263,11 +448,11 @@ class TestCollectDescriptors:
 
     def test_all_directions(self):
         class AllDirs:
-            a = input_var(PrimitiveType.BOOL)
-            b = output_var(PrimitiveType.BOOL)
-            c = inout_var(PrimitiveType.BOOL)
-            d = static_var(PrimitiveType.BOOL)
-            e = temp_var(PrimitiveType.BOOL)
+            a: Input[BOOL]
+            b: Output[BOOL]
+            c: InOut[BOOL]
+            d: BOOL
+            e: Temp[BOOL]
 
         groups = _collect_descriptors(AllDirs)
         assert len(groups["input"]) == 1
@@ -278,10 +463,9 @@ class TestCollectDescriptors:
 
     def test_flags_passed_through_to_variable(self):
         class MyFB:
-            a = static_var(PrimitiveType.DINT, retain=True, persistent=True,
-                           constant=True, address="%MW100")
-            b = input_var(PrimitiveType.BOOL, retain=True, address="%I0.0")
-            c = output_var(PrimitiveType.REAL, retain=True, address="%Q0.0")
+            a: DINT = Field(retain=True, persistent=True, constant=True, address="%MW100")
+            b: Input[BOOL] = Field(retain=True, address="%I0.0")
+            c: Output[REAL] = Field(retain=True, address="%Q0.0")
 
         groups = _collect_descriptors(MyFB)
 
@@ -305,8 +489,8 @@ class TestCollectDescriptors:
 
     def test_constant_group(self):
         class MyFB:
-            sensor = input_var(PrimitiveType.BOOL)
-            MAX_SPEED = constant_var(PrimitiveType.REAL, initial=100.0)
+            sensor: Input[BOOL]
+            MAX_SPEED: Constant[REAL] = 100.0
 
         groups = _collect_descriptors(MyFB)
         assert len(groups["constant"]) == 1
@@ -315,7 +499,7 @@ class TestCollectDescriptors:
 
     def test_flags_default_to_false_none(self):
         class MyFB:
-            x = static_var(PrimitiveType.INT)
+            x: INT
 
         groups = _collect_descriptors(MyFB)
         v = groups["static"][0]
@@ -326,50 +510,17 @@ class TestCollectDescriptors:
 
 
 # ---------------------------------------------------------------------------
-# constant_var
+# Constant wrapper integration with @fb
 # ---------------------------------------------------------------------------
 
-class TestConstantVar:
-    def test_basic(self):
-        v = constant_var(PrimitiveType.REAL, initial=3.14)
-        assert isinstance(v, VarDescriptor)
-        assert v.direction == "constant"
-        assert v.constant is True
-        assert v.data_type == PrimitiveTypeRef(type=PrimitiveType.REAL)
-
-    def test_with_initial(self):
-        v = constant_var(PrimitiveType.DINT, initial=42)
-        assert v.initial_value == "42"
-
-    def test_initial_required(self):
-        with pytest.raises(TypeError):
-            constant_var(PrimitiveType.INT)
-
-    def test_with_description(self):
-        v = constant_var(PrimitiveType.REAL, initial=9.81, description="Gravity")
-        assert v.description == "Gravity"
-
-    def test_rejects_retain(self):
-        with pytest.raises(TypeError):
-            constant_var(PrimitiveType.BOOL, initial=True, retain=True)
-
-    def test_rejects_address(self):
-        with pytest.raises(TypeError):
-            constant_var(PrimitiveType.INT, initial=0, address="%MW0")
-
-
-# ---------------------------------------------------------------------------
-# constant_var integration with @fb
-# ---------------------------------------------------------------------------
-
-class TestConstantVarIntegration:
-    def test_fb_with_constant_var(self):
-        from plx.framework import fb, REAL, BOOL
+class TestConstantIntegration:
+    def test_fb_with_constant(self):
+        from plx.framework import fb
 
         @fb
         class Motor:
-            running = input_var(PrimitiveType.BOOL)
-            MAX_RPM = constant_var(PrimitiveType.REAL, initial=3600.0)
+            running: Input[BOOL]
+            MAX_RPM: Constant[REAL] = 3600.0
 
             def logic(self):
                 pass
@@ -383,30 +534,38 @@ class TestConstantVarIntegration:
 
 
 # ---------------------------------------------------------------------------
-# external_var
+# External wrapper
 # ---------------------------------------------------------------------------
 
-class TestExternalVar:
+class TestExternalWrapper:
     def test_basic(self):
-        v = external_var(PrimitiveType.REAL)
-        assert isinstance(v, VarDescriptor)
-        assert v.direction == "external"
+        class MyFB:
+            ext: External[REAL]
+
+        groups = _collect_descriptors(MyFB)
+        assert len(groups["external"]) == 1
+        v = groups["external"][0]
         assert v.data_type == PrimitiveTypeRef(type=PrimitiveType.REAL)
         assert v.initial_value is None
-        assert v.description == ""
 
     def test_with_description(self):
-        v = external_var(PrimitiveType.INT, description="Global counter")
-        assert v.description == "Global counter"
+        class MyFB:
+            ext: External[INT] = Field(description="Global counter")
+
+        groups = _collect_descriptors(MyFB)
+        assert groups["external"][0].description == "Global counter"
 
     def test_string_type(self):
-        v = external_var("SystemConfig")
-        assert v.data_type == NamedTypeRef(name="SystemConfig")
+        class MyFB:
+            config: External["SystemConfig"]
+
+        groups = _collect_descriptors(MyFB)
+        assert groups["external"][0].data_type == NamedTypeRef(name="SystemConfig")
 
     def test_collect_descriptors_includes_external(self):
         class MyProg:
-            speed = external_var(PrimitiveType.REAL)
-            cmd = input_var(PrimitiveType.BOOL)
+            speed: External[REAL]
+            cmd: Input[BOOL]
 
         groups = _collect_descriptors(MyProg)
         assert len(groups["external"]) == 1
@@ -415,83 +574,11 @@ class TestExternalVar:
 
 
 # ---------------------------------------------------------------------------
-# Annotation-based variable declarations
+# Annotation inheritance + override
 # ---------------------------------------------------------------------------
 
-class TestAnnotationVars:
-    def test_input_annotation(self):
-        from plx.framework._descriptors import Input
-
-        class MyFB:
-            sensor: Input[bool]
-
-        groups = _collect_descriptors(MyFB)
-        assert len(groups["input"]) == 1
-        assert groups["input"][0].name == "sensor"
-        assert groups["input"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.BOOL)
-
-    def test_output_annotation(self):
-        from plx.framework._descriptors import Output
-
-        class MyFB:
-            valve: Output[float]
-
-        groups = _collect_descriptors(MyFB)
-        assert len(groups["output"]) == 1
-        assert groups["output"][0].name == "valve"
-        assert groups["output"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.REAL)
-
-    def test_inout_annotation(self):
-        from plx.framework._descriptors import InOut
-
-        class MyFB:
-            ref_speed: InOut[int]
-
-        groups = _collect_descriptors(MyFB)
-        assert len(groups["inout"]) == 1
-        assert groups["inout"][0].name == "ref_speed"
-        assert groups["inout"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
-
-    def test_bare_annotation_is_static(self):
-        class MyFB:
-            count: int = 0
-
-        groups = _collect_descriptors(MyFB)
-        assert len(groups["static"]) == 1
-        assert groups["static"][0].name == "count"
-        assert groups["static"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
-        assert groups["static"][0].initial_value == "0"
-
-    def test_bare_annotation_no_default(self):
-        class MyFB:
-            flag: bool
-
-        groups = _collect_descriptors(MyFB)
-        assert len(groups["static"]) == 1
-        assert groups["static"][0].name == "flag"
-        assert groups["static"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.BOOL)
-        assert groups["static"][0].initial_value is None
-
-    def test_mixed_descriptor_and_annotation(self):
-        from plx.framework._descriptors import Input, Output
-
-        class MyFB:
-            sensor: Input[bool]
-            valve = output_var(PrimitiveType.REAL, description="Main valve")
-            count: int = 0
-
-        groups = _collect_descriptors(MyFB)
-        assert len(groups["input"]) == 1
-        assert groups["input"][0].name == "sensor"
-        assert len(groups["output"]) == 1
-        assert groups["output"][0].name == "valve"
-        assert groups["output"][0].description == "Main valve"
-        assert len(groups["static"]) == 1
-        assert groups["static"][0].name == "count"
-
+class TestAnnotationInheritance:
     def test_annotation_inheritance(self):
-        from plx.framework._descriptors import Input
-
         class Parent:
             speed: Input[float]
 
@@ -505,8 +592,6 @@ class TestAnnotationVars:
         assert "accel" in names
 
     def test_annotation_override(self):
-        from plx.framework._descriptors import Input, Output
-
         class Parent:
             x: Input[int]
 
@@ -520,10 +605,14 @@ class TestAnnotationVars:
         assert groups["output"][0].name == "x"
         assert groups["output"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.REAL)
 
+
+# ---------------------------------------------------------------------------
+# Struct/Array type annotations
+# ---------------------------------------------------------------------------
+
+class TestStructArrayAnnotations:
     def test_input_with_struct_type(self):
-        from plx.framework._descriptors import Input
         from plx.framework._data_types import struct
-        from plx.framework._types import REAL
 
         @struct
         class SensorData:
@@ -537,7 +626,6 @@ class TestAnnotationVars:
         assert groups["input"][0].data_type == NamedTypeRef(name="SensorData")
 
     def test_input_with_array_type(self):
-        from plx.framework._descriptors import Input
         from plx.framework._types import ARRAY
 
         class MyFB:
@@ -546,17 +634,3 @@ class TestAnnotationVars:
         groups = _collect_descriptors(MyFB)
         assert len(groups["input"]) == 1
         assert groups["input"][0].data_type.kind == "array"
-
-    def test_descriptor_takes_precedence_over_annotation(self):
-        """If a name is both a descriptor and annotated, descriptor wins."""
-        from plx.framework._descriptors import Input
-
-        class MyFB:
-            sensor = input_var(PrimitiveType.REAL, description="Temp sensor")
-            sensor: Input[bool]  # annotation should be ignored
-
-        groups = _collect_descriptors(MyFB)
-        assert len(groups["input"]) == 1
-        # Descriptor version wins
-        assert groups["input"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.REAL)
-        assert groups["input"][0].description == "Temp sensor"

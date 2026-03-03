@@ -1,4 +1,4 @@
-"""Global variable lists: @global_vars decorator and global_var() constructor.
+"""Global variable lists: @global_vars decorator.
 
 Provides the framework API for declaring named groups of global variables
 that compile into ``GlobalVariableList`` IR nodes.
@@ -13,97 +13,20 @@ Examples::
 
     @global_vars(description="IO mappings for conveyor")
     class ConveyorIO:
-        motor_run = global_var(BOOL, address="%Q0.0")
-        speed_setpoint = global_var(REAL, initial=0.0, description="m/s")
-        e_stop = global_var(BOOL, address="%I0.0", constant=True)
-
-    # Hybrid: mix bare annotations and global_var() descriptors
-    @global_vars
-    class MixedGVL:
-        simple_flag: BOOL = False
-        retained_counter = global_var(DINT, retain=True)
+        motor_run: BOOL = Field(address="%Q0.0")
+        speed_setpoint: REAL = Field(initial=0.0, description="m/s")
+        e_stop: BOOL = Field(address="%I0.0", constant=True)
 """
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal, get_args, get_origin
 
 from plx.model.project import GlobalVariableList
-from plx.model.types import PrimitiveType, TypeRef
 from plx.model.variables import Variable
 
-from ._descriptors import _format_initial
-from ._types import _resolve_type_ref
-
-
-# ---------------------------------------------------------------------------
-# GlobalVarDescriptor — marker object produced by global_var()
-# ---------------------------------------------------------------------------
-
-class GlobalVarDescriptor:
-    """Stores metadata for a global variable declared with ``global_var()``."""
-
-    __slots__ = (
-        "data_type",
-        "initial_value",
-        "description",
-        "constant",
-        "retain",
-        "persistent",
-        "address",
-    )
-
-    def __init__(
-        self,
-        data_type: TypeRef,
-        *,
-        initial_value: str | None = None,
-        description: str = "",
-        constant: bool = False,
-        retain: bool = False,
-        persistent: bool = False,
-        address: str | None = None,
-    ) -> None:
-        self.data_type = data_type
-        self.initial_value = initial_value
-        self.description = description
-        self.constant = constant
-        self.retain = retain
-        self.persistent = persistent
-        self.address = address
-
-
-def global_var(
-    type_arg: PrimitiveType | TypeRef | str,
-    *,
-    initial: object = None,
-    description: str = "",
-    constant: bool = False,
-    retain: bool = False,
-    persistent: bool = False,
-    address: str | None = None,
-) -> GlobalVarDescriptor:
-    """Declare a global variable with full control over all Variable fields.
-
-    Example::
-
-        motor_run = global_var(BOOL, address="%Q0.0")
-        speed = global_var(REAL, initial=50.0, retain=True)
-    """
-    if isinstance(type_arg, type) and not isinstance(type_arg, PrimitiveType):
-        raise TypeError(
-            "Did you mean @global_vars? "
-            "global_var() declares individual variables inside a @global_vars class."
-        )
-    return GlobalVarDescriptor(
-        data_type=_resolve_type_ref(type_arg),
-        initial_value=_format_initial(initial),
-        description=description,
-        constant=constant,
-        retain=retain,
-        persistent=persistent,
-        address=address,
-    )
+from ._descriptors import FieldDescriptor, _format_initial
+from ._types import TimeLiteral, LTimeLiteral, _resolve_type_ref
 
 
 # ---------------------------------------------------------------------------
@@ -121,8 +44,8 @@ def global_vars(
 
     Can be used as ``@global_vars`` or ``@global_vars(description="...")``.
 
-    Variables are declared either as bare annotations (with optional defaults)
-    or via ``global_var()`` descriptors.  Both styles can be mixed freely.
+    Variables are declared as bare annotations (with optional defaults)
+    or with ``Field()`` for metadata.
 
     Examples::
 
@@ -133,50 +56,80 @@ def global_vars(
 
         @global_vars(description="Conveyor IO mapping")
         class ConveyorIO:
-            run_cmd = global_var(BOOL, address="%Q0.0")
+            run_cmd: BOOL = Field(address="%Q0.0")
+            speed: REAL = Field(initial=50.0, retain=True)
     """
     def _apply(cls: type) -> type:
         variables: list[Variable] = []
 
-        # First pass: collect global_var() descriptors from __dict__
-        descriptor_names: set[str] = set()
-        for attr_name, value in cls.__dict__.items():
-            if attr_name.startswith("_"):
-                continue
-            if isinstance(value, GlobalVarDescriptor):
-                descriptor_names.add(attr_name)
-                variables.append(Variable(
-                    name=attr_name,
-                    data_type=value.data_type,
-                    initial_value=value.initial_value,
-                    description=value.description,
-                    constant=value.constant,
-                    retain=value.retain,
-                    persistent=value.persistent,
-                    address=value.address,
-                ))
-
-        # Second pass: bare annotations (not already handled by descriptors)
         annotations = cls.__dict__.get("__annotations__", {})
         for attr_name, type_hint in annotations.items():
             if attr_name.startswith("_"):
                 continue
-            if attr_name in descriptor_names:
-                continue
+
+            # Unwrap Annotated[T, Field(...), ...] if present
+            annotated_field: FieldDescriptor | None = None
+            if get_origin(type_hint) is Annotated:
+                ann_args = get_args(type_hint)
+                type_hint = ann_args[0]
+                fields_found = [a for a in ann_args[1:] if isinstance(a, FieldDescriptor)]
+                if len(fields_found) > 1:
+                    raise TypeError(
+                        f"Variable '{attr_name}' has multiple Field() in Annotated — only one allowed"
+                    )
+                if fields_found:
+                    annotated_field = fields_found[0]
+
             data_type = _resolve_type_ref(type_hint)
             default = cls.__dict__.get(attr_name)
-            initial_value = _format_initial(default)
-            variables.append(Variable(
-                name=attr_name,
-                data_type=data_type,
-                initial_value=initial_value,
-            ))
+
+            if annotated_field is not None:
+                field = annotated_field
+                # Plain class default supplies initial when Field doesn't
+                if field.initial_value is None and default is not None and not isinstance(default, FieldDescriptor):
+                    field = FieldDescriptor(
+                        initial_value=_format_initial(default),
+                        description=field.description,
+                        retain=field.retain,
+                        persistent=field.persistent,
+                        constant=field.constant,
+                        address=field.address,
+                    )
+                variables.append(Variable(
+                    name=attr_name,
+                    data_type=data_type,
+                    initial_value=field.initial_value,
+                    description=field.description,
+                    constant=field.constant,
+                    retain=field.retain,
+                    persistent=field.persistent,
+                    address=field.address,
+                ))
+            elif isinstance(default, FieldDescriptor):
+                variables.append(Variable(
+                    name=attr_name,
+                    data_type=data_type,
+                    initial_value=default.initial_value,
+                    description=default.description,
+                    constant=default.constant,
+                    retain=default.retain,
+                    persistent=default.persistent,
+                    address=default.address,
+                ))
+            else:
+                # Bare annotation with optional simple default
+                initial_value = _format_initial(default)
+                variables.append(Variable(
+                    name=attr_name,
+                    data_type=data_type,
+                    initial_value=initial_value,
+                ))
 
         if not variables:
             raise TypeError(
                 f"@global_vars class '{cls.__name__}' has no variables. "
                 f"Add type annotations (speed: REAL = 0.0) or "
-                f"global_var() descriptors (speed = global_var(REAL))."
+                f"Field() descriptors (speed: REAL = Field(retain=True))."
             )
 
         compiled = GlobalVariableList(

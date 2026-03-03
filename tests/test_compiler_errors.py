@@ -8,7 +8,7 @@ import pytest
 from conftest import compile_stmts, compile_expr
 
 from plx.framework._compiler import ASTCompiler, CompileContext, CompileError
-from plx.framework._descriptors import VarDirection
+from plx.framework._descriptors import Field, VarDirection
 
 
 # ---------------------------------------------------------------------------

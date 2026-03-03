@@ -7,9 +7,10 @@ configurable on-delay and off-delay before changing state.
 from plx.framework import (
     BOOL,
     fb,
-    input_var,
-    output_var,
+    Input,
+    Output,
     delayed,
+    Field,
 )
 
 
@@ -26,9 +27,9 @@ class Debounce:
     Outputs:
         filtered: Debounced output
     """
-    signal = input_var(BOOL, description="Raw digital input")
+    signal: Input[BOOL] = Field(description="Raw digital input")
 
-    filtered = output_var(BOOL, description="Debounced output")
+    filtered: Output[BOOL] = Field(description="Debounced output")
 
     def logic(self):
         self.filtered = delayed(self.signal, ms=50)

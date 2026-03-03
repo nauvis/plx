@@ -15,15 +15,15 @@ from plx.framework import (
     delayed,
     fb,
     first_scan,
-    input_var,
+    Input,
     method,
-    output_var,
+    Output,
     program,
     project,
-    static_var,
     struct,
     sustained,
     task,
+    Field,
 )
 from plx.model.pou import AccessSpecifier
 from plx.simulate import simulate
@@ -67,18 +67,18 @@ class BaseZoneController:
     """
 
     # Inputs
-    zone_temp = input_var(REAL)
-    heat_sp = input_var(REAL, initial=72.0)
-    cool_sp = input_var(REAL, initial=76.0)
-    deadband = input_var(REAL, initial=1.0)
-    enable = input_var(BOOL, initial=True)
+    zone_temp: Input[REAL]
+    heat_sp: Input[REAL] = 72.0
+    cool_sp: Input[REAL] = 76.0
+    deadband: Input[REAL] = 1.0
+    enable: Input[BOOL] = True
 
     # Outputs
-    heat_demand = output_var(REAL)  # 0-100%
-    cool_demand = output_var(REAL)  # 0-100%
+    heat_demand: Output[REAL]  # 0-100%
+    cool_demand: Output[REAL]  # 0-100%
 
     # Internals
-    gain = static_var(REAL, initial=5.0)
+    gain: REAL = 5.0
 
     @method(access=AccessSpecifier.PROTECTED)
     def compute_demand(self, error: REAL) -> REAL:
@@ -123,11 +123,11 @@ class OccupancyZoneController(BaseZoneController):
     setpoints based on occupancy, then delegates to BaseZoneController.
     """
 
-    occupied = input_var(BOOL, initial=True)
-    heat_sp_occ = input_var(REAL, initial=72.0)
-    cool_sp_occ = input_var(REAL, initial=76.0)
-    heat_sp_unocc = input_var(REAL, initial=62.0)
-    cool_sp_unocc = input_var(REAL, initial=82.0)
+    occupied: Input[BOOL] = True
+    heat_sp_occ: Input[REAL] = 72.0
+    cool_sp_occ: Input[REAL] = 76.0
+    heat_sp_unocc: Input[REAL] = 62.0
+    cool_sp_unocc: Input[REAL] = 82.0
 
     def logic(self):
         # Select setpoints based on occupancy
@@ -149,12 +149,12 @@ class FullZoneController(OccupancyZoneController):
     computed by the parent chain.
     """
 
-    window_open = input_var(BOOL)
-    morning_warmup = input_var(BOOL)
-    warmup_sp = input_var(REAL, initial=68.0)
+    window_open: Input[BOOL]
+    morning_warmup: Input[BOOL]
+    warmup_sp: Input[REAL] = 68.0
 
-    damper_pos = output_var(REAL)
-    fan_running = output_var(BOOL)
+    damper_pos: Output[REAL]
+    fan_running: Output[BOOL]
 
     def logic(self):
         # Run parent chain first (occupancy selection + proportional control)
@@ -191,17 +191,17 @@ class FullZoneController(OccupancyZoneController):
 class EconomizerController:
     """Outdoor air economizer — free cooling when outdoor temp < return air."""
 
-    outdoor_temp = input_var(REAL)
-    return_air_temp = input_var(REAL)
-    mixed_air_sp = input_var(REAL, initial=55.0)
-    mixed_air_temp = input_var(REAL)
-    enable = input_var(BOOL, initial=True)
-    min_damper = input_var(REAL, initial=10.0)
+    outdoor_temp: Input[REAL]
+    return_air_temp: Input[REAL]
+    mixed_air_sp: Input[REAL] = 55.0
+    mixed_air_temp: Input[REAL]
+    enable: Input[BOOL] = True
+    min_damper: Input[REAL] = 10.0
 
-    damper_cmd = output_var(REAL)  # 0-100%
-    free_cooling = output_var(BOOL)
+    damper_cmd: Output[REAL]  # 0-100%
+    free_cooling: Output[BOOL]
 
-    gain = static_var(REAL, initial=5.0)
+    gain: REAL = 5.0
 
     def logic(self):
         if not self.enable:
@@ -228,14 +228,14 @@ class EconomizerController:
 class FilterAlarm:
     """Filter differential pressure alarm with delayed() debounce and latch."""
 
-    filter_dp = input_var(REAL)
-    alarm_sp = input_var(REAL, initial=2.5)
-    alarm_ack = input_var(BOOL)
+    filter_dp: Input[REAL]
+    alarm_sp: Input[REAL] = 2.5
+    alarm_ack: Input[BOOL]
 
-    alarm = output_var(BOOL)
-    alarm_latched = output_var(BOOL)
+    alarm: Output[BOOL]
+    alarm_latched: Output[BOOL]
 
-    dp_high = static_var(BOOL)
+    dp_high: BOOL
 
     def logic(self):
         self.dp_high = self.filter_dp > self.alarm_sp
@@ -254,20 +254,20 @@ class FilterAlarm:
 class CentralPlant:
     """Central plant: chiller, boiler, supply/return fans with outdoor lockouts."""
 
-    max_heat_demand = input_var(REAL)
-    max_cool_demand = input_var(REAL)
-    outdoor_temp = input_var(REAL)
-    system_enable = input_var(BOOL)
+    max_heat_demand: Input[REAL]
+    max_cool_demand: Input[REAL]
+    outdoor_temp: Input[REAL]
+    system_enable: Input[BOOL]
 
     # Lockout temperatures
-    chiller_lockout = input_var(REAL, initial=40.0)
-    boiler_lockout = input_var(REAL, initial=75.0)
+    chiller_lockout: Input[REAL] = 40.0
+    boiler_lockout: Input[REAL] = 75.0
 
     # Outputs
-    supply_fan = output_var(BOOL)
-    return_fan = output_var(BOOL)
-    chiller_enable = output_var(BOOL)
-    boiler_enable = output_var(BOOL)
+    supply_fan: Output[BOOL]
+    return_fan: Output[BOOL]
+    chiller_enable: Output[BOOL]
+    boiler_enable: Output[BOOL]
 
     def logic(self):
         if not self.system_enable:
@@ -299,74 +299,74 @@ class HVACSystem:
     """Multi-zone HVAC with 3 FullZoneControllers + economizer + filter alarm + central plant."""
 
     # System-level DI
-    system_enable = input_var(BOOL, initial=True)
-    morning_warmup_cmd = input_var(BOOL)
-    filter_dp_alarm_ack = input_var(BOOL)
+    system_enable: Input[BOOL] = True
+    morning_warmup_cmd: Input[BOOL]
+    filter_dp_alarm_ack: Input[BOOL]
 
     # Zone 1 I/O  (temp AI, humidity AI, sp AI, co2 AI, occupied DI, window DI)
-    zone1_temp = input_var(REAL)
-    zone1_humidity = input_var(REAL)
-    zone1_sp = input_var(REAL)
-    zone1_co2 = input_var(REAL)
-    zone1_occupied = input_var(BOOL, initial=True)
-    zone1_window = input_var(BOOL)
+    zone1_temp: Input[REAL]
+    zone1_humidity: Input[REAL]
+    zone1_sp: Input[REAL]
+    zone1_co2: Input[REAL]
+    zone1_occupied: Input[BOOL] = True
+    zone1_window: Input[BOOL]
 
     # Zone 2 I/O
-    zone2_temp = input_var(REAL)
-    zone2_humidity = input_var(REAL)
-    zone2_sp = input_var(REAL)
-    zone2_co2 = input_var(REAL)
-    zone2_occupied = input_var(BOOL, initial=True)
-    zone2_window = input_var(BOOL)
+    zone2_temp: Input[REAL]
+    zone2_humidity: Input[REAL]
+    zone2_sp: Input[REAL]
+    zone2_co2: Input[REAL]
+    zone2_occupied: Input[BOOL] = True
+    zone2_window: Input[BOOL]
 
     # Zone 3 I/O
-    zone3_temp = input_var(REAL)
-    zone3_humidity = input_var(REAL)
-    zone3_sp = input_var(REAL)
-    zone3_co2 = input_var(REAL)
-    zone3_occupied = input_var(BOOL, initial=True)
-    zone3_window = input_var(BOOL)
+    zone3_temp: Input[REAL]
+    zone3_humidity: Input[REAL]
+    zone3_sp: Input[REAL]
+    zone3_co2: Input[REAL]
+    zone3_occupied: Input[BOOL] = True
+    zone3_window: Input[BOOL]
 
     # Central AI
-    outdoor_temp = input_var(REAL)
-    mixed_air_temp = input_var(REAL)
-    supply_air_temp = input_var(REAL)
-    return_air_temp = input_var(REAL)
-    chilled_water_temp = input_var(REAL)
-    filter_dp = input_var(REAL)
+    outdoor_temp: Input[REAL]
+    mixed_air_temp: Input[REAL]
+    supply_air_temp: Input[REAL]
+    return_air_temp: Input[REAL]
+    chilled_water_temp: Input[REAL]
+    filter_dp: Input[REAL]
 
     # Zone AO outputs
-    zone1_heat_valve = output_var(REAL)
-    zone1_cool_valve = output_var(REAL)
-    zone1_damper = output_var(REAL)
-    zone2_heat_valve = output_var(REAL)
-    zone2_cool_valve = output_var(REAL)
-    zone2_damper = output_var(REAL)
-    zone3_heat_valve = output_var(REAL)
-    zone3_cool_valve = output_var(REAL)
-    zone3_damper = output_var(REAL)
+    zone1_heat_valve: Output[REAL]
+    zone1_cool_valve: Output[REAL]
+    zone1_damper: Output[REAL]
+    zone2_heat_valve: Output[REAL]
+    zone2_cool_valve: Output[REAL]
+    zone2_damper: Output[REAL]
+    zone3_heat_valve: Output[REAL]
+    zone3_cool_valve: Output[REAL]
+    zone3_damper: Output[REAL]
 
     # Central DO outputs
-    supply_fan = output_var(BOOL)
-    return_fan = output_var(BOOL)
-    chiller_enable = output_var(BOOL)
+    supply_fan: Output[BOOL]
+    return_fan: Output[BOOL]
+    chiller_enable: Output[BOOL]
 
     # Status outputs
-    filter_alarm = output_var(BOOL)
-    economizer_active = output_var(BOOL)
+    filter_alarm: Output[BOOL]
+    economizer_active: Output[BOOL]
 
     # Internal FBs
-    zone1_ctrl = static_var(FullZoneController)
-    zone2_ctrl = static_var(FullZoneController)
-    zone3_ctrl = static_var(FullZoneController)
-    econ = static_var(EconomizerController)
-    filt = static_var(FilterAlarm)
-    plant = static_var(CentralPlant)
+    zone1_ctrl: FullZoneController
+    zone2_ctrl: FullZoneController
+    zone3_ctrl: FullZoneController
+    econ: EconomizerController
+    filt: FilterAlarm
+    plant: CentralPlant
 
     # Internals
-    max_heat = static_var(REAL)
-    max_cool = static_var(REAL)
-    initialized = static_var(BOOL)
+    max_heat: REAL
+    max_cool: REAL
+    initialized: BOOL
 
     def logic(self):
         # First scan initialization

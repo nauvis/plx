@@ -18,14 +18,14 @@ from plx.framework import (
     INT,
     REAL,
     fb,
-    input_var,
-    output_var,
+    Input,
+    Output,
     program,
     project,
     sfc,
-    static_var,
     step,
     transition,
+    Field,
 )
 from plx.model.pou import POU
 
@@ -52,8 +52,8 @@ def _compile_project(*classes, **kwargs):
 class GuardedOutputFB:
     """Output only written inside an if — should produce no findings."""
 
-    sensor = input_var(BOOL)
-    valve = output_var(BOOL)
+    sensor: Input[BOOL]
+    valve: Output[BOOL]
 
     def logic(self):
         if self.sensor:
@@ -66,7 +66,7 @@ class GuardedOutputFB:
 class UnguardedOutputFB:
     """Output written unconditionally at top level."""
 
-    valve = output_var(BOOL)
+    valve: Output[BOOL]
 
     def logic(self):
         self.valve = True
@@ -76,9 +76,9 @@ class UnguardedOutputFB:
 class MixedOutputFB:
     """One guarded output, one unguarded."""
 
-    sensor = input_var(BOOL)
-    guarded_out = output_var(BOOL)
-    unguarded_out = output_var(BOOL)
+    sensor: Input[BOOL]
+    guarded_out: Output[BOOL]
+    unguarded_out: Output[BOOL]
 
     def logic(self):
         self.unguarded_out = False
@@ -90,9 +90,9 @@ class MixedOutputFB:
 class NestedGuardedFB:
     """Output written inside nested if — still guarded."""
 
-    a = input_var(BOOL)
-    b = input_var(BOOL)
-    out = output_var(BOOL)
+    a: Input[BOOL]
+    b: Input[BOOL]
+    out: Output[BOOL]
 
     def logic(self):
         if self.a:
@@ -112,7 +112,7 @@ class EmptyFB:
 class StaticOnlyFB:
     """Only static vars, no outputs."""
 
-    count = static_var(INT)
+    count: INT
 
     def logic(self):
         self.count = self.count + 1
@@ -122,7 +122,7 @@ class StaticOnlyFB:
 class ReachableSFC:
     """All steps are reachable via transitions."""
 
-    cmd = input_var(BOOL)
+    cmd: Input[BOOL]
 
     IDLE = step(initial=True)
     RUNNING = step()
@@ -148,7 +148,7 @@ class ReachableSFC:
 class DeadStepSFC:
     """ORPHAN step is never targeted by any transition."""
 
-    cmd = input_var(BOOL)
+    cmd: Input[BOOL]
 
     IDLE = step(initial=True)
     RUNNING = step()

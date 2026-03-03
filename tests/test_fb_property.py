@@ -4,7 +4,7 @@ import pytest
 
 from plx.framework._compiler_core import CompileError
 from plx.framework._decorators import fb, method
-from plx.framework._descriptors import input_var, output_var, static_var
+from plx.framework._descriptors import Input, Field, Output
 from plx.framework._properties import PropDescriptor, fb_property
 from plx.framework._types import BOOL, INT, REAL
 from plx.model.pou import AccessSpecifier, POUType
@@ -18,7 +18,7 @@ class TestGetterOnly:
     def test_getter_only_compiles(self):
         @fb
         class Motor:
-            _speed = static_var(REAL)
+            _speed: REAL
 
             @fb_property(REAL)
             def speed(self):
@@ -38,7 +38,7 @@ class TestGetterOnly:
     def test_getter_has_network(self):
         @fb
         class Widget:
-            _val = static_var(INT)
+            _val: INT
 
             @fb_property(INT)
             def val(self):
@@ -60,7 +60,7 @@ class TestGetterSetter:
     def test_getter_and_setter(self):
         @fb
         class Tank:
-            _level = static_var(REAL)
+            _level: REAL
 
             @fb_property(REAL)
             def level(self):
@@ -104,7 +104,7 @@ class TestAccess:
     def test_default_access_is_public(self):
         @fb
         class Pump:
-            _flow = static_var(REAL)
+            _flow: REAL
 
             @fb_property(REAL)
             def flow(self):
@@ -119,7 +119,7 @@ class TestAccess:
     def test_private_access(self):
         @fb
         class Valve:
-            _pos = static_var(REAL)
+            _pos: REAL
 
             @fb_property(REAL, access=AccessSpecifier.PRIVATE)
             def position(self):
@@ -134,7 +134,7 @@ class TestAccess:
     def test_protected_access(self):
         @fb
         class Sensor:
-            _raw = static_var(INT)
+            _raw: INT
 
             @fb_property(INT, access=AccessSpecifier.PROTECTED)
             def raw_value(self):
@@ -170,7 +170,7 @@ class TestAbstractFinal:
     def test_final_property(self):
         @fb
         class Sealed:
-            _val = static_var(REAL)
+            _val: REAL
 
             @fb_property(REAL, final=True)
             def value(self):
@@ -193,8 +193,8 @@ class TestMultipleProperties:
     def test_two_properties(self):
         @fb
         class Drive:
-            _speed = static_var(REAL)
-            _torque = static_var(REAL)
+            _speed: REAL
+            _torque: REAL
 
             @fb_property(REAL)
             def speed(self):
@@ -240,7 +240,7 @@ class TestPropertySTExport:
 
         @fb
         class Motor:
-            _speed = static_var(REAL)
+            _speed: REAL
 
             @fb_property(REAL)
             def speed(self):
@@ -261,7 +261,7 @@ class TestPropertySTExport:
 
         @fb
         class Tank:
-            _level = static_var(REAL)
+            _level: REAL
 
             @fb_property(REAL)
             def level(self):
@@ -288,7 +288,7 @@ class TestPropertySTExport:
 
         @fb
         class Valve:
-            _pos = static_var(REAL)
+            _pos: REAL
 
             @fb_property(REAL, access=AccessSpecifier.PRIVATE)
             def position(self):

@@ -3,11 +3,11 @@
 from plx.framework import (
     BOOL,
     fb,
-    input_var,
-    output_var,
+    Input,
+    Output,
     program,
     project,
-    static_var,
+    Field,
 )
 from plx.model.pou import POUType
 from plx.simulate import simulate
@@ -33,11 +33,11 @@ class TestDOLStarterCompilation:
         assert "faulted" in output_names
 
     def test_auto_included_in_project(self):
-        """DOLStarter is auto-included when used via static_var."""
+        """DOLStarter is auto-included when used as a static var."""
         @program
         class MotorMain:
-            motor = static_var(DOLStarter)
-            start = input_var(BOOL)
+            motor: DOLStarter
+            start: Input[BOOL]
             def logic(self):
                 self.motor(run_cmd=self.start, e_stop=True)
 

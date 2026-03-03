@@ -9,12 +9,12 @@ from plx.framework import (
     REAL,
     T,
     delayed,
-    input_var,
-    output_var,
+    Input,
+    Output,
     sfc,
-    static_var,
     step,
     transition,
+    Field,
 )
 from plx.simulate import simulate
 
@@ -45,7 +45,7 @@ class TestBasicExecution:
     def test_n_action_runs_every_scan(self):
         @sfc
         class NAction:
-            count = static_var(INT, initial=0)
+            count: INT = 0
             S0 = step(initial=True)
 
             @S0.action
@@ -59,7 +59,7 @@ class TestBasicExecution:
     def test_transition_fires(self):
         @sfc
         class Trans:
-            go = input_var(BOOL)
+            go: Input[BOOL]
             IDLE = step(initial=True)
             RUN = step()
 
@@ -81,7 +81,7 @@ class TestBasicExecution:
     def test_transition_deactivates_old_step(self):
         @sfc
         class Trans2:
-            go = input_var(BOOL)
+            go: Input[BOOL]
             A = step(initial=True)
             B = step()
 
@@ -111,8 +111,8 @@ class TestEntryExitActions:
     def test_entry_action_runs_once(self):
         @sfc
         class EntryOnce:
-            go = input_var(BOOL)
-            entry_count = static_var(INT, initial=0)
+            go: Input[BOOL]
+            entry_count: INT = 0
 
             IDLE = step(initial=True)
             RUN = step()
@@ -140,8 +140,8 @@ class TestEntryExitActions:
     def test_exit_action_runs_once(self):
         @sfc
         class ExitOnce:
-            go = input_var(BOOL)
-            exit_count = static_var(INT, initial=0)
+            go: Input[BOOL]
+            exit_count: INT = 0
 
             IDLE = step(initial=True)
             RUN = step()
@@ -171,7 +171,7 @@ class TestEntryExitActions:
         """Entry action on the initial step runs on first scan."""
         @sfc
         class InitEntry:
-            entry_count = static_var(INT, initial=0)
+            entry_count: INT = 0
             S0 = step(initial=True)
 
             @S0.entry
@@ -227,7 +227,7 @@ class TestSimultaneousDivergence:
     def test_and_fork(self):
         @sfc
         class Fork:
-            go = input_var(BOOL)
+            go: Input[BOOL]
             IDLE = step(initial=True)
             FILL = step()
             HEAT = step()
@@ -256,8 +256,8 @@ class TestSimultaneousConvergence:
         """Transition only fires when ALL source steps are active."""
         @sfc
         class Join:
-            go = input_var(BOOL)
-            done_flag = input_var(BOOL)
+            go: Input[BOOL]
+            done_flag: Input[BOOL]
             IDLE = step(initial=True)
             A = step()
             B = step()
@@ -293,10 +293,10 @@ class TestMultiStepSequence:
     def test_full_cycle(self):
         @sfc
         class Fill:
-            start_cmd = input_var(BOOL)
-            level = input_var(REAL)
-            inlet_valve = output_var(BOOL)
-            drain_valve = output_var(BOOL)
+            start_cmd: Input[BOOL]
+            level: Input[REAL]
+            inlet_valve: Output[BOOL]
+            drain_valve: Output[BOOL]
 
             IDLE = step(initial=True)
             FILLING = step()
@@ -367,8 +367,8 @@ class TestTimeQualifiers:
         """L qualifier: action runs while step active AND elapsed < duration."""
         @sfc
         class LTest:
-            go = input_var(BOOL)
-            out = output_var(BOOL)
+            go: Input[BOOL]
+            out: Output[BOOL]
             IDLE = step(initial=True)
             RUN = step()
 
@@ -408,8 +408,8 @@ class TestTimeQualifiers:
         """D qualifier: action starts after duration while step still active."""
         @sfc
         class DTest:
-            go = input_var(BOOL)
-            out = output_var(BOOL)
+            go: Input[BOOL]
+            out: Output[BOOL]
             IDLE = step(initial=True)
             RUN = step()
 
@@ -443,9 +443,9 @@ class TestTimeQualifiers:
         """S qualifier: action persists after step deactivation. R stops it."""
         @sfc
         class SRTest:
-            go = input_var(BOOL)
-            reset_flag = input_var(BOOL)
-            out = output_var(BOOL)
+            go: Input[BOOL]
+            reset_flag: Input[BOOL]
+            out: Output[BOOL]
 
             IDLE = step(initial=True)
             ACTIVE = step()
@@ -501,8 +501,8 @@ class TestTimeQualifiers:
         """SD qualifier: becomes stored after delay, even if step deactivates."""
         @sfc
         class SDTest:
-            go = input_var(BOOL)
-            out = output_var(BOOL)
+            go: Input[BOOL]
+            out: Output[BOOL]
 
             IDLE = step(initial=True)
             ACTIVE = step()
@@ -543,8 +543,8 @@ class TestTimeQualifiers:
         """DS qualifier: cancelled if step deactivates before delay expires."""
         @sfc
         class DSTest:
-            go = input_var(BOOL)
-            out = output_var(BOOL)
+            go: Input[BOOL]
+            out: Output[BOOL]
 
             IDLE = step(initial=True)
             ACTIVE = step()
@@ -579,8 +579,8 @@ class TestTimeQualifiers:
         """DS qualifier: becomes stored after delay if step stays active."""
         @sfc
         class DSTest2:
-            go = input_var(BOOL)
-            out = output_var(BOOL)
+            go: Input[BOOL]
+            out: Output[BOOL]
 
             IDLE = step(initial=True)
             ACTIVE = step()
@@ -617,8 +617,8 @@ class TestTimeQualifiers:
         """SL qualifier: stored action expires after duration."""
         @sfc
         class SLTest:
-            go = input_var(BOOL)
-            out = output_var(BOOL)
+            go: Input[BOOL]
+            out: Output[BOOL]
 
             IDLE = step(initial=True)
             ACTIVE = step()
@@ -663,8 +663,8 @@ class TestTimeQualifiers:
         """SL qualifier must not restart after expiring while step is still active."""
         @sfc
         class SLRestart:
-            go = input_var(BOOL)
-            count = static_var(INT, initial=0)
+            go: Input[BOOL]
+            count: INT = 0
 
             IDLE = step(initial=True)
             ACTIVE = step()
@@ -704,8 +704,8 @@ class TestSentinelsInActions:
     def test_delayed_in_action(self):
         @sfc
         class SentinelSfc:
-            cmd = input_var(BOOL)
-            out = output_var(BOOL)
+            cmd: Input[BOOL]
+            out: Output[BOOL]
             S0 = step(initial=True)
 
             @S0.action
@@ -728,7 +728,7 @@ class TestActiveSteps:
     def test_active_steps_returns_correct_set(self):
         @sfc
         class Steps:
-            go = input_var(BOOL)
+            go: Input[BOOL]
             IDLE = step(initial=True)
             RUN = step()
 
@@ -757,7 +757,7 @@ class TestActiveSteps:
 
         @fb
         class Plain:
-            x = input_var(BOOL)
+            x: Input[BOOL]
             def logic(self):
                 pass
 
@@ -774,10 +774,10 @@ class TestIntegration:
     def test_end_to_end_fill_sequence(self):
         @sfc
         class FillSeq:
-            start = input_var(BOOL)
-            level = input_var(REAL)
-            valve = output_var(BOOL)
-            fill_count = static_var(INT, initial=0)
+            start: Input[BOOL]
+            level: Input[REAL]
+            valve: Output[BOOL]
+            fill_count: INT = 0
 
             IDLE = step(initial=True)
             FILLING = step()

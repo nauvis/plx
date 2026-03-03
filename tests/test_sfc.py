@@ -9,14 +9,14 @@ from plx.framework import (
     REAL,
     T,
     CompileError,
-    input_var,
+    Input,
     method,
-    output_var,
+    Output,
     project,
     sfc,
-    static_var,
     step,
     transition,
+    Field,
 )
 from plx.framework._protocols import CompiledPOU
 from plx.model.pou import POU, POUType
@@ -31,8 +31,8 @@ class TestBasicSFC:
     def test_basic_sfc_compiles(self):
         @sfc
         class Simple:
-            cmd = input_var(BOOL)
-            out = output_var(BOOL)
+            cmd: Input[BOOL]
+            out: Output[BOOL]
 
             IDLE = step(initial=True)
             RUNNING = step()
@@ -130,9 +130,9 @@ class TestBasicSFC:
     def test_variable_descriptors(self):
         @sfc
         class VarTest:
-            x = input_var(REAL)
-            y = output_var(INT)
-            z = static_var(DINT, initial=42)
+            x: Input[REAL]
+            y: Output[INT]
+            z: DINT = 42
 
             S0 = step(initial=True)
 
@@ -153,7 +153,7 @@ class TestActions:
     def test_n_qualified_action(self):
         @sfc
         class Act:
-            out = output_var(BOOL)
+            out: Output[BOOL]
             S0 = step(initial=True)
 
             @S0.action
@@ -169,7 +169,7 @@ class TestActions:
     def test_entry_action(self):
         @sfc
         class EntryAct:
-            count = static_var(INT, initial=0)
+            count: INT = 0
             S0 = step(initial=True)
 
             @S0.entry
@@ -184,7 +184,7 @@ class TestActions:
     def test_exit_action(self):
         @sfc
         class ExitAct:
-            out = output_var(BOOL)
+            out: Output[BOOL]
             S0 = step(initial=True)
 
             @S0.exit
@@ -199,7 +199,7 @@ class TestActions:
     def test_explicit_qualifier(self):
         @sfc
         class QualAct:
-            out = output_var(BOOL)
+            out: Output[BOOL]
             S0 = step(initial=True)
 
             @S0.action(qualifier="L", duration=T(seconds=10))
@@ -214,8 +214,8 @@ class TestActions:
     def test_multiple_actions_per_step(self):
         @sfc
         class Multi:
-            a = output_var(BOOL)
-            b = output_var(BOOL)
+            a: Output[BOOL]
+            b: Output[BOOL]
             S0 = step(initial=True)
 
             @S0.action
@@ -235,8 +235,8 @@ class TestActions:
 
         @sfc
         class Sentinel:
-            cmd = input_var(BOOL)
-            out = output_var(BOOL)
+            cmd: Input[BOOL]
+            out: Output[BOOL]
             S0 = step(initial=True)
 
             @S0.action
@@ -257,7 +257,7 @@ class TestDivergenceConvergence:
         """A >> (B & C) → simultaneous divergence."""
         @sfc
         class Fork:
-            cmd = input_var(BOOL)
+            cmd: Input[BOOL]
             A = step(initial=True)
             B = step()
             C = step()
@@ -279,7 +279,7 @@ class TestDivergenceConvergence:
         """A & B >> C → simultaneous convergence."""
         @sfc
         class Join:
-            cmd = input_var(BOOL)
+            cmd: Input[BOOL]
             A = step(initial=True)
             B = step()
             C = step()
@@ -305,8 +305,8 @@ class TestDivergenceConvergence:
         """Multiple transitions from same source → declaration order preserved."""
         @sfc
         class Sel:
-            go = input_var(BOOL)
-            err = input_var(BOOL)
+            go: Input[BOOL]
+            err: Input[BOOL]
             IDLE = step(initial=True)
             RUNNING = step()
             FAULT = step()
@@ -344,7 +344,7 @@ class TestErrors:
         with pytest.raises(CompileError, match="must define at least one step"):
             @sfc
             class NoSteps:
-                out = output_var(BOOL)
+                out: Output[BOOL]
 
     def test_no_initial_step(self):
         with pytest.raises(CompileError, match="must have exactly one initial step"):
@@ -369,7 +369,7 @@ class TestErrors:
         with pytest.raises(CompileError, match="could not be resolved"):
             @sfc
             class BadAction:
-                out = output_var(BOOL)
+                out: Output[BOOL]
                 A = step(initial=True)
 
                 # Manually stamp an action referencing a foreign step descriptor
@@ -386,7 +386,7 @@ class TestErrors:
         with pytest.raises(CompileError, match="must have exactly one statement.*return"):
             @sfc
             class BadTransition:
-                cmd = input_var(BOOL)
+                cmd: Input[BOOL]
                 A = step(initial=True)
                 B = step()
 
@@ -447,8 +447,8 @@ class TestSerialization:
     def test_json_roundtrip(self):
         @sfc
         class Roundtrip:
-            cmd = input_var(BOOL)
-            out = output_var(BOOL)
+            cmd: Input[BOOL]
+            out: Output[BOOL]
 
             IDLE = step(initial=True)
             ACTIVE = step()
@@ -485,7 +485,7 @@ class TestMethodOnSfc:
     def test_method_compiles_on_sfc(self):
         @sfc
         class SfcWithMethod:
-            val = static_var(INT, initial=0)
+            val: INT = 0
             S0 = step(initial=True)
 
             @method

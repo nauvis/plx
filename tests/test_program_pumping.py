@@ -16,16 +16,15 @@ from plx.framework import (
     delayed,
     fb,
     function,
-    global_var,
     global_vars,
-    input_var,
-    output_var,
+    Input,
+    Output,
     program,
     project,
     rising,
-    static_var,
     struct,
     task,
+    Field,
 )
 from plx.simulate import simulate
 
@@ -61,9 +60,9 @@ class AlarmThresholds:
 class Clamp:
     """Clamp a value between lo and hi bounds."""
 
-    value = input_var(REAL)
-    lo = input_var(REAL, initial=0.0)
-    hi = input_var(REAL, initial=100.0)
+    value: Input[REAL]
+    lo: Input[REAL] = 0.0
+    hi: Input[REAL] = 100.0
 
     def logic(self) -> REAL:
         if self.value > self.hi:
@@ -80,22 +79,22 @@ class Clamp:
 
 @global_vars(description="Pump Station I/O")
 class PumpStationIO:
-    wet_well_level = global_var(REAL, address="%IW0")
-    pump1_speed_ref = global_var(REAL, address="%QW0")
-    pump2_speed_ref = global_var(REAL, address="%QW2")
-    pump3_speed_ref = global_var(REAL, address="%QW4")
-    pump1_run_fb = global_var(BOOL, address="%I0.0")
-    pump2_run_fb = global_var(BOOL, address="%I0.1")
-    pump3_run_fb = global_var(BOOL, address="%I0.2")
-    pump1_run_cmd = global_var(BOOL, address="%Q0.0")
-    pump2_run_cmd = global_var(BOOL, address="%Q0.1")
-    pump3_run_cmd = global_var(BOOL, address="%Q0.2")
-    pump1_fault = global_var(BOOL, address="%I0.3")
-    pump2_fault = global_var(BOOL, address="%I0.4")
-    pump3_fault = global_var(BOOL, address="%I0.5")
-    e_stop = global_var(BOOL, address="%I0.6")
-    alarm_horn = global_var(BOOL, address="%Q0.3")
-    alarm_beacon = global_var(BOOL, address="%Q0.4")
+    wet_well_level: REAL = Field(address="%IW0")
+    pump1_speed_ref: REAL = Field(address="%QW0")
+    pump2_speed_ref: REAL = Field(address="%QW2")
+    pump3_speed_ref: REAL = Field(address="%QW4")
+    pump1_run_fb: BOOL = Field(address="%I0.0")
+    pump2_run_fb: BOOL = Field(address="%I0.1")
+    pump3_run_fb: BOOL = Field(address="%I0.2")
+    pump1_run_cmd: BOOL = Field(address="%Q0.0")
+    pump2_run_cmd: BOOL = Field(address="%Q0.1")
+    pump3_run_cmd: BOOL = Field(address="%Q0.2")
+    pump1_fault: BOOL = Field(address="%I0.3")
+    pump2_fault: BOOL = Field(address="%I0.4")
+    pump3_fault: BOOL = Field(address="%I0.5")
+    e_stop: BOOL = Field(address="%I0.6")
+    alarm_horn: BOOL = Field(address="%Q0.3")
+    alarm_beacon: BOOL = Field(address="%Q0.4")
 
 
 # ==========================================================================
@@ -107,18 +106,18 @@ class PumpStationIO:
 class AlarmBlock:
     """4-level alarm (HH/H/L/LL) with hysteresis and priority output."""
 
-    pv = input_var(REAL)
-    hihi_sp = input_var(REAL, initial=95.0)
-    hi_sp = input_var(REAL, initial=85.0)
-    lo_sp = input_var(REAL, initial=15.0)
-    lolo_sp = input_var(REAL, initial=5.0)
-    hysteresis = input_var(REAL, initial=2.0)
+    pv: Input[REAL]
+    hihi_sp: Input[REAL] = 95.0
+    hi_sp: Input[REAL] = 85.0
+    lo_sp: Input[REAL] = 15.0
+    lolo_sp: Input[REAL] = 5.0
+    hysteresis: Input[REAL] = 2.0
 
-    hihi = output_var(BOOL)
-    hi = output_var(BOOL)
-    lo = output_var(BOOL)
-    lolo = output_var(BOOL)
-    priority = output_var(INT)  # 0=normal, 1=lo, 2=hi, 3=lolo, 4=hihi
+    hihi: Output[BOOL]
+    hi: Output[BOOL]
+    lo: Output[BOOL]
+    lolo: Output[BOOL]
+    priority: Output[INT]  # 0=normal, 1=lo, 2=hi, 3=lolo, 4=hihi
 
     def logic(self):
         # HiHi — trips on rising, resets with hysteresis
@@ -162,20 +161,20 @@ class AlarmBlock:
 class PumpController:
     """Single pump: VFD speed control, fault latch, fail-to-start, e-stop."""
 
-    run_cmd = input_var(BOOL)
-    speed_cmd = input_var(REAL)
-    run_feedback = input_var(BOOL)
-    fault_input = input_var(BOOL)
-    e_stop = input_var(BOOL, initial=True)  # NC contact
-    reset_cmd = input_var(BOOL)
+    run_cmd: Input[BOOL]
+    speed_cmd: Input[REAL]
+    run_feedback: Input[BOOL]
+    fault_input: Input[BOOL]
+    e_stop: Input[BOOL] = True  # NC contact
+    reset_cmd: Input[BOOL]
 
-    run_output = output_var(BOOL)
-    speed_output = output_var(REAL)
-    running = output_var(BOOL)
-    faulted = output_var(BOOL)
-    run_hours = output_var(DINT)
+    run_output: Output[BOOL]
+    speed_output: Output[REAL]
+    running: Output[BOOL]
+    faulted: Output[BOOL]
+    run_hours: Output[DINT]
 
-    fault_latched = static_var(BOOL)
+    fault_latched: BOOL
 
     def logic(self):
         # E-stop interlock
@@ -219,19 +218,19 @@ class PumpController:
 class LevelController:
     """Level-to-speed proportional control with pump staging."""
 
-    level = input_var(REAL)  # 0-100%
+    level: Input[REAL]  # 0-100%
 
     # Staging setpoints
-    stage1_sp = input_var(REAL, initial=40.0)
-    stage2_sp = input_var(REAL, initial=60.0)
-    stage3_sp = input_var(REAL, initial=80.0)
-    stop_sp = input_var(REAL, initial=20.0)
+    stage1_sp: Input[REAL] = 40.0
+    stage2_sp: Input[REAL] = 60.0
+    stage3_sp: Input[REAL] = 80.0
+    stop_sp: Input[REAL] = 20.0
 
     # Outputs
-    num_pumps = output_var(INT)  # 0-3
-    speed_cmd = output_var(REAL)  # 0-100%
+    num_pumps: Output[INT]  # 0-3
+    speed_cmd: Output[REAL]  # 0-100%
 
-    gain = static_var(REAL, initial=3.0)
+    gain: REAL = 3.0
 
     def logic(self):
         # Determine number of pumps needed
@@ -260,17 +259,17 @@ class LevelController:
 class LeadLagSelector:
     """Pump rotation by run hours — selects lead/lag/standby on new cycle."""
 
-    recalc = input_var(BOOL)  # Rising edge triggers recalculation
-    pump1_hours = input_var(DINT)
-    pump2_hours = input_var(DINT)
-    pump3_hours = input_var(DINT)
-    pump1_available = input_var(BOOL, initial=True)
-    pump2_available = input_var(BOOL, initial=True)
-    pump3_available = input_var(BOOL, initial=True)
+    recalc: Input[BOOL]  # Rising edge triggers recalculation
+    pump1_hours: Input[DINT]
+    pump2_hours: Input[DINT]
+    pump3_hours: Input[DINT]
+    pump1_available: Input[BOOL] = True
+    pump2_available: Input[BOOL] = True
+    pump3_available: Input[BOOL] = True
 
-    lead = output_var(INT, initial=1)   # Pump number: 1, 2, or 3
-    lag1 = output_var(INT, initial=2)
-    lag2 = output_var(INT, initial=3)
+    lead: Output[INT] = 1  # Pump number: 1, 2, or 3
+    lag1: Output[INT] = 2
+    lag2: Output[INT] = 3
 
     def logic(self):
         if rising(self.recalc):
@@ -317,39 +316,39 @@ class PumpStation:
     """3-pump wet well pumping station with level control and alarms."""
 
     # Inputs
-    wet_well_level = input_var(REAL)
-    pump1_run_fb = input_var(BOOL)
-    pump2_run_fb = input_var(BOOL)
-    pump3_run_fb = input_var(BOOL)
-    pump1_fault = input_var(BOOL)
-    pump2_fault = input_var(BOOL)
-    pump3_fault = input_var(BOOL)
-    e_stop = input_var(BOOL, initial=True)
-    reset = input_var(BOOL)
-    alarm_ack = input_var(BOOL)
+    wet_well_level: Input[REAL]
+    pump1_run_fb: Input[BOOL]
+    pump2_run_fb: Input[BOOL]
+    pump3_run_fb: Input[BOOL]
+    pump1_fault: Input[BOOL]
+    pump2_fault: Input[BOOL]
+    pump3_fault: Input[BOOL]
+    e_stop: Input[BOOL] = True
+    reset: Input[BOOL]
+    alarm_ack: Input[BOOL]
 
     # Outputs
-    pump1_run_cmd = output_var(BOOL)
-    pump2_run_cmd = output_var(BOOL)
-    pump3_run_cmd = output_var(BOOL)
-    pump1_speed = output_var(REAL)
-    pump2_speed = output_var(REAL)
-    pump3_speed = output_var(REAL)
-    alarm_horn = output_var(BOOL)
-    alarm_beacon = output_var(BOOL)
-    hihi_alarm = output_var(BOOL)
+    pump1_run_cmd: Output[BOOL]
+    pump2_run_cmd: Output[BOOL]
+    pump3_run_cmd: Output[BOOL]
+    pump1_speed: Output[REAL]
+    pump2_speed: Output[REAL]
+    pump3_speed: Output[REAL]
+    alarm_horn: Output[BOOL]
+    alarm_beacon: Output[BOOL]
+    hihi_alarm: Output[BOOL]
 
     # Internal FBs
-    pump1 = static_var(PumpController)
-    pump2 = static_var(PumpController)
-    pump3 = static_var(PumpController)
-    level_ctrl = static_var(LevelController)
-    selector = static_var(LeadLagSelector)
-    level_alarm = static_var(AlarmBlock)
+    pump1: PumpController
+    pump2: PumpController
+    pump3: PumpController
+    level_ctrl: LevelController
+    selector: LeadLagSelector
+    level_alarm: AlarmBlock
 
     # Internal state
-    cycle_start = static_var(BOOL)
-    prev_num_pumps = static_var(INT)
+    cycle_start: BOOL
+    prev_num_pumps: INT
 
     def logic(self):
         # Level controller — determine pump staging and speed

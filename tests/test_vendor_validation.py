@@ -5,7 +5,7 @@ import pytest
 from plx.framework._compiler import CompileError
 from plx.framework._data_types import enumeration, struct
 from plx.framework._decorators import fb, method, program
-from plx.framework._descriptors import input_var, output_var, static_var
+from plx.framework._descriptors import Input, Field, Output
 from plx.framework._project import project
 from plx.framework._types import BOOL, DINT, INT, POINTER_TO, REAL, REFERENCE_TO
 from plx.framework._vendor import Vendor, VendorValidationError, validate_target
@@ -18,8 +18,8 @@ from plx.model.project import Project
 
 @fb
 class _SimpleFB:
-    x = input_var(BOOL)
-    y = output_var(BOOL)
+    x: Input[BOOL]
+    y: Output[BOOL]
 
     def logic(self):
         self.y = self.x
@@ -27,7 +27,7 @@ class _SimpleFB:
 
 @program
 class _SimpleProgram:
-    running = input_var(BOOL)
+    running: Input[BOOL]
 
     def logic(self):
         pass
@@ -35,7 +35,7 @@ class _SimpleProgram:
 
 @fb
 class _FBWithMethod:
-    speed = static_var(REAL)
+    speed: REAL
 
     def logic(self):
         pass
@@ -48,7 +48,7 @@ class _FBWithMethod:
 
 @fb
 class _FBWithPointer:
-    ptr = static_var(POINTER_TO(DINT))
+    ptr: POINTER_TO(DINT)
 
     def logic(self):
         pass
@@ -56,7 +56,7 @@ class _FBWithPointer:
 
 @fb
 class _FBWithReference:
-    ref = static_var(REFERENCE_TO(REAL))
+    ref: REFERENCE_TO(REAL)
 
     def logic(self):
         pass

@@ -173,12 +173,12 @@ class TestFolderOverride:
     def test_explicit_folder_preserved(self):
         """When a decorator sets folder=, discover() doesn't override it."""
         from plx.framework._decorators import fb
-        from plx.framework._descriptors import input_var
+        from plx.framework._descriptors import Input
         from plx.framework._types import BOOL
 
         @fb(folder="custom/path")
         class ExplicitFolderFB:
-            x = input_var(BOOL)
+            x: Input[BOOL]
 
             def logic(self):
                 pass
@@ -218,12 +218,12 @@ class TestProjectPackages:
     def test_project_packages_with_explicit_merge(self):
         """Explicit pous= merged with packages= discovered items."""
         from plx.framework._decorators import fb
-        from plx.framework._descriptors import input_var
+        from plx.framework._descriptors import Input
         from plx.framework._types import BOOL
 
         @fb
         class ExtraFB:
-            x = input_var(BOOL)
+            x: Input[BOOL]
 
             def logic(self):
                 pass

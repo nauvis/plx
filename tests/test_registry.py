@@ -9,13 +9,13 @@ from plx.framework import (
     REAL,
     fb,
     function,
-    input_var,
-    output_var,
+    Input,
+    Output,
     program,
     project,
-    static_var,
     struct,
     enumeration,
+    Field,
 )
 from plx.framework._registry import (
     _clear_registries,
@@ -34,7 +34,7 @@ class TestRegistry:
     def test_fb_registered(self):
         @fb
         class RegFB1:
-            x = input_var(BOOL)
+            x: Input[BOOL]
             def logic(self):
                 pass
 
@@ -51,7 +51,7 @@ class TestRegistry:
     def test_function_registered(self):
         @function
         class RegFunc1:
-            x = input_var(REAL)
+            x: Input[REAL]
             def logic(self) -> REAL:
                 return self.x + 1.0
 
@@ -84,18 +84,18 @@ class TestRegistry:
 
 class TestTransitiveDeps:
     def test_fb_dep_auto_included(self):
-        """If Program uses FB via static_var, FB is auto-included."""
+        """If Program uses FB as a static var, FB is auto-included."""
         @fb
         class InnerFB:
-            val = input_var(BOOL)
-            out = output_var(BOOL)
+            val: Input[BOOL]
+            out: Output[BOOL]
             def logic(self):
                 self.out = self.val
 
         @program
         class OuterProg:
-            inst = static_var(InnerFB)
-            cmd = input_var(BOOL)
+            inst: InnerFB
+            cmd: Input[BOOL]
             def logic(self):
                 self.inst(val=self.cmd)
 
@@ -109,19 +109,19 @@ class TestTransitiveDeps:
         """A -> B -> C: passing only A should include B and C."""
         @fb
         class DepC:
-            x = input_var(BOOL)
+            x: Input[BOOL]
             def logic(self):
                 pass
 
         @fb
         class DepB:
-            c = static_var(DepC)
+            c: DepC
             def logic(self):
                 self.c(x=True)
 
         @program
         class DepA:
-            b = static_var(DepB)
+            b: DepB
             def logic(self):
                 self.b()
 
@@ -132,7 +132,7 @@ class TestTransitiveDeps:
         assert "DepC" in pou_names
 
     def test_struct_dep_auto_included(self):
-        """If a POU uses a struct via static_var, the struct is auto-included."""
+        """If a POU uses a struct as a static var, the struct is auto-included."""
         @struct
         class TransMotorData:
             speed: REAL = 0.0
@@ -140,7 +140,7 @@ class TestTransitiveDeps:
 
         @program
         class TransStructProg:
-            data = static_var(TransMotorData)
+            data: TransMotorData
             def logic(self):
                 pass
 
@@ -152,13 +152,13 @@ class TestTransitiveDeps:
         """If a dep is already explicit, it shouldn't appear twice."""
         @fb
         class ExplicitFB:
-            x = input_var(BOOL)
+            x: Input[BOOL]
             def logic(self):
                 pass
 
         @program
         class ExplicitProg:
-            inst = static_var(ExplicitFB)
+            inst: ExplicitFB
             def logic(self):
                 self.inst(x=True)
 
@@ -173,8 +173,8 @@ class TestTransitiveDeps:
 
         @program
         class TimerProg:
-            cmd = input_var(BOOL)
-            out = output_var(BOOL)
+            cmd: Input[BOOL]
+            out: Output[BOOL]
             def logic(self):
                 self.out = delayed(self.cmd, seconds=5)
 
@@ -189,13 +189,13 @@ class TestTransitiveDeps:
         """If DerivedFB extends BaseFB, BaseFB should be auto-included."""
         @fb
         class TransBaseFB:
-            x = input_var(BOOL)
+            x: Input[BOOL]
             def logic(self):
                 pass
 
         @fb
         class TransDerivedFB(TransBaseFB):
-            y = output_var(BOOL)
+            y: Output[BOOL]
             def logic(self):
                 super().logic()
                 self.y = self.x

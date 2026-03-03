@@ -7,10 +7,10 @@ and fault detection for stuck valves.
 from plx.framework import (
     BOOL,
     fb,
-    input_var,
-    output_var,
-    static_var,
+    Input,
+    Output,
     delayed,
+    Field,
 )
 
 
@@ -29,14 +29,14 @@ class SolenoidValve:
         is_closed: Confirmed closed
         faulted: Valve stuck or contradictory feedback
     """
-    open_cmd = input_var(BOOL, description="Open command")
-    open_fbk = input_var(BOOL, description="Open limit switch")
-    closed_fbk = input_var(BOOL, description="Closed limit switch")
+    open_cmd: Input[BOOL] = Field(description="Open command")
+    open_fbk: Input[BOOL] = Field(description="Open limit switch")
+    closed_fbk: Input[BOOL] = Field(description="Closed limit switch")
 
-    solenoid = output_var(BOOL, description="Solenoid output")
-    is_open = output_var(BOOL, description="Confirmed open")
-    is_closed = output_var(BOOL, description="Confirmed closed")
-    faulted = output_var(BOOL, description="Fault active")
+    solenoid: Output[BOOL] = Field(description="Solenoid output")
+    is_open: Output[BOOL] = Field(description="Confirmed open")
+    is_closed: Output[BOOL] = Field(description="Confirmed closed")
+    faulted: Output[BOOL] = Field(description="Fault active")
 
     def logic(self):
         self.solenoid = self.open_cmd

@@ -7,7 +7,7 @@ Usage::
 
     @fb
     class Motor:
-        _speed = static_var(REAL)
+        _speed: REAL
 
         @fb_property(REAL)
         def speed(self):

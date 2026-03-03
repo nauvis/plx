@@ -2,7 +2,7 @@
 
 Users import everything from this single flat namespace::
 
-    from plx.framework import fb, input_var, BOOL, REAL, TIME, T, delayed
+    from plx.framework import fb, Input, BOOL, REAL, TIME, T, Field, delayed
 """
 
 from ._types import (
@@ -49,17 +49,14 @@ from ._types import (
 )
 
 from ._descriptors import (
-    VarDirection,
     Input,
     Output,
     InOut,
-    input_var,
-    output_var,
-    static_var,
-    inout_var,
-    temp_var,
-    constant_var,
-    external_var,
+    Static,
+    Temp,
+    Constant,
+    External,
+    Field,
     # IEC 61131-3 standard function block types
     TON,
     TOF,
@@ -99,7 +96,6 @@ from ._data_types import (
 
 from ._global_vars import (
     global_vars,
-    global_var,
 )
 
 from ._protocols import (
@@ -142,6 +138,11 @@ from ._vendor import (
     VendorValidationError,
 )
 
+# Standard library re-exports for convenience
+from dataclasses import dataclass
+from enum import IntEnum
+from typing import Annotated
+
 __all__ = [
     # Primitive type constants
     "BOOL",
@@ -180,18 +181,15 @@ __all__ = [
     "WSTRING",
     "POINTER_TO",
     "REFERENCE_TO",
-    # Variable descriptors
-    "VarDirection",
+    # Variable annotation wrappers
     "Input",
     "Output",
     "InOut",
-    "input_var",
-    "output_var",
-    "static_var",
-    "inout_var",
-    "temp_var",
-    "constant_var",
-    "external_var",
+    "Static",
+    "Temp",
+    "Constant",
+    "External",
+    "Field",
     # IEC 61131-3 standard function block types
     "TON",
     "TOF",
@@ -220,7 +218,6 @@ __all__ = [
     "enumeration",
     # Global variable lists
     "global_vars",
-    "global_var",
     # Sentinel functions
     "first_scan",
     "delayed",
@@ -251,4 +248,8 @@ __all__ = [
     # Vendor targeting
     "Vendor",
     "VendorValidationError",
+    # Standard library re-exports
+    "dataclass",
+    "IntEnum",
+    "Annotated",
 ]

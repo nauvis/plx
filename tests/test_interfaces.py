@@ -4,7 +4,7 @@ import pytest
 
 from plx.framework._compiler_core import CompileError
 from plx.framework._decorators import fb, interface, method
-from plx.framework._descriptors import input_var, output_var, static_var
+from plx.framework._descriptors import Input, Field, Output
 from plx.framework._types import BOOL, REAL
 from plx.model.pou import POUType
 
@@ -105,7 +105,7 @@ class TestImplements:
 
         @fb(implements=[IRunnable])
         class Motor:
-            speed = static_var(REAL)
+            speed: REAL
 
             @method
             def run(self, speed: REAL) -> BOOL:

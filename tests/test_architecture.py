@@ -18,11 +18,11 @@ from plx.framework import (
     count_down,
     count_up,
     fb,
-    input_var,
-    output_var,
+    Input,
+    Output,
     reset_dominant,
     set_dominant,
-    static_var,
+    Field,
 )
 from plx.simulate import simulate
 from plx.simulate._builtins import BUILTIN_FBS
@@ -59,9 +59,9 @@ class TestMissingBuiltins:
     def test_count_up_compiles_but_crashes_simulator(self):
         @fb
         class CountUpFB:
-            trigger = input_var(BOOL)
-            done = output_var(BOOL)
-            _inst = static_var(DINT)
+            trigger: Input[BOOL]
+            done: Output[BOOL]
+            _inst: DINT
 
             def logic(self):
                 self.done = count_up(self.trigger, preset=5)
@@ -74,9 +74,9 @@ class TestMissingBuiltins:
     def test_count_down_compiles_but_crashes_simulator(self):
         @fb
         class CountDownFB:
-            trigger = input_var(BOOL)
-            done = output_var(BOOL)
-            _inst = static_var(DINT)
+            trigger: Input[BOOL]
+            done: Output[BOOL]
+            _inst: DINT
 
             def logic(self):
                 self.done = count_down(self.trigger, preset=5)
@@ -89,9 +89,9 @@ class TestMissingBuiltins:
     def test_set_dominant_compiles_but_crashes_simulator(self):
         @fb
         class SetDomFB:
-            s = input_var(BOOL)
-            r = input_var(BOOL)
-            q = output_var(BOOL)
+            s: Input[BOOL]
+            r: Input[BOOL]
+            q: Output[BOOL]
 
             def logic(self):
                 self.q = set_dominant(self.s, self.r)
@@ -105,9 +105,9 @@ class TestMissingBuiltins:
     def test_reset_dominant_compiles_but_crashes_simulator(self):
         @fb
         class ResetDomFB:
-            s = input_var(BOOL)
-            r = input_var(BOOL)
-            q = output_var(BOOL)
+            s: Input[BOOL]
+            r: Input[BOOL]
+            q: Output[BOOL]
 
             def logic(self):
                 self.q = reset_dominant(self.s, self.r)

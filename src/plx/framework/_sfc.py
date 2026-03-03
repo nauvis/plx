@@ -633,9 +633,9 @@ def sfc(cls: type = None, *, pou_type: str = "PROGRAM", folder: str = "") -> Any
 
         @sfc
         class FillSequence:
-            start_cmd = input_var(BOOL)
-            level = input_var(REAL)
-            valve = output_var(BOOL)
+            start_cmd: Input[BOOL]
+            level: Input[REAL]
+            valve: Output[BOOL]
 
             IDLE = step(initial=True)
             FILLING = step()

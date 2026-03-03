@@ -4,7 +4,7 @@ import pytest
 
 from plx.framework._compiler import CompileError
 from plx.framework._decorators import fb
-from plx.framework._descriptors import input_var, output_var, static_var
+from plx.framework._descriptors import Input, Field, Output
 from plx.framework._types import BOOL, DINT, REAL, TIME, T
 from plx.model.pou import POU, POUType
 from plx.model.statements import Assignment, FBInvocation, IfStatement
@@ -15,8 +15,8 @@ from plx.model.types import NamedTypeRef
 
 @fb
 class _Base:
-    x = input_var(BOOL)
-    y = output_var(BOOL)
+    x: Input[BOOL]
+    y: Output[BOOL]
 
     def logic(self):
         self.y = self.x
@@ -24,7 +24,7 @@ class _Base:
 
 @fb
 class _Derived(_Base):
-    z = output_var(BOOL)
+    z: Output[BOOL]
 
     def logic(self):
         super().logic()
@@ -72,15 +72,15 @@ class TestVariableOverride:
     def test_child_overrides_parent_default(self):
         @fb
         class Parent:
-            timeout = input_var(TIME, initial=T(3))
-            out = output_var(BOOL)
+            timeout: Input[TIME] = T(3)
+            out: Output[BOOL]
 
             def logic(self):
                 self.out = True
 
         @fb
         class Child(Parent):
-            timeout = input_var(TIME, initial=T(10))
+            timeout: Input[TIME] = T(10)
 
             def logic(self):
                 super().logic()
@@ -92,16 +92,16 @@ class TestVariableOverride:
     def test_override_does_not_duplicate(self):
         @fb
         class Parent:
-            x = input_var(BOOL)
-            out = output_var(BOOL)
+            x: Input[BOOL]
+            out: Output[BOOL]
 
             def logic(self):
                 self.out = True
 
         @fb
         class Child(Parent):
-            x = input_var(REAL)  # override type
-            extra = output_var(BOOL)
+            x: Input[REAL]  # override type
+            extra: Output[BOOL]
 
             def logic(self):
                 super().logic()
@@ -136,15 +136,15 @@ class TestSuperLogic:
     def test_super_in_middle(self):
         @fb
         class Parent:
-            a = input_var(BOOL)
-            b = output_var(BOOL)
+            a: Input[BOOL]
+            b: Output[BOOL]
 
             def logic(self):
                 self.b = self.a
 
         @fb
         class Child(Parent):
-            c = output_var(BOOL)
+            c: Output[BOOL]
 
             def logic(self):
                 self.c = False
@@ -164,15 +164,15 @@ class TestSuperLogic:
 
         @fb
         class TimedBase:
-            sig = input_var(BOOL)
-            out = output_var(BOOL)
+            sig: Input[BOOL]
+            out: Output[BOOL]
 
             def logic(self):
                 self.out = delayed(self.sig, seconds=5)
 
         @fb
         class TimedChild(TimedBase):
-            extra = output_var(BOOL)
+            extra: Output[BOOL]
 
             def logic(self):
                 super().logic()
@@ -200,15 +200,15 @@ class TestThreeLevel:
     def test_three_level_chain(self):
         @fb
         class GrandParent:
-            a = input_var(BOOL)
-            x = output_var(BOOL)
+            a: Input[BOOL]
+            x: Output[BOOL]
 
             def logic(self):
                 self.x = self.a
 
         @fb
         class Parent(GrandParent):
-            y = output_var(BOOL)
+            y: Output[BOOL]
 
             def logic(self):
                 super().logic()
@@ -216,7 +216,7 @@ class TestThreeLevel:
 
         @fb
         class Child(Parent):
-            z = output_var(BOOL)
+            z: Output[BOOL]
 
             def logic(self):
                 super().logic()
@@ -237,7 +237,7 @@ class TestThreeLevel:
     def test_extends_points_to_immediate_parent(self):
         @fb
         class L1:
-            a = input_var(BOOL)
+            a: Input[BOOL]
             def logic(self):
                 pass
 
@@ -265,15 +265,15 @@ class TestInheritedLogic:
         """Child without its own logic() uses parent's."""
         @fb
         class Parent:
-            a = input_var(BOOL)
-            b = output_var(BOOL)
+            a: Input[BOOL]
+            b: Output[BOOL]
 
             def logic(self):
                 self.b = self.a
 
         @fb
         class Child(Parent):
-            c = output_var(BOOL, initial=False)
+            c: Output[BOOL] = False
 
         pou = Child.compile()
         assert pou.extends == "Parent"
@@ -293,7 +293,7 @@ class TestSuperErrors:
         with pytest.raises(CompileError, match="no parent class"):
             @fb
             class Orphan:
-                x = input_var(BOOL)
+                x: Input[BOOL]
 
                 def logic(self):
                     super().logic()

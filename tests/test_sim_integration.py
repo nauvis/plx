@@ -15,15 +15,15 @@ from plx.framework import (
     falling,
     first_scan,
     function,
-    input_var,
-    output_var,
+    Input,
+    Output,
     program,
     pulse,
     rising,
-    static_var,
     struct,
     sustained,
-    temp_var,
+    Temp,
+    Field,
 )
 from plx.simulate import simulate
 
@@ -36,8 +36,8 @@ class TestMotorStartsAfterDelay:
     def test_canonical(self):
         @fb
         class Motor:
-            cmd = input_var(BOOL)
-            running = output_var(BOOL)
+            cmd: Input[BOOL]
+            running: Output[BOOL]
 
             def logic(self):
                 self.running = delayed(self.cmd, seconds=5)
@@ -52,8 +52,8 @@ class TestMotorStartsAfterDelay:
     def test_reset_on_cmd_false(self):
         @fb
         class Motor2:
-            cmd = input_var(BOOL)
-            running = output_var(BOOL)
+            cmd: Input[BOOL]
+            running: Output[BOOL]
 
             def logic(self):
                 self.running = delayed(self.cmd, seconds=2)
@@ -75,8 +75,8 @@ class TestEdgeDetection:
     def test_rising_edge(self):
         @fb
         class RisingTest:
-            signal = input_var(BOOL)
-            detected = output_var(BOOL)
+            signal: Input[BOOL]
+            detected: Output[BOOL]
 
             def logic(self):
                 self.detected = rising(self.signal)
@@ -91,8 +91,8 @@ class TestEdgeDetection:
     def test_falling_edge(self):
         @fb
         class FallingTest:
-            signal = input_var(BOOL)
-            detected = output_var(BOOL)
+            signal: Input[BOOL]
+            detected: Output[BOOL]
 
             def logic(self):
                 self.detected = falling(self.signal)
@@ -116,7 +116,7 @@ class TestCounter:
     def test_counter_increments(self):
         @fb
         class Counter:
-            count = output_var(INT)
+            count: Output[INT]
 
             def logic(self):
                 self.count = self.count + 1
@@ -138,17 +138,17 @@ class TestNestedUserFB:
     def test_nested_fb(self):
         @fb
         class Doubler:
-            x = input_var(INT)
-            result = output_var(INT)
+            x: Input[INT]
+            result: Output[INT]
 
             def logic(self):
                 self.result = self.x * 2
 
         @fb
         class Outer:
-            val = input_var(INT)
-            doubled = output_var(INT)
-            dbl = static_var(Doubler)
+            val: Input[INT]
+            doubled: Output[INT]
+            dbl: Doubler
 
             def logic(self):
                 self.dbl(x=self.val)
@@ -168,8 +168,8 @@ class TestForLoop:
     def test_for_loop_sum(self):
         @fb
         class Summer:
-            n = input_var(INT)
-            total = output_var(INT)
+            n: Input[INT]
+            total: Output[INT]
 
             def logic(self):
                 self.total = 0
@@ -190,8 +190,8 @@ class TestCaseStatement:
     def test_case_dispatch(self):
         @fb
         class Dispatcher:
-            mode = input_var(INT)
-            result = output_var(INT)
+            mode: Input[INT]
+            result: Output[INT]
 
             def logic(self):
                 match self.mode:
@@ -222,8 +222,8 @@ class TestIfElsifElse:
     def test_branches(self):
         @fb
         class Classifier:
-            value = input_var(INT)
-            category = output_var(INT)
+            value: Input[INT]
+            category: Output[INT]
 
             def logic(self):
                 if self.value < 0:
@@ -256,7 +256,7 @@ class TestWhileLoop:
     def test_while(self):
         @fb
         class WhileTest:
-            result = output_var(INT)
+            result: Output[INT]
 
             def logic(self):
                 self.result = 1
@@ -276,8 +276,8 @@ class TestArrayAccess:
     def test_array_read_write(self):
         @fb
         class ArrayTest:
-            data = static_var(ARRAY(INT, 5))
-            result = output_var(INT)
+            data: ARRAY(INT, 5)
+            result: Output[INT]
 
             def logic(self):
                 self.data[0] = 10
@@ -303,8 +303,8 @@ class TestStructMemberAccess:
 
         @fb
         class StructTest:
-            data = static_var(MotorData)
-            out_speed = output_var(REAL)
+            data: MotorData
+            out_speed: Output[REAL]
 
             def logic(self):
                 self.data.speed = 75.5
@@ -324,8 +324,8 @@ class TestSustainedTimer:
     def test_sustained(self):
         @fb
         class SustainedTest:
-            trigger = input_var(BOOL)
-            output = output_var(BOOL)
+            trigger: Input[BOOL]
+            output: Output[BOOL]
 
             def logic(self):
                 self.output = sustained(self.trigger, seconds=1)
@@ -349,8 +349,8 @@ class TestPulseTimer:
     def test_pulse(self):
         @fb
         class PulseTest:
-            trigger = input_var(BOOL)
-            output = output_var(BOOL)
+            trigger: Input[BOOL]
+            output: Output[BOOL]
 
             def logic(self):
                 self.output = pulse(self.trigger, ms=500)
@@ -371,13 +371,13 @@ class TestArithmeticExpressions:
     def test_arithmetic(self):
         @fb
         class MathTest:
-            a = input_var(INT)
-            b = input_var(INT)
-            sum_val = output_var(INT)
-            diff = output_var(INT)
-            prod = output_var(INT)
-            quot = output_var(INT)
-            neg = output_var(INT)
+            a: Input[INT]
+            b: Input[INT]
+            sum_val: Output[INT]
+            diff: Output[INT]
+            prod: Output[INT]
+            quot: Output[INT]
+            neg: Output[INT]
 
             def logic(self):
                 self.sum_val = self.a + self.b
@@ -405,8 +405,8 @@ class TestTypeConversion:
     def test_int_to_real(self):
         @fb
         class ConvertTest:
-            x = input_var(INT)
-            y = output_var(REAL)
+            x: Input[INT]
+            y: Output[REAL]
 
             def logic(self):
                 self.y = INT_TO_REAL(self.x)
@@ -426,11 +426,11 @@ class TestFunctionCalls:
     def test_abs_min_max(self):
         @fb
         class FuncTest:
-            a = input_var(INT)
-            b = input_var(INT)
-            abs_a = output_var(INT)
-            min_ab = output_var(INT)
-            max_ab = output_var(INT)
+            a: Input[INT]
+            b: Input[INT]
+            abs_a: Output[INT]
+            min_ab: Output[INT]
+            max_ab: Output[INT]
 
             def logic(self):
                 self.abs_a = abs(self.a)
@@ -454,8 +454,8 @@ class TestProgramPOU:
     def test_program(self):
         @program
         class Main:
-            running = input_var(BOOL)
-            status = output_var(INT)
+            running: Input[BOOL]
+            status: Output[INT]
 
             def logic(self):
                 if self.running:
@@ -477,7 +477,7 @@ class TestFirstScanIntegration:
     def test_first_scan_sets_init_flag(self):
         @program
         class InitProgram:
-            initialized = output_var(BOOL)
+            initialized: Output[BOOL]
 
             def logic(self):
                 if first_scan():
@@ -498,7 +498,7 @@ class TestFirstScanIntegration:
     def test_first_scan_counter(self):
         @fb
         class ScanCounter:
-            count = output_var(INT)
+            count: Output[INT]
 
             def logic(self):
                 if first_scan():

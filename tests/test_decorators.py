@@ -4,7 +4,7 @@ import pytest
 
 from plx.framework._compiler import CompileError
 from plx.framework._decorators import fb, function, program
-from plx.framework._descriptors import input_var, output_var, static_var, inout_var
+from plx.framework._descriptors import Input, Field, Output, InOut
 from plx.framework._types import BOOL, DINT, INT, REAL, TIME, T
 from plx.model.expressions import (
     BinaryExpr,
@@ -26,8 +26,8 @@ class TestFBDecorator:
     def test_basic_fb(self):
         @fb
         class SimpleFB:
-            sensor = input_var(BOOL)
-            valve = output_var(BOOL)
+            sensor: Input[BOOL]
+            valve: Output[BOOL]
 
             def logic(self):
                 self.valve = self.sensor
@@ -45,9 +45,9 @@ class TestFBDecorator:
     def test_fb_with_static(self):
         @fb
         class CounterFB:
-            enable = input_var(BOOL)
-            count = output_var(DINT)
-            internal = static_var(DINT, initial=0)
+            enable: Input[BOOL]
+            count: Output[DINT]
+            internal: DINT = 0
 
             def logic(self):
                 if self.enable:
@@ -64,8 +64,8 @@ class TestFBDecorator:
 
         @fb
         class DelayedFB:
-            input_signal = input_var(BOOL)
-            output_signal = output_var(BOOL)
+            input_signal: Input[BOOL]
+            output_signal: Output[BOOL]
 
             def logic(self):
                 self.output_signal = delayed(self.input_signal, seconds=5)
@@ -83,10 +83,10 @@ class TestFBDecorator:
     def test_fb_multiple_variables(self):
         @fb
         class MultiFB:
-            a = input_var(REAL)
-            b = input_var(REAL)
-            c = input_var(REAL)
-            result = output_var(REAL)
+            a: Input[REAL]
+            b: Input[REAL]
+            c: Input[REAL]
+            result: Output[REAL]
 
             def logic(self):
                 self.result = self.a + self.b + self.c
@@ -104,7 +104,7 @@ class TestProgramDecorator:
     def test_basic_program(self):
         @program
         class MainProgram:
-            running = input_var(BOOL)
+            running: Input[BOOL]
 
             def logic(self):
                 pass
@@ -116,9 +116,9 @@ class TestProgramDecorator:
     def test_program_with_logic(self):
         @program
         class ControlLoop:
-            setpoint = input_var(REAL)
-            actual = input_var(REAL)
-            output = output_var(REAL)
+            setpoint: Input[REAL]
+            actual: Input[REAL]
+            output: Output[REAL]
 
             def logic(self):
                 self.output = self.setpoint - self.actual
@@ -135,7 +135,7 @@ class TestFunctionDecorator:
     def test_basic_function(self):
         @function
         class AddOne:
-            x = input_var(REAL)
+            x: Input[REAL]
 
             def logic(self) -> REAL:
                 return self.x + 1.0
@@ -148,7 +148,7 @@ class TestFunctionDecorator:
     def test_function_return_type(self):
         @function
         class Square:
-            x = input_var(DINT)
+            x: Input[DINT]
 
             def logic(self) -> DINT:
                 return self.x * self.x
@@ -162,17 +162,26 @@ class TestFunctionDecorator:
 # ---------------------------------------------------------------------------
 
 class TestDecoratorErrors:
-    def test_missing_logic_method(self):
+    def test_missing_logic_on_fb_is_data_only(self):
+        """@fb without logic() now produces a data-only FB with empty networks."""
+        @fb
+        class NoLogic:
+            x: Input[BOOL]
+
+        pou = NoLogic.compile()
+        assert pou.networks == []
+
+    def test_missing_logic_on_function_raises(self):
         with pytest.raises(CompileError, match="must have a logic"):
-            @fb
-            class NoLogic:
-                x = input_var(BOOL)
+            @function
+            class NoLogicFunc:
+                x: Input[BOOL]
 
     def test_invalid_syntax_in_logic(self):
         with pytest.raises(CompileError):
             @fb
             class BadLogic:
-                x = input_var(BOOL)
+                x: Input[BOOL]
 
                 def logic(self):
                     import os
@@ -202,7 +211,7 @@ class TestDecoratorErrors:
         with pytest.raises(CompileError, match="requires a return type"):
             @function
             class NoReturn:
-                x = input_var(REAL)
+                x: Input[REAL]
 
                 def logic(self):
                     return self.x + 1.0
@@ -216,8 +225,8 @@ class TestSerialization:
     def test_pou_serializes_to_json(self):
         @fb
         class SerFB:
-            x = input_var(BOOL)
-            y = output_var(BOOL)
+            x: Input[BOOL]
+            y: Output[BOOL]
 
             def logic(self):
                 self.y = not self.x
@@ -232,8 +241,8 @@ class TestSerialization:
     def test_pou_roundtrips_json(self):
         @fb
         class RoundTrip:
-            a = input_var(REAL)
-            b = output_var(REAL)
+            a: Input[REAL]
+            b: Output[REAL]
 
             def logic(self):
                 self.b = self.a + 1.0
@@ -253,7 +262,7 @@ class TestFBLanguage:
     def test_bare_fb_language_is_none(self):
         @fb
         class BareLanguageFB:
-            x = input_var(BOOL)
+            x: Input[BOOL]
 
             def logic(self):
                 pass
@@ -263,7 +272,7 @@ class TestFBLanguage:
     def test_fb_empty_parens_language_is_none(self):
         @fb()
         class EmptyParensFB:
-            x = input_var(BOOL)
+            x: Input[BOOL]
 
             def logic(self):
                 pass
@@ -273,7 +282,7 @@ class TestFBLanguage:
     def test_fb_language_st(self):
         @fb(language="ST")
         class StFB:
-            x = input_var(BOOL)
+            x: Input[BOOL]
 
             def logic(self):
                 pass
@@ -283,7 +292,7 @@ class TestFBLanguage:
     def test_fb_language_ld(self):
         @fb(language="LD")
         class LdFB:
-            x = input_var(BOOL)
+            x: Input[BOOL]
 
             def logic(self):
                 pass
@@ -293,7 +302,7 @@ class TestFBLanguage:
     def test_fb_language_fbd(self):
         @fb(language="FBD")
         class FbdFB:
-            x = input_var(BOOL)
+            x: Input[BOOL]
 
             def logic(self):
                 pass
@@ -309,7 +318,7 @@ class TestProgramLanguage:
     def test_bare_program_language_is_none(self):
         @program
         class BareLangProg:
-            x = input_var(BOOL)
+            x: Input[BOOL]
 
             def logic(self):
                 pass
@@ -319,7 +328,7 @@ class TestProgramLanguage:
     def test_program_empty_parens_language_is_none(self):
         @program()
         class EmptyParensProg:
-            x = input_var(BOOL)
+            x: Input[BOOL]
 
             def logic(self):
                 pass
@@ -329,7 +338,7 @@ class TestProgramLanguage:
     def test_program_language_st(self):
         @program(language="ST")
         class StProg:
-            x = input_var(BOOL)
+            x: Input[BOOL]
 
             def logic(self):
                 pass
@@ -345,7 +354,7 @@ class TestFunctionLanguage:
     def test_function_default_language_is_none(self):
         @function
         class DefaultLangFunc:
-            x = input_var(REAL)
+            x: Input[REAL]
 
             def logic(self) -> REAL:
                 return self.x
@@ -355,7 +364,7 @@ class TestFunctionLanguage:
     def test_function_language_fbd(self):
         @function(language="FBD")
         class FbdFunc:
-            x = input_var(REAL)
+            x: Input[REAL]
 
             def logic(self) -> REAL:
                 return self.x
@@ -412,7 +421,7 @@ class TestLanguageSerialization:
     def test_language_in_model_dump(self):
         @fb(language="LD")
         class DumpFB:
-            x = input_var(BOOL)
+            x: Input[BOOL]
 
             def logic(self):
                 pass
@@ -423,7 +432,7 @@ class TestLanguageSerialization:
     def test_none_language_in_model_dump(self):
         @fb
         class NullDumpFB:
-            x = input_var(BOOL)
+            x: Input[BOOL]
 
             def logic(self):
                 pass
@@ -434,7 +443,7 @@ class TestLanguageSerialization:
     def test_language_json_roundtrip(self):
         @fb(language="FBD")
         class RoundTripLangFB:
-            x = input_var(BOOL)
+            x: Input[BOOL]
 
             def logic(self):
                 pass
@@ -453,7 +462,7 @@ class TestLanguageWithInheritance:
     def test_parent_and_child_different_languages(self):
         @fb(language="ST")
         class ParentLangFB:
-            x = input_var(BOOL)
+            x: Input[BOOL]
 
             def logic(self):
                 pass
@@ -469,7 +478,7 @@ class TestLanguageWithInheritance:
     def test_child_inherits_none_independently(self):
         @fb(language="FBD")
         class ParentFbdFB:
-            x = input_var(BOOL)
+            x: Input[BOOL]
 
             def logic(self):
                 pass
@@ -491,7 +500,7 @@ class TestFolderKwarg:
     def test_fb_folder(self):
         @fb(folder="actuators")
         class FolderFB:
-            x = input_var(BOOL)
+            x: Input[BOOL]
 
             def logic(self):
                 pass
@@ -501,7 +510,7 @@ class TestFolderKwarg:
     def test_fb_bare_default_folder(self):
         @fb
         class NoFolderFB:
-            x = input_var(BOOL)
+            x: Input[BOOL]
 
             def logic(self):
                 pass
@@ -511,7 +520,7 @@ class TestFolderKwarg:
     def test_program_folder(self):
         @program(folder="programs/main")
         class FolderProgram:
-            x = input_var(BOOL)
+            x: Input[BOOL]
 
             def logic(self):
                 pass
@@ -521,7 +530,7 @@ class TestFolderKwarg:
     def test_function_folder(self):
         @function(folder="utils")
         class FolderFunc:
-            x = input_var(REAL)
+            x: Input[REAL]
 
             def logic(self) -> REAL:
                 return self.x + 1.0

@@ -5,12 +5,16 @@ FBs as static vars and calls them properly.
 """
 
 from plx.framework import (
-    BOOL, DINT, REAL, TIME,
+    TIME,
     T,
-    fb, program,
-    input_var, output_var, static_var,
-    delayed, rising,
+    fb,
+    program,
+    Input,
+    Output,
+    delayed,
+    rising,
     project,
+    Field,
 )
 
 # -- States ----------------------------------------------------------------
@@ -28,11 +32,11 @@ COMPLETE   = 9
 
 @fb
 class ValveCtrl:
-    cmd_open   = input_var(BOOL, description="Command to open")
-    feedback   = input_var(BOOL, description="Open limit switch")
-    valve_out  = output_var(BOOL, description="Solenoid output")
-    is_open    = output_var(BOOL, description="Confirmed open")
-    fault      = output_var(BOOL, description="Failed to open in time")
+    cmd_open: Input[bool] = Field(description="Command to open")
+    feedback: Input[bool] = Field(description="Open limit switch")
+    valve_out: Output[bool] = Field(description="Solenoid output")
+    is_open: Output[bool] = Field(description="Confirmed open")
+    fault: Output[bool] = Field(description="Failed to open in time")
 
     def logic(self):
         self.valve_out = self.cmd_open
@@ -47,12 +51,12 @@ class ValveCtrl:
 
 @fb
 class VolumeDose:
-    start       = input_var(BOOL)
-    flow_pulse  = input_var(BOOL)
-    target_vol  = input_var(REAL)
-    done        = output_var(BOOL)
-    actual_vol  = output_var(REAL)
-    valve_cmd   = output_var(BOOL)
+    start: Input[bool]
+    flow_pulse: Input[bool]
+    target_vol: Input[float]
+    done: Output[bool]
+    actual_vol: Output[float]
+    valve_cmd: Output[bool]
 
     def logic(self):
         if not self.start:
@@ -74,37 +78,37 @@ class VolumeDose:
 @program
 class BatchMix:
     # --- operator ---
-    cmd_start = input_var(BOOL)
-    cmd_reset = input_var(BOOL)
-    cmd_cip   = input_var(BOOL)
+    cmd_start: Input[bool]
+    cmd_reset: Input[bool]
+    cmd_cip: Input[bool]
 
     # --- field I/O ---
-    level_low  = input_var(BOOL)
-    flow_a     = input_var(BOOL)
-    flow_b     = input_var(BOOL)
-    flow_c     = input_var(BOOL)
-    fb_valve_a = input_var(BOOL, description="Valve A feedback")
-    fb_valve_b = input_var(BOOL, description="Valve B feedback")
-    fb_valve_c = input_var(BOOL, description="Valve C feedback")
+    level_low: Input[bool]
+    flow_a: Input[bool]
+    flow_b: Input[bool]
+    flow_c: Input[bool]
+    fb_valve_a: Input[bool] = Field(description="Valve A feedback")
+    fb_valve_b: Input[bool] = Field(description="Valve B feedback")
+    fb_valve_c: Input[bool] = Field(description="Valve C feedback")
 
     # --- outputs ---
-    sol_a      = output_var(BOOL)
-    sol_b      = output_var(BOOL)
-    sol_c      = output_var(BOOL)
-    drain_valve = output_var(BOOL)
-    cip_valve  = output_var(BOOL)
-    agitator   = output_var(BOOL)
-    state      = output_var(DINT)
-    batch_done = output_var(BOOL)
+    sol_a: Output[bool]
+    sol_b: Output[bool]
+    sol_c: Output[bool]
+    drain_valve: Output[bool]
+    cip_valve: Output[bool]
+    agitator: Output[bool]
+    state: Output[int]
+    batch_done: Output[bool]
 
     # --- FB instances ---
-    valve_a = static_var("ValveCtrl")
-    valve_b = static_var("ValveCtrl")
-    valve_c = static_var("ValveCtrl")
-    dose_a  = static_var("VolumeDose")
-    dose_b  = static_var("VolumeDose")
-    dose_c  = static_var("VolumeDose")
-    step    = static_var(DINT, initial=0)
+    valve_a: "ValveCtrl"
+    valve_b: "ValveCtrl"
+    valve_c: "ValveCtrl"
+    dose_a: "VolumeDose"
+    dose_b: "VolumeDose"
+    dose_c: "VolumeDose"
+    step: int = 0
 
     def logic(self):
         if self.cmd_reset:

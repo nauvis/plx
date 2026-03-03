@@ -11,7 +11,7 @@ from plx.framework._data_types import (
     struct,
 )
 from plx.framework._decorators import fb, program
-from plx.framework._descriptors import input_var, output_var, static_var
+from plx.framework._descriptors import Input, Field, Output
 from plx.framework._project import project
 from plx.framework._types import (
     ARRAY,
@@ -315,7 +315,7 @@ class TestDataTypeAsTypeArg:
 
         @fb
         class UsesStruct:
-            data = static_var(SensorData)
+            data: SensorData
 
             def logic(self):
                 pass
@@ -331,7 +331,7 @@ class TestDataTypeAsTypeArg:
 
         @fb
         class UsesEnum:
-            mode = static_var(Mode)
+            mode: Mode
 
             def logic(self):
                 pass
@@ -346,7 +346,7 @@ class TestDataTypeAsTypeArg:
 
         @fb
         class HasInput:
-            config = input_var(Params)
+            config: Input[Params]
 
             def logic(self):
                 pass
@@ -378,7 +378,7 @@ class TestEnumInLogic:
 
         @fb
         class UsesColor:
-            out = output_var(INT)
+            out: Output[INT]
 
             def logic(self):
                 self.out = Color.GREEN
@@ -398,8 +398,8 @@ class TestEnumInLogic:
 
         @fb
         class Checker:
-            state = input_var(INT)
-            active = output_var(BOOL)
+            state: Input[INT]
+            active: Output[BOOL]
 
             def logic(self):
                 if self.state == State.ON:
@@ -423,8 +423,8 @@ class TestEnumInLogic:
 
         @fb
         class StateMachine:
-            phase = static_var(INT, initial=0)
-            out = output_var(INT)
+            phase: INT = 0
+            out: Output[INT]
 
             def logic(self):
                 match self.phase:
@@ -451,8 +451,8 @@ class TestEnumInLogic:
 
         @fb
         class Handler:
-            status = static_var(INT, initial=0)
-            alarm = output_var(BOOL)
+            status: INT = 0
+            alarm: Output[BOOL]
 
             def logic(self):
                 match self.status:
@@ -475,7 +475,7 @@ class TestEnumInLogic:
         with pytest.raises(CompileError, match="not a member of enum"):
             @fb
             class Bad:
-                out = output_var(INT)
+                out: Output[INT]
 
                 def logic(self):
                     self.out = Valid.NONEXISTENT
@@ -488,7 +488,7 @@ class TestEnumInLogic:
         with pytest.raises(CompileError, match="not a member of enum"):
             @fb
             class BadMatch:
-                val = static_var(INT, initial=0)
+                val: INT = 0
 
                 def logic(self):
                     match self.val:
@@ -505,7 +505,7 @@ class TestEnumInLogic:
 
         @fb
         class WithMethod:
-            cmd = static_var(INT, initial=0)
+            cmd: INT = 0
 
             def logic(self):
                 pass
@@ -715,7 +715,7 @@ class TestIntEnum:
 
         @fb
         class UsesIntEnum:
-            mode = static_var(Mode)
+            mode: Mode
 
             def logic(self):
                 pass
@@ -733,7 +733,7 @@ class TestIntEnum:
 
         @fb
         class UsesIntEnumLiteral:
-            out = output_var(INT)
+            out: Output[INT]
 
             def logic(self):
                 self.out = Color.GREEN
@@ -754,8 +754,8 @@ class TestIntEnum:
 
         @fb
         class IntEnumMatch:
-            state = static_var(INT, initial=0)
-            out = output_var(INT)
+            state: INT = 0
+            out: Output[INT]
 
             def logic(self):
                 match self.state:
@@ -850,7 +850,7 @@ class TestDataclass:
 
         @fb
         class UsesDataclass:
-            reading = static_var(SensorReading)
+            reading: SensorReading
 
             def logic(self):
                 pass

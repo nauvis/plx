@@ -73,7 +73,7 @@ def method(
 
         @fb
         class Conveyor:
-            speed = static_var(REAL)
+            speed: REAL
 
             def logic(self):
                 pass
@@ -428,33 +428,56 @@ def _compile_pou_class(
 
     extends = _detect_parent_pou(cls)
     var_groups, declared_vars, static_var_types = _build_var_context(cls)
-    func_def, source, start_lineno = _parse_logic_source(cls)
 
-    # For FUNCTION POUs, extract return type from logic() annotation
-    return_type: TypeRef | None = None
-    if pou_type == POUType.FUNCTION:
-        if func_def.returns is None:
-            raise CompileError(
-                f"FUNCTION '{cls.__name__}' requires a return type — "
-                f"annotate logic(): def logic(self) -> REAL:"
-            )
-        return_type = resolve_annotation(
-            func_def.returns,
-            location_hint=f"{cls.__name__}.logic()",
+    has_logic = hasattr(cls, "logic")
+
+    # FUNCTION POUs always require logic() (return type comes from annotation)
+    if not has_logic and pou_type == POUType.FUNCTION:
+        raise CompileError(
+            f"FUNCTION '{cls.__name__}' must have a logic() method "
+            f"with a return type annotation"
         )
 
-    try:
-        source_file = inspect.getfile(cls)
-    except (TypeError, OSError):
-        source_file = "<unknown>"
+    networks: list[Network] = []
+    generated_static_vars: list[Variable] = []
+    generated_temp_vars: list[Variable] = []
+    return_type: TypeRef | None = None
 
-    ctx = _build_compile_context(
-        cls.logic, cls,
-        declared_vars, static_var_types,
-        start_lineno, source_file,
-    )
+    if has_logic:
+        func_def, source, start_lineno = _parse_logic_source(cls)
 
-    networks = _compile_logic_networks(func_def, ctx, source)
+        # For FUNCTION POUs, extract return type from logic() annotation
+        if pou_type == POUType.FUNCTION:
+            if func_def.returns is None:
+                raise CompileError(
+                    f"FUNCTION '{cls.__name__}' requires a return type — "
+                    f"annotate logic(): def logic(self) -> REAL:"
+                )
+            return_type = resolve_annotation(
+                func_def.returns,
+                location_hint=f"{cls.__name__}.logic()",
+            )
+
+        try:
+            source_file = inspect.getfile(cls)
+        except (TypeError, OSError):
+            source_file = "<unknown>"
+
+        ctx = _build_compile_context(
+            cls.logic, cls,
+            declared_vars, static_var_types,
+            start_lineno, source_file,
+        )
+
+        networks = _compile_logic_networks(func_def, ctx, source)
+        generated_static_vars = ctx.generated_static_vars
+        generated_temp_vars = ctx.generated_temp_vars
+    else:
+        try:
+            source_file = inspect.getfile(cls)
+        except (TypeError, OSError):
+            source_file = "<unknown>"
+
     compiled_methods = _compile_all_methods(cls, declared_vars, static_var_types, source_file)
     compiled_properties = _compile_all_properties(cls, declared_vars, static_var_types, source_file)
 
@@ -462,8 +485,8 @@ def _compile_pou_class(
         input_vars=var_groups["input"],
         output_vars=var_groups["output"],
         inout_vars=var_groups["inout"],
-        static_vars=var_groups["static"] + ctx.generated_static_vars,
-        temp_vars=var_groups["temp"] + ctx.generated_temp_vars,
+        static_vars=var_groups["static"] + generated_static_vars,
+        temp_vars=var_groups["temp"] + generated_temp_vars,
         constant_vars=var_groups["constant"],
         external_vars=var_groups["external"],
     )
@@ -505,7 +528,7 @@ def program(cls: type = None, *, language: str | None = None, folder: str = "") 
 
         @program
         class Main:
-            running = input_var(BOOL)
+            running: Input[BOOL]
 
             def logic(self):
                 pass
@@ -530,8 +553,8 @@ def fb(cls: type = None, *, language: str | None = None, folder: str = "", imple
 
         @fb
         class MyFB:
-            sensor = input_var(BOOL)
-            output = output_var(BOOL)
+            sensor: Input[BOOL]
+            output: Output[BOOL]
 
             def logic(self):
                 self.output = self.sensor
@@ -575,7 +598,7 @@ def function(cls: type = None, *, language: str | None = None, folder: str = "")
 
         @function
         class AddOne:
-            x = input_var(REAL)
+            x: Input[REAL]
 
             def logic(self) -> REAL:
                 return self.x + 1.0

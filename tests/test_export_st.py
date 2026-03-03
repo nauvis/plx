@@ -678,8 +678,8 @@ class TestFrameworkIntegration:
             "from plx.framework import *\n\n"
             "@fb\n"
             "class Motor:\n"
-            "    cmd = input_var(BOOL)\n"
-            "    running = output_var(BOOL)\n\n"
+            "    cmd: Input[BOOL]\n"
+            "    running: Output[BOOL]\n\n"
             "    def logic(self):\n"
             "        self.running = self.cmd\n"
         )

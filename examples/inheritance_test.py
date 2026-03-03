@@ -8,12 +8,12 @@ Demonstrates:
 """
 
 from plx.framework import (
-    BOOL, DINT, REAL, TIME,
-    T,
-    fb, program,
-    input_var, output_var, static_var,
-    delayed, rising,
+    fb,
+    Input,
+    Output,
+    delayed,
     project,
+    Field,
 )
 
 
@@ -23,11 +23,11 @@ from plx.framework import (
 
 @fb
 class BaseValve:
-    cmd        = input_var(BOOL, description="Open command")
-    feedback   = input_var(BOOL, description="Open limit switch")
-    valve_out  = output_var(BOOL, description="Solenoid output")
-    is_open    = output_var(BOOL, description="Confirmed open")
-    fault      = output_var(BOOL, description="Open timeout fault")
+    cmd: Input[bool] = Field(description="Open command")
+    feedback: Input[bool] = Field(description="Open limit switch")
+    valve_out: Output[bool] = Field(description="Solenoid output")
+    is_open: Output[bool] = Field(description="Confirmed open")
+    fault: Output[bool] = Field(description="Open timeout fault")
 
     def logic(self):
         self.valve_out = self.cmd
@@ -44,8 +44,8 @@ class BaseValve:
 
 @fb
 class DoubleActingValve(BaseValve):
-    close_feedback = input_var(BOOL, description="Close limit switch")
-    close_fault    = output_var(BOOL, description="Close timeout fault")
+    close_feedback: Input[bool] = Field(description="Close limit switch")
+    close_fault: Output[bool] = Field(description="Close timeout fault")
 
     def logic(self):
         super().logic()
@@ -63,10 +63,10 @@ class DoubleActingValve(BaseValve):
 
 @fb
 class ModulatingValve(DoubleActingValve):
-    position_sp  = input_var(REAL, description="Position setpoint 0-100%")
-    position_pv  = input_var(REAL, description="Position feedback 0-100%")
-    position_out = output_var(REAL, description="Analog output 0-100%")
-    in_position  = output_var(BOOL, description="At setpoint")
+    position_sp: Input[float] = Field(description="Position setpoint 0-100%")
+    position_pv: Input[float] = Field(description="Position feedback 0-100%")
+    position_out: Output[float] = Field(description="Analog output 0-100%")
+    in_position: Output[bool] = Field(description="At setpoint")
 
     def logic(self):
         super().logic()  # runs DoubleActingValve.logic() which runs BaseValve.logic()

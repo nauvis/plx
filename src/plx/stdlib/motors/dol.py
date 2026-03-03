@@ -8,10 +8,10 @@ from plx.framework import (
     BOOL,
     TIME,
     fb,
-    input_var,
-    output_var,
-    static_var,
+    Input,
+    Output,
     delayed,
+    Field,
 )
 
 
@@ -31,17 +31,17 @@ class DOLStarter:
         running: Confirmed running (feedback received)
         faulted: Fault condition active
     """
-    run_cmd = input_var(BOOL, description="Start command")
-    stop_cmd = input_var(BOOL, description="Stop command")
-    e_stop = input_var(BOOL, initial=True, description="E-stop healthy (True=OK)")
-    overload = input_var(BOOL, description="Thermal overload (True=tripped)")
-    feedback = input_var(BOOL, description="Contactor feedback")
+    run_cmd: Input[BOOL] = Field(description="Start command")
+    stop_cmd: Input[BOOL] = Field(description="Stop command")
+    e_stop: Input[BOOL] = Field(initial=True, description="E-stop healthy (True=OK)")
+    overload: Input[BOOL] = Field(description="Thermal overload (True=tripped)")
+    feedback: Input[BOOL] = Field(description="Contactor feedback")
 
-    motor_on = output_var(BOOL, description="Contactor output command")
-    running = output_var(BOOL, description="Confirmed running")
-    faulted = output_var(BOOL, description="Fault active")
+    motor_on: Output[BOOL] = Field(description="Contactor output command")
+    running: Output[BOOL] = Field(description="Confirmed running")
+    faulted: Output[BOOL] = Field(description="Fault active")
 
-    latched = static_var(BOOL, description="Latched run command")
+    latched: BOOL = Field(description="Latched run command")
 
     def logic(self):
         # Fault detection

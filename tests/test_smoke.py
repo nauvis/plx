@@ -15,15 +15,15 @@ from plx.framework import (
     falling,
     fb,
     function,
-    input_var,
-    output_var,
+    Input,
+    Output,
     program,
     project,
     pulse,
     rising,
-    static_var,
     sustained,
-    temp_var,
+    Temp,
+    Field,
 )
 from plx.model.pou import POU, POUType
 from plx.model.project import Project
@@ -32,14 +32,14 @@ from plx.model.statements import Assignment, FBInvocation, IfStatement
 
 @fb
 class PneumaticActuator:
-    extend_cmd = input_var(BOOL, description="Command to extend")
-    retract_cmd = input_var(BOOL, description="Command to retract")
-    extend_fb = input_var(BOOL, description="Extended feedback")
-    retract_fb = input_var(BOOL, description="Retracted feedback")
-    fault_time = static_var(TIME, initial=T(5))
-    extend_sol = output_var(BOOL)
-    retract_sol = output_var(BOOL)
-    fault = output_var(BOOL)
+    extend_cmd: Input[BOOL] = Field(description="Command to extend")
+    retract_cmd: Input[BOOL] = Field(description="Command to retract")
+    extend_fb: Input[BOOL] = Field(description="Extended feedback")
+    retract_fb: Input[BOOL] = Field(description="Retracted feedback")
+    fault_time: TIME = T(5)
+    extend_sol: Output[BOOL]
+    retract_sol: Output[BOOL]
+    fault: Output[BOOL]
 
     def logic(self):
         if self.extend_cmd and not self.retract_cmd:
@@ -57,9 +57,9 @@ class PneumaticActuator:
 
 @program
 class MainProgram:
-    speed = input_var(REAL)
-    running = input_var(BOOL)
-    output = output_var(REAL)
+    speed: Input[REAL]
+    running: Input[BOOL]
+    output: Output[REAL]
 
     def logic(self):
         if self.running:
@@ -70,9 +70,9 @@ class MainProgram:
 
 @function
 class Clamp:
-    value = input_var(REAL)
-    low = input_var(REAL)
-    high = input_var(REAL)
+    value: Input[REAL]
+    low: Input[REAL]
+    high: Input[REAL]
 
     def logic(self) -> REAL:
         if self.value < self.low:
@@ -130,12 +130,32 @@ class TestSmokeEndToEnd:
     def test_imports_from_flat_namespace(self):
         """Verify all public symbols are importable."""
         from plx.framework import (
-            BOOL, INT, DINT, REAL, TIME, LTIME,
-            T, LT,
-            ARRAY, STRING, WSTRING, POINTER_TO, REFERENCE_TO,
-            fb, program, function,
-            input_var, output_var, static_var, inout_var, temp_var,
-            delayed, rising, falling, sustained, pulse,
+            BOOL,
+            INT,
+            DINT,
+            REAL,
+            TIME,
+            LTIME,
+            T,
+            LT,
+            ARRAY,
+            STRING,
+            WSTRING,
+            POINTER_TO,
+            REFERENCE_TO,
+            fb,
+            program,
+            function,
+            Input,
+            Output,
+            InOut,
+            Temp,
+            delayed,
+            rising,
+            falling,
+            sustained,
+            pulse,
             CompileError,
             project,
+            Field,
         )

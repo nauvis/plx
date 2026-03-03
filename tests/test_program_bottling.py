@@ -15,16 +15,16 @@ from plx.framework import (
     delayed,
     falling,
     fb,
-    input_var,
+    Input,
     method,
-    output_var,
+    Output,
     program,
     project,
     pulse,
     rising,
-    static_var,
     struct,
     task,
+    Field,
 )
 from plx.simulate import simulate
 
@@ -71,14 +71,14 @@ class ConveyorStation:
     Demonstrates @method for reset_count.
     """
 
-    run_cmd = input_var(BOOL)
-    product_sensor = input_var(BOOL)
-    e_stop = input_var(BOOL, initial=True)
-    reset_cmd = input_var(BOOL)
+    run_cmd: Input[BOOL]
+    product_sensor: Input[BOOL]
+    e_stop: Input[BOOL] = True
+    reset_cmd: Input[BOOL]
 
-    motor = output_var(BOOL)
-    jam_alarm = output_var(BOOL)
-    product_count = output_var(DINT)
+    motor: Output[BOOL]
+    jam_alarm: Output[BOOL]
+    product_count: Output[DINT]
 
     def logic(self):
         # Jam detection: product stuck for 5 seconds
@@ -110,22 +110,22 @@ class FillerStation:
     Demonstrates @method for get_reject_reason.
     """
 
-    start = input_var(BOOL)
-    fill_level = input_var(REAL)
-    weight = input_var(REAL)
-    target_fill = input_var(REAL, initial=95.0)
-    fill_tolerance = input_var(REAL, initial=2.0)
-    target_weight = input_var(REAL, initial=500.0)
-    weight_tolerance = input_var(REAL, initial=10.0)
+    start: Input[BOOL]
+    fill_level: Input[REAL]
+    weight: Input[REAL]
+    target_fill: Input[REAL] = 95.0
+    fill_tolerance: Input[REAL] = 2.0
+    target_weight: Input[REAL] = 500.0
+    weight_tolerance: Input[REAL] = 10.0
 
-    fill_valve = output_var(BOOL)
-    complete = output_var(BOOL)
-    reject = output_var(BOOL)
-    reject_reason = output_var(INT)  # 0=none, 1=underfill, 2=overfill, 3=weight
-    state = output_var(INT)
+    fill_valve: Output[BOOL]
+    complete: Output[BOOL]
+    reject: Output[BOOL]
+    reject_reason: Output[INT]  # 0=none, 1=underfill, 2=overfill, 3=weight
+    state: Output[INT]
 
-    fill_timer = static_var(DINT)
-    check_timer = static_var(DINT)
+    fill_timer: DINT
+    check_timer: DINT
 
     def logic(self):
         match self.state:
@@ -212,19 +212,19 @@ class CapperStation:
     Checks torque and cap presence.
     """
 
-    start = input_var(BOOL)
-    cap_present = input_var(BOOL)
-    torque = input_var(REAL)
-    min_torque = input_var(REAL, initial=5.0)
-    max_torque = input_var(REAL, initial=15.0)
+    start: Input[BOOL]
+    cap_present: Input[BOOL]
+    torque: Input[REAL]
+    min_torque: Input[REAL] = 5.0
+    max_torque: Input[REAL] = 15.0
 
-    cap_actuator = output_var(BOOL)
-    complete = output_var(BOOL)
-    reject = output_var(BOOL)
-    reject_reason = output_var(INT)  # 0=none, 1=no_cap, 2=torque
-    state = output_var(INT)
+    cap_actuator: Output[BOOL]
+    complete: Output[BOOL]
+    reject: Output[BOOL]
+    reject_reason: Output[INT]  # 0=none, 1=no_cap, 2=torque
+    state: Output[INT]
 
-    cap_timer = static_var(DINT)
+    cap_timer: DINT
 
     def logic(self):
         match self.state:
@@ -282,13 +282,13 @@ class CapperStation:
 class RejectStation:
     """Reject diverter with pulse() activation and bin-full alarm."""
 
-    trigger = input_var(BOOL)  # Rising edge fires diverter
-    bin_level = input_var(REAL)
-    bin_full_sp = input_var(REAL, initial=90.0)
+    trigger: Input[BOOL]  # Rising edge fires diverter
+    bin_level: Input[REAL]
+    bin_full_sp: Input[REAL] = 90.0
 
-    diverter = output_var(BOOL)
-    reject_count = output_var(DINT)
-    bin_full = output_var(BOOL)
+    diverter: Output[BOOL]
+    reject_count: Output[DINT]
+    bin_full: Output[BOOL]
 
     def logic(self):
         # Pulse diverter for 500ms on trigger
@@ -306,13 +306,13 @@ class RejectStation:
 class StackLight:
     """Stack light controller: green/yellow/red from system states."""
 
-    running = input_var(BOOL)
-    warning = input_var(BOOL)
-    faulted = input_var(BOOL)
+    running: Input[BOOL]
+    warning: Input[BOOL]
+    faulted: Input[BOOL]
 
-    green = output_var(BOOL)
-    yellow = output_var(BOOL)
-    red = output_var(BOOL)
+    green: Output[BOOL]
+    yellow: Output[BOOL]
+    red: Output[BOOL]
 
     def logic(self):
         # Priority: faulted > warning > running
@@ -347,54 +347,54 @@ class BottlingLine:
     """
 
     # Inputs (DI)
-    start_cmd = input_var(BOOL)
-    stop_cmd = input_var(BOOL)
-    e_stop = input_var(BOOL, initial=True)  # NC: True=safe
-    reset_cmd = input_var(BOOL)
-    filler_product_sensor = input_var(BOOL)
-    capper_product_sensor = input_var(BOOL)
-    outfeed_product_sensor = input_var(BOOL)
-    cap_present = input_var(BOOL, initial=True)
+    start_cmd: Input[BOOL]
+    stop_cmd: Input[BOOL]
+    e_stop: Input[BOOL] = True  # NC: True=safe
+    reset_cmd: Input[BOOL]
+    filler_product_sensor: Input[BOOL]
+    capper_product_sensor: Input[BOOL]
+    outfeed_product_sensor: Input[BOOL]
+    cap_present: Input[BOOL] = True
 
     # Inputs (AI)
-    fill_level = input_var(REAL)
-    weight = input_var(REAL)
-    torque = input_var(REAL, initial=10.0)
-    reject_bin_level = input_var(REAL)
+    fill_level: Input[REAL]
+    weight: Input[REAL]
+    torque: Input[REAL] = 10.0
+    reject_bin_level: Input[REAL]
 
     # Outputs (DO)
-    infeed_motor = output_var(BOOL)
-    filler_motor = output_var(BOOL)
-    capper_motor = output_var(BOOL)
-    outfeed_motor = output_var(BOOL)
-    fill_valve = output_var(BOOL)
-    cap_actuator = output_var(BOOL)
-    reject_diverter = output_var(BOOL)
-    green_light = output_var(BOOL)
-    yellow_light = output_var(BOOL)
-    red_light = output_var(BOOL)
+    infeed_motor: Output[BOOL]
+    filler_motor: Output[BOOL]
+    capper_motor: Output[BOOL]
+    outfeed_motor: Output[BOOL]
+    fill_valve: Output[BOOL]
+    cap_actuator: Output[BOOL]
+    reject_diverter: Output[BOOL]
+    green_light: Output[BOOL]
+    yellow_light: Output[BOOL]
+    red_light: Output[BOOL]
 
     # Outputs (status)
-    line_state = output_var(INT)
-    total_count = output_var(DINT)
-    good_count = output_var(DINT)
-    reject_count = output_var(DINT)
+    line_state: Output[INT]
+    total_count: Output[DINT]
+    good_count: Output[DINT]
+    reject_count: Output[DINT]
 
     # Internal FBs
-    infeed = static_var(ConveyorStation)
-    filler_conv = static_var(ConveyorStation)
-    capper_conv = static_var(ConveyorStation)
-    outfeed = static_var(ConveyorStation)
-    filler = static_var(FillerStation)
-    capper = static_var(CapperStation)
-    rejector = static_var(RejectStation)
-    stack = static_var(StackLight)
+    infeed: ConveyorStation
+    filler_conv: ConveyorStation
+    capper_conv: ConveyorStation
+    outfeed: ConveyorStation
+    filler: FillerStation
+    capper: CapperStation
+    rejector: RejectStation
+    stack: StackLight
 
     # Internals
-    state = static_var(INT)  # 0=STOPPED
-    startup_timer = static_var(DINT)
-    any_fault = static_var(BOOL)
-    line_running = static_var(BOOL)
+    state: INT  # 0=STOPPED
+    startup_timer: DINT
+    any_fault: BOOL
+    line_running: BOOL
 
     def logic(self):
         # E-stop override — highest priority

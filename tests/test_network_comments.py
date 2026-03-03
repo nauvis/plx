@@ -9,9 +9,10 @@ from plx.framework import (
     delayed,
     fb,
     function,
-    input_var,
-    output_var,
+    Input,
+    Output,
     program,
+    Field,
 )
 from plx.framework._decorators import _extract_comments, _split_body_by_comments
 from plx.model.pou import POU
@@ -196,7 +197,7 @@ class TestNetworkComments:
     def test_no_comments_single_network(self):
         @fb
         class Simple:
-            x = output_var(BOOL)
+            x: Output[BOOL]
 
             def logic(self):
                 self.x = True
@@ -208,7 +209,7 @@ class TestNetworkComments:
     def test_single_comment_one_network(self):
         @fb
         class OneComment:
-            x = output_var(BOOL)
+            x: Output[BOOL]
 
             def logic(self):
                 # Set output
@@ -222,8 +223,8 @@ class TestNetworkComments:
     def test_two_comments_two_networks(self):
         @fb
         class TwoComments:
-            x = output_var(BOOL)
-            y = output_var(BOOL)
+            x: Output[BOOL]
+            y: Output[BOOL]
 
             def logic(self):
                 # First section
@@ -239,8 +240,8 @@ class TestNetworkComments:
     def test_statements_before_first_comment(self):
         @fb
         class Preamble:
-            x = output_var(BOOL)
-            y = output_var(BOOL)
+            x: Output[BOOL]
+            y: Output[BOOL]
 
             def logic(self):
                 self.x = True
@@ -255,7 +256,7 @@ class TestNetworkComments:
     def test_consecutive_comments_merge(self):
         @fb
         class Merged:
-            x = output_var(BOOL)
+            x: Output[BOOL]
 
             def logic(self):
                 # Line 1
@@ -269,8 +270,8 @@ class TestNetworkComments:
     def test_inline_comment_no_split(self):
         @fb
         class Inline:
-            x = output_var(BOOL)
-            y = output_var(BOOL)
+            x: Output[BOOL]
+            y: Output[BOOL]
 
             def logic(self):
                 self.x = True  # inline comment
@@ -283,8 +284,8 @@ class TestNetworkComments:
     def test_comment_inside_if_no_split(self):
         @fb
         class Nested:
-            x = input_var(BOOL)
-            y = output_var(BOOL)
+            x: Input[BOOL]
+            y: Output[BOOL]
 
             def logic(self):
                 if self.x:
@@ -298,10 +299,10 @@ class TestNetworkComments:
     def test_sentinel_across_groups(self):
         @fb
         class SentinelGroups:
-            a = input_var(BOOL)
-            b = input_var(BOOL)
-            x = output_var(BOOL)
-            y = output_var(BOOL)
+            a: Input[BOOL]
+            b: Input[BOOL]
+            x: Output[BOOL]
+            y: Output[BOOL]
 
             def logic(self):
                 # First timer
@@ -333,14 +334,14 @@ class TestNetworkComments:
     def test_super_logic_with_comments(self):
         @fb
         class Base:
-            x = output_var(BOOL)
+            x: Output[BOOL]
 
             def logic(self):
                 self.x = True
 
         @fb
         class Derived(Base):
-            y = output_var(BOOL)
+            y: Output[BOOL]
 
             def logic(self):
                 super().logic()
@@ -357,7 +358,7 @@ class TestNetworkComments:
     def test_works_with_program(self):
         @program
         class Main:
-            x = output_var(BOOL)
+            x: Output[BOOL]
 
             def logic(self):
                 # Initialize
@@ -370,7 +371,7 @@ class TestNetworkComments:
     def test_works_with_function(self):
         @function
         class AddOne:
-            x = input_var(REAL)
+            x: Input[REAL]
 
             def logic(self) -> REAL:
                 # Compute result
@@ -383,8 +384,8 @@ class TestNetworkComments:
     def test_serialization_roundtrip(self):
         @fb
         class Serializable:
-            x = output_var(BOOL)
-            y = output_var(BOOL)
+            x: Output[BOOL]
+            y: Output[BOOL]
 
             def logic(self):
                 # First rung
@@ -402,9 +403,9 @@ class TestNetworkComments:
     def test_multiple_statements_per_network(self):
         @fb
         class Multi:
-            a = output_var(BOOL)
-            b = output_var(BOOL)
-            c = output_var(BOOL)
+            a: Output[BOOL]
+            b: Output[BOOL]
+            c: Output[BOOL]
 
             def logic(self):
                 # Set outputs
@@ -421,9 +422,9 @@ class TestNetworkComments:
     def test_comment_between_control_structures(self):
         @fb
         class ControlSplit:
-            x = input_var(BOOL)
-            y = output_var(BOOL)
-            z = output_var(BOOL)
+            x: Input[BOOL]
+            y: Output[BOOL]
+            z: Output[BOOL]
 
             def logic(self):
                 # Check input

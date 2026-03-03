@@ -3,12 +3,18 @@
 import pytest
 
 from plx.framework import (
-    BOOL, DINT, REAL, TIME,
+    BOOL,
+    DINT,
+    REAL,
+    TIME,
     T,
-    fb, method,
-    input_var, output_var, static_var,
+    fb,
+    method,
+    Input,
+    Output,
     delayed,
     CompileError,
+    Field,
 )
 from plx.model.pou import AccessSpecifier, Method, POU, POUType
 from plx.model.expressions import BinaryExpr, LiteralExpr, VariableRef
@@ -24,7 +30,7 @@ class TestMethodBasic:
     def test_method_appears_on_pou(self):
         @fb
         class MyFB:
-            x = static_var(REAL)
+            x: REAL
 
             def logic(self):
                 pass
@@ -40,7 +46,7 @@ class TestMethodBasic:
     def test_method_body_compiled(self):
         @fb
         class MyFB:
-            x = static_var(REAL)
+            x: REAL
 
             def logic(self):
                 pass
@@ -59,8 +65,8 @@ class TestMethodBasic:
     def test_multiple_methods(self):
         @fb
         class Motor:
-            speed = static_var(REAL)
-            running = output_var(BOOL)
+            speed: REAL
+            running: Output[BOOL]
 
             def logic(self):
                 pass
@@ -84,7 +90,7 @@ class TestMethodBasic:
     def test_non_decorated_methods_excluded(self):
         @fb
         class MyFB:
-            x = static_var(REAL)
+            x: REAL
 
             def logic(self):
                 pass
@@ -110,7 +116,7 @@ class TestMethodParameters:
     def test_typed_parameter(self):
         @fb
         class MyFB:
-            speed = static_var(REAL)
+            speed: REAL
 
             def logic(self):
                 pass
@@ -127,7 +133,7 @@ class TestMethodParameters:
     def test_multiple_parameters(self):
         @fb
         class MyFB:
-            x = static_var(REAL)
+            x: REAL
 
             def logic(self):
                 pass
@@ -144,7 +150,7 @@ class TestMethodParameters:
     def test_self_not_included(self):
         @fb
         class MyFB:
-            x = static_var(REAL)
+            x: REAL
 
             def logic(self):
                 pass
@@ -159,7 +165,7 @@ class TestMethodParameters:
     def test_parameter_used_in_body(self):
         @fb
         class MyFB:
-            x = static_var(REAL)
+            x: REAL
 
             def logic(self):
                 pass
@@ -178,7 +184,7 @@ class TestMethodParameters:
         with pytest.raises(CompileError, match="type annotation"):
             @fb
             class BadFB:
-                x = static_var(REAL)
+                x: REAL
 
                 def logic(self):
                     pass
@@ -196,7 +202,7 @@ class TestMethodReturnType:
     def test_return_type(self):
         @fb
         class MyFB:
-            x = static_var(REAL)
+            x: REAL
 
             def logic(self):
                 pass
@@ -211,7 +217,7 @@ class TestMethodReturnType:
     def test_no_return_type(self):
         @fb
         class MyFB:
-            x = static_var(REAL)
+            x: REAL
 
             def logic(self):
                 pass
@@ -226,7 +232,7 @@ class TestMethodReturnType:
     def test_bool_return(self):
         @fb
         class MyFB:
-            running = static_var(BOOL)
+            running: BOOL
 
             def logic(self):
                 pass
@@ -303,8 +309,8 @@ class TestMethodAccessFBVars:
     def test_reads_input(self):
         @fb
         class MyFB:
-            sensor = input_var(BOOL)
-            result = output_var(BOOL)
+            sensor: Input[BOOL]
+            result: Output[BOOL]
 
             def logic(self):
                 pass
@@ -322,7 +328,7 @@ class TestMethodAccessFBVars:
     def test_writes_output(self):
         @fb
         class MyFB:
-            out = output_var(REAL)
+            out: Output[REAL]
 
             def logic(self):
                 pass
@@ -339,7 +345,7 @@ class TestMethodAccessFBVars:
     def test_reads_static(self):
         @fb
         class MyFB:
-            count = static_var(DINT, initial=0)
+            count: DINT = 0
 
             def logic(self):
                 pass
@@ -361,8 +367,8 @@ class TestMethodWithSentinels:
     def test_method_with_delayed(self):
         @fb
         class MyFB:
-            sig = input_var(BOOL)
-            out = output_var(BOOL)
+            sig: Input[BOOL]
+            out: Output[BOOL]
 
             def logic(self):
                 pass
@@ -385,7 +391,7 @@ class TestMethodInheritance:
     def test_child_inherits_methods(self):
         @fb
         class Parent:
-            x = static_var(REAL)
+            x: REAL
 
             def logic(self):
                 pass
@@ -396,7 +402,7 @@ class TestMethodInheritance:
 
         @fb
         class Child(Parent):
-            y = static_var(REAL)
+            y: REAL
 
             def logic(self):
                 super().logic()
@@ -408,7 +414,7 @@ class TestMethodInheritance:
     def test_child_overrides_method(self):
         @fb
         class Parent:
-            x = static_var(REAL)
+            x: REAL
 
             def logic(self):
                 pass
@@ -419,7 +425,7 @@ class TestMethodInheritance:
 
         @fb
         class Child(Parent):
-            y = static_var(REAL)
+            y: REAL
 
             def logic(self):
                 super().logic()
@@ -437,7 +443,7 @@ class TestMethodInheritance:
     def test_child_adds_method(self):
         @fb
         class Parent:
-            x = static_var(REAL)
+            x: REAL
 
             def logic(self):
                 pass
@@ -470,7 +476,7 @@ class TestMethodSerialization:
     def test_pou_with_methods_serializes(self):
         @fb
         class SerFB:
-            x = static_var(REAL)
+            x: REAL
 
             def logic(self):
                 pass
@@ -491,7 +497,7 @@ class TestMethodSerialization:
     def test_pou_with_methods_roundtrips(self):
         @fb
         class RoundFB:
-            x = static_var(REAL)
+            x: REAL
 
             def logic(self):
                 pass

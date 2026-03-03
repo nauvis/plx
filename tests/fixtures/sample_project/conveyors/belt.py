@@ -2,7 +2,7 @@
 
 from plx.framework._data_types import struct
 from plx.framework._decorators import fb
-from plx.framework._descriptors import input_var, output_var, static_var
+from plx.framework._descriptors import Input, Field, Output
 from plx.framework._types import BOOL, REAL
 
 
@@ -14,9 +14,9 @@ class BeltData:
 
 @fb
 class BeltConveyor:
-    cmd_run = input_var(BOOL)
-    is_running = output_var(BOOL)
-    speed = static_var(REAL)
+    cmd_run: Input[BOOL]
+    is_running: Output[BOOL]
+    speed: REAL
 
     def logic(self):
         if self.cmd_run:

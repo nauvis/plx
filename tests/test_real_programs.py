@@ -19,20 +19,20 @@ from plx.framework import (
     fb,
     falling,
     function,
-    input_var,
-    output_var,
+    Input,
+    Output,
     program,
     pulse,
     rising,
     sfc,
-    static_var,
     step,
     struct,
     sustained,
-    temp_var,
+    Temp,
     transition,
     project,
     task,
+    Field,
 )
 from plx.simulate import simulate
 
@@ -60,21 +60,21 @@ class ConveyorDrive:
     """Single conveyor with jam detection and motor protection."""
 
     # Inputs
-    run_cmd = input_var(BOOL)
-    photo_eye = input_var(BOOL)  # True = product present
-    motor_overload_fb = input_var(BOOL)  # True = overload trip
-    e_stop = input_var(BOOL)  # True = safe (NC contact)
+    run_cmd: Input[BOOL]
+    photo_eye: Input[BOOL]  # True = product present
+    motor_overload_fb: Input[BOOL]  # True = overload trip
+    e_stop: Input[BOOL]  # True = safe (NC contact)
 
     # Outputs
-    motor_run = output_var(BOOL)
-    jam_alarm = output_var(BOOL)
-    fault = output_var(BOOL)
-    product_count = output_var(DINT)
+    motor_run: Output[BOOL]
+    jam_alarm: Output[BOOL]
+    fault: Output[BOOL]
+    product_count: Output[DINT]
 
     # Internals
-    jam_detected = static_var(BOOL)
-    overload_latched = static_var(BOOL)
-    reset_cmd = input_var(BOOL)
+    jam_detected: BOOL
+    overload_latched: BOOL
+    reset_cmd: Input[BOOL]
 
     def logic(self):
         # Latch motor overload — requires reset
@@ -102,11 +102,11 @@ class ConveyorDrive:
 class DiverterGate:
     """Routes product left or right based on sort signal."""
 
-    trigger = input_var(BOOL)  # Rising edge = fire diverter
-    sort_left = input_var(BOOL)
+    trigger: Input[BOOL]  # Rising edge = fire diverter
+    sort_left: Input[BOOL]
 
-    gate_left = output_var(BOOL)
-    gate_right = output_var(BOOL)
+    gate_left: Output[BOOL]
+    gate_right: Output[BOOL]
 
     def logic(self):
         # On trigger, fire appropriate gate for 2 seconds
@@ -123,36 +123,36 @@ class SortingSystem:
     """Top-level sorting system with 3 infeed conveyors and a diverter."""
 
     # System inputs
-    e_stop = input_var(BOOL, initial=True)
-    system_run = input_var(BOOL)
-    sort_left = input_var(BOOL)
-    reset = input_var(BOOL)
+    e_stop: Input[BOOL] = True
+    system_run: Input[BOOL]
+    sort_left: Input[BOOL]
+    reset: Input[BOOL]
 
     # Sensor inputs
-    infeed_1_eye = input_var(BOOL)
-    infeed_2_eye = input_var(BOOL)
-    infeed_3_eye = input_var(BOOL)
-    merge_eye = input_var(BOOL)
+    infeed_1_eye: Input[BOOL]
+    infeed_2_eye: Input[BOOL]
+    infeed_3_eye: Input[BOOL]
+    merge_eye: Input[BOOL]
 
     # Motor overloads
-    infeed_1_ol = input_var(BOOL)
-    infeed_2_ol = input_var(BOOL)
-    infeed_3_ol = input_var(BOOL)
+    infeed_1_ol: Input[BOOL]
+    infeed_2_ol: Input[BOOL]
+    infeed_3_ol: Input[BOOL]
 
     # Outputs
-    infeed_1_motor = output_var(BOOL)
-    infeed_2_motor = output_var(BOOL)
-    infeed_3_motor = output_var(BOOL)
-    gate_left = output_var(BOOL)
-    gate_right = output_var(BOOL)
-    system_fault = output_var(BOOL)
-    total_product_count = output_var(DINT)
+    infeed_1_motor: Output[BOOL]
+    infeed_2_motor: Output[BOOL]
+    infeed_3_motor: Output[BOOL]
+    gate_left: Output[BOOL]
+    gate_right: Output[BOOL]
+    system_fault: Output[BOOL]
+    total_product_count: Output[DINT]
 
     # Internal FBs
-    conv1 = static_var(ConveyorDrive)
-    conv2 = static_var(ConveyorDrive)
-    conv3 = static_var(ConveyorDrive)
-    diverter = static_var(DiverterGate)
+    conv1: ConveyorDrive
+    conv2: ConveyorDrive
+    conv3: ConveyorDrive
+    diverter: DiverterGate
 
     def logic(self):
         # --- Infeed conveyor 1 ---
@@ -329,31 +329,31 @@ class TankLevelControl:
     """Simplified tank level control with proportional output and alarms."""
 
     # Inputs
-    level_pv = input_var(REAL)  # Current level (0-100%)
-    setpoint = input_var(REAL, initial=50.0)
-    enable = input_var(BOOL)
+    level_pv: Input[REAL]  # Current level (0-100%)
+    setpoint: Input[REAL] = 50.0
+    enable: Input[BOOL]
 
     # Tuning
-    kp = input_var(REAL, initial=2.0)  # Proportional gain
-    deadband = input_var(REAL, initial=1.0)  # +/- deadband around SP
+    kp: Input[REAL] = 2.0  # Proportional gain
+    deadband: Input[REAL] = 1.0  # +/- deadband around SP
 
     # Alarm setpoints
-    hi_alarm_sp = input_var(REAL, initial=90.0)
-    hihi_alarm_sp = input_var(REAL, initial=95.0)
-    lo_alarm_sp = input_var(REAL, initial=10.0)
-    lolo_alarm_sp = input_var(REAL, initial=5.0)
+    hi_alarm_sp: Input[REAL] = 90.0
+    hihi_alarm_sp: Input[REAL] = 95.0
+    lo_alarm_sp: Input[REAL] = 10.0
+    lolo_alarm_sp: Input[REAL] = 5.0
 
     # Outputs
-    inlet_valve = output_var(REAL)  # 0-100% open
-    drain_valve = output_var(REAL)  # 0-100% open
-    hi_alarm = output_var(BOOL)
-    hihi_alarm = output_var(BOOL)
-    lo_alarm = output_var(BOOL)
-    lolo_alarm = output_var(BOOL)
-    at_setpoint = output_var(BOOL)
+    inlet_valve: Output[REAL]  # 0-100% open
+    drain_valve: Output[REAL]  # 0-100% open
+    hi_alarm: Output[BOOL]
+    hihi_alarm: Output[BOOL]
+    lo_alarm: Output[BOOL]
+    lolo_alarm: Output[BOOL]
+    at_setpoint: Output[BOOL]
 
     # Internals
-    error = static_var(REAL)
+    error: REAL
 
     def logic(self):
         # --- Alarms ---
@@ -525,18 +525,18 @@ class TrafficLightController:
     """Four-phase traffic light with pedestrian crossing."""
 
     # Inputs
-    ped_request = input_var(BOOL)
+    ped_request: Input[BOOL]
 
     # Outputs
-    green_light = output_var(BOOL)
-    yellow_light = output_var(BOOL)
-    red_light = output_var(BOOL)
-    walk_light = output_var(BOOL)
-    dont_walk_light = output_var(BOOL)
+    green_light: Output[BOOL]
+    yellow_light: Output[BOOL]
+    red_light: Output[BOOL]
+    walk_light: Output[BOOL]
+    dont_walk_light: Output[BOOL]
 
     # Internal timers
-    phase_timer = static_var(DINT, initial=0)
-    ped_pending = static_var(BOOL)
+    phase_timer: DINT = 0
+    ped_pending: BOOL
 
     # Steps
     GREEN = step(initial=True)
@@ -708,28 +708,28 @@ class BatchMixer:
     """Three-step batch: fill A, fill B, mix, drain."""
 
     # Inputs
-    start_cmd = input_var(BOOL)
-    weight_pv = input_var(REAL)
-    mix_complete = input_var(BOOL)  # Simulated: agitation done
-    vessel_empty = input_var(BOOL)
-    abort_cmd = input_var(BOOL)
+    start_cmd: Input[BOOL]
+    weight_pv: Input[REAL]
+    mix_complete: Input[BOOL]  # Simulated: agitation done
+    vessel_empty: Input[BOOL]
+    abort_cmd: Input[BOOL]
 
     # Recipe parameters
-    target_a = input_var(REAL, initial=100.0)
-    target_b = input_var(REAL, initial=50.0)
+    target_a: Input[REAL] = 100.0
+    target_b: Input[REAL] = 50.0
 
     # Outputs
-    valve_a = output_var(BOOL)
-    valve_b = output_var(BOOL)
-    agitator = output_var(BOOL)
-    drain_valve = output_var(BOOL)
-    batch_complete = output_var(BOOL)
-    batch_running = output_var(BOOL)
-    current_step_id = output_var(INT)
+    valve_a: Output[BOOL]
+    valve_b: Output[BOOL]
+    agitator: Output[BOOL]
+    drain_valve: Output[BOOL]
+    batch_complete: Output[BOOL]
+    batch_running: Output[BOOL]
+    current_step_id: Output[INT]
 
     # Internals
-    weight_at_start_b = static_var(REAL)
-    mix_timer = static_var(DINT, initial=0)
+    weight_at_start_b: REAL
+    mix_timer: DINT = 0
 
     # Steps
     IDLE = step(initial=True)
@@ -947,24 +947,24 @@ class StarDeltaStarter:
     """Star-delta motor starter with timing and fault logic."""
 
     # Inputs
-    start_cmd = input_var(BOOL)
-    stop_cmd = input_var(BOOL)
-    overload_trip = input_var(BOOL)
-    reset_cmd = input_var(BOOL)
+    start_cmd: Input[BOOL]
+    stop_cmd: Input[BOOL]
+    overload_trip: Input[BOOL]
+    reset_cmd: Input[BOOL]
 
     # Outputs
-    main_contactor = output_var(BOOL)
-    star_contactor = output_var(BOOL)
-    delta_contactor = output_var(BOOL)
-    running = output_var(BOOL)
-    fault = output_var(BOOL)
-    starting = output_var(BOOL)
+    main_contactor: Output[BOOL]
+    star_contactor: Output[BOOL]
+    delta_contactor: Output[BOOL]
+    running: Output[BOOL]
+    fault: Output[BOOL]
+    starting: Output[BOOL]
 
     # Internals
-    state = static_var(INT, initial=0)
+    state: INT = 0
     # 0=stopped, 1=starting(star), 2=running(delta), 3=fault
-    star_timer = static_var(DINT, initial=0)
-    switch_delay = static_var(DINT, initial=0)
+    star_timer: DINT = 0
+    switch_delay: DINT = 0
 
     def logic(self):
         # State machine
@@ -1153,23 +1153,23 @@ class ElevatorDoor:
     """Elevator door controller with safety and timeout logic."""
 
     # Inputs
-    open_cmd = input_var(BOOL)
-    close_cmd = input_var(BOOL)
-    safety_edge = input_var(BOOL)  # True = obstruction detected
-    fully_open = input_var(BOOL)
-    fully_closed = input_var(BOOL)
+    open_cmd: Input[BOOL]
+    close_cmd: Input[BOOL]
+    safety_edge: Input[BOOL]  # True = obstruction detected
+    fully_open: Input[BOOL]
+    fully_closed: Input[BOOL]
 
     # Outputs
-    motor_open = output_var(BOOL)
-    motor_close = output_var(BOOL)
-    buzzer = output_var(BOOL)
-    nudge_mode = output_var(BOOL)
+    motor_open: Output[BOOL]
+    motor_close: Output[BOOL]
+    buzzer: Output[BOOL]
+    nudge_mode: Output[BOOL]
 
     # Internals
-    state = static_var(INT, initial=0)
+    state: INT = 0
     # 0=closed, 1=opening, 2=open, 3=closing, 4=nudge_closing
-    open_timer = static_var(DINT, initial=0)
-    obstruction_count = static_var(INT, initial=0)
+    open_timer: DINT = 0
+    obstruction_count: INT = 0
 
     def logic(self):
         match self.state:
@@ -1408,23 +1408,23 @@ class PumpAlternation:
     """Dual pump system with lead/lag alternation and failover."""
 
     # Inputs
-    level_hi = input_var(BOOL)    # Start pumping
-    level_lo = input_var(BOOL)    # Stop pumping
-    level_hihi = input_var(BOOL)  # Both pumps needed
-    pump1_fault = input_var(BOOL)
-    pump2_fault = input_var(BOOL)
+    level_hi: Input[BOOL]  # Start pumping
+    level_lo: Input[BOOL]  # Stop pumping
+    level_hihi: Input[BOOL]  # Both pumps needed
+    pump1_fault: Input[BOOL]
+    pump2_fault: Input[BOOL]
 
     # Outputs
-    pump1_run = output_var(BOOL)
-    pump2_run = output_var(BOOL)
-    alarm = output_var(BOOL)
-    lead_pump = output_var(INT, initial=1)  # 1 or 2
+    pump1_run: Output[BOOL]
+    pump2_run: Output[BOOL]
+    alarm: Output[BOOL]
+    lead_pump: Output[INT] = 1  # 1 or 2
 
     # Internals
-    pumping = static_var(BOOL)
-    was_pumping = static_var(BOOL)
-    pump1_hours = static_var(DINT, initial=0)
-    pump2_hours = static_var(DINT, initial=0)
+    pumping: BOOL
+    was_pumping: BOOL
+    pump1_hours: DINT = 0
+    pump2_hours: DINT = 0
 
     def logic(self):
         # Level control — start on hi, stop on lo
@@ -1581,26 +1581,26 @@ class PackagingLine:
     """Packaging line with sampling inspection and reject station."""
 
     # Inputs
-    product_sensor = input_var(BOOL)  # Rising edge = product detected
-    inspection_pass = input_var(BOOL)
-    inspection_done = input_var(BOOL)  # Rising edge = result ready
-    enable = input_var(BOOL)
-    reset_stats = input_var(BOOL)
+    product_sensor: Input[BOOL]  # Rising edge = product detected
+    inspection_pass: Input[BOOL]
+    inspection_done: Input[BOOL]  # Rising edge = result ready
+    enable: Input[BOOL]
+    reset_stats: Input[BOOL]
 
     # Configuration
-    sample_interval = input_var(INT, initial=10)  # Inspect every Nth product
+    sample_interval: Input[INT] = 10  # Inspect every Nth product
 
     # Outputs
-    reject_gate = output_var(BOOL)  # Pulse to reject
-    inspect_trigger = output_var(BOOL)  # Tell inspection station to check
-    total_count = output_var(DINT)
-    good_count = output_var(DINT)
-    rejected_count = output_var(DINT)
+    reject_gate: Output[BOOL]  # Pulse to reject
+    inspect_trigger: Output[BOOL]  # Tell inspection station to check
+    total_count: Output[DINT]
+    good_count: Output[DINT]
+    rejected_count: Output[DINT]
 
     # Internals
-    since_last_inspect = static_var(INT, initial=0)
-    awaiting_result = static_var(BOOL)
-    reject_pulse_timer = static_var(DINT, initial=0)
+    since_last_inspect: INT = 0
+    awaiting_result: BOOL
+    reject_pulse_timer: DINT = 0
 
     def logic(self):
         # Reset statistics
@@ -1743,27 +1743,27 @@ class HVACZone:
     """Single-zone HVAC with heating, cooling, and occupancy modes."""
 
     # Inputs
-    zone_temp = input_var(REAL)
-    occupied = input_var(BOOL)
-    enable = input_var(BOOL)
+    zone_temp: Input[REAL]
+    occupied: Input[BOOL]
+    enable: Input[BOOL]
 
     # Setpoints
-    heat_sp_occ = input_var(REAL, initial=70.0)    # Occupied heating setpoint (F)
-    cool_sp_occ = input_var(REAL, initial=75.0)    # Occupied cooling setpoint
-    heat_sp_unocc = input_var(REAL, initial=60.0)  # Unoccupied heating setpoint
-    cool_sp_unocc = input_var(REAL, initial=85.0)  # Unoccupied cooling setpoint
-    deadband = input_var(REAL, initial=2.0)
+    heat_sp_occ: Input[REAL] = 70.0    # Occupied heating setpoint (F)
+    cool_sp_occ: Input[REAL] = 75.0  # Occupied cooling setpoint
+    heat_sp_unocc: Input[REAL] = 60.0  # Unoccupied heating setpoint
+    cool_sp_unocc: Input[REAL] = 85.0  # Unoccupied cooling setpoint
+    deadband: Input[REAL] = 2.0
 
     # Outputs
-    heating = output_var(BOOL)
-    cooling = output_var(BOOL)
-    fan = output_var(BOOL)
-    active_heat_sp = output_var(REAL)
-    active_cool_sp = output_var(REAL)
-    mode = output_var(INT)  # 0=off, 1=heating, 2=cooling
+    heating: Output[BOOL]
+    cooling: Output[BOOL]
+    fan: Output[BOOL]
+    active_heat_sp: Output[REAL]
+    active_cool_sp: Output[REAL]
+    mode: Output[INT]  # 0=off, 1=heating, 2=cooling
 
     # Internals
-    fan_coast_timer = static_var(DINT, initial=0)
+    fan_coast_timer: DINT = 0
 
     def logic(self):
         # Select setpoints based on occupancy
@@ -1932,22 +1932,22 @@ class GarageDoor:
     """Residential garage door opener with safety features."""
 
     # Inputs
-    button = input_var(BOOL)
-    photo_eye = input_var(BOOL)  # True = beam broken (obstruction)
-    limit_open = input_var(BOOL)
-    limit_closed = input_var(BOOL)
+    button: Input[BOOL]
+    photo_eye: Input[BOOL]  # True = beam broken (obstruction)
+    limit_open: Input[BOOL]
+    limit_closed: Input[BOOL]
 
     # Outputs
-    motor_up = output_var(BOOL)
-    motor_down = output_var(BOOL)
-    light = output_var(BOOL)
+    motor_up: Output[BOOL]
+    motor_down: Output[BOOL]
+    light: Output[BOOL]
 
     # Internals
-    state = static_var(INT, initial=0)
+    state: INT = 0
     # 0=closed, 1=opening, 2=open, 3=closing, 4=stopped_opening, 5=stopped_closing
-    open_timer = static_var(DINT, initial=0)
-    light_timer = static_var(DINT, initial=0)
-    prev_button = static_var(BOOL)
+    open_timer: DINT = 0
+    light_timer: DINT = 0
+    prev_button: BOOL
 
     def logic(self):
         # Edge detect on button (manual rising edge)
@@ -2173,15 +2173,15 @@ class TestProjectAssembly:
         # Tasks require @program POUs — wrap top-level FBs as programs
         @program
         class SortingMain:
-            sys = static_var(SortingSystem)
+            sys: SortingSystem
 
             def logic(self):
                 self.sys()
 
         @program
         class ProcessMain:
-            tank = static_var(TankLevelControl)
-            hvac = static_var(HVACZone)
+            tank: TankLevelControl
+            hvac: HVACZone
 
             def logic(self):
                 self.tank()

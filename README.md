@@ -15,28 +15,30 @@ Requires Python 3.11+.
 ### Your first function block
 
 ```python
-from plx.framework import fb, input_var, output_var, BOOL, delayed
+from plx.framework import fb, Input, Output, delayed
 from plx.simulate import simulate
 
 @fb
 class Motor:
-    cmd = input_var(BOOL)
-    running = output_var(BOOL)
+    cmd: Input[bool]
+    running: Output[bool]
 
     def logic(self):
         self.running = delayed(self.cmd, seconds=5)
 
 # Simulate it
-ctrl = simulate(Motor)
-ctrl.cmd = True
-ctrl.scan()
-assert not ctrl.running   # timer hasn't elapsed
+with simulate(Motor) as ctrl:
+    ctrl.cmd = True
+    ctrl.scan()
+    assert not ctrl.running   # timer hasn't elapsed
 
-ctrl.tick(seconds=5)
-assert ctrl.running        # now it has
+    ctrl.tick(seconds=5)
+    assert ctrl.running        # now it has
 ```
 
 The `@fb` decorator compiles the class at decoration time. `logic()` is parsed via `ast.parse()` — it's never called as Python. `delayed()`, `rising()`, `falling()` are compile-time sentinels that expand to TON/R_TRIG/F_TRIG function block invocations in the IR.
+
+Use Python builtins (`bool`, `int`, `float`, `str`) by default. IEC types (`SINT`, `UINT`, `LREAL`, `TIME`, etc.) are available when you need specific bit widths or PLC-specific types.
 
 ## What it looks like
 
@@ -44,20 +46,20 @@ The `@fb` decorator compiles the class at decoration time. `logic()` is parsed v
 
 ```python
 from plx.framework import (
-    BOOL, TIME, T,
-    fb, input_var, output_var,
+    TIME, T,
+    fb, Input, Output, Field,
     delayed,
 )
 
 @fb
 class ValveCtrl:
-    cmd_open   = input_var(BOOL, description="Command to open")
-    feedback   = input_var(BOOL, description="Open limit switch")
-    fault_time = input_var(TIME, initial=T(3), description="Fault timeout")
+    cmd_open: Input[bool] = Field(description="Command to open")
+    feedback: Input[bool] = Field(description="Open limit switch")
+    fault_time: Input[TIME] = Field(initial=T(3), description="Fault timeout")
 
-    valve_out  = output_var(BOOL, description="Solenoid output")
-    is_open    = output_var(BOOL, description="Confirmed open")
-    fault      = output_var(BOOL, description="Failed to open in time")
+    valve_out: Output[bool] = Field(description="Solenoid output")
+    is_open: Output[bool] = Field(description="Confirmed open")
+    fault: Output[bool] = Field(description="Failed to open in time")
 
     def logic(self):
         self.valve_out = self.cmd_open
@@ -75,8 +77,7 @@ class ValveCtrl:
 
 ```python
 from plx.framework import (
-    BOOL, DINT, REAL,
-    fb, program, input_var, output_var, static_var,
+    fb, program, Input, Output,
     delayed, rising, project,
 )
 
@@ -84,16 +85,16 @@ IDLE, FILL, MIX, DRAIN, DONE = 0, 1, 2, 3, 4
 
 @program
 class BatchMix:
-    cmd_start  = input_var(BOOL)
-    level_low  = input_var(BOOL)
-    flow_pulse = input_var(BOOL)
+    cmd_start: Input[bool]
+    level_low: Input[bool]
+    flow_pulse: Input[bool]
 
-    agitator   = output_var(BOOL)
-    drain      = output_var(BOOL)
-    state      = output_var(DINT)
+    agitator: Output[bool]
+    drain: Output[bool]
+    state: Output[int]
 
-    valve = static_var("ValveCtrl")     # FB instance
-    step  = static_var(DINT, initial=0)
+    valve: ValveCtrl                    # FB instance
+    step: int = 0
 
     def logic(self):
         self.agitator = False
@@ -129,10 +130,10 @@ ir = proj.compile()  # → Project IR (serializable, vendor-agnostic)
 ```python
 @fb
 class BaseValve:
-    cmd       = input_var(BOOL)
-    feedback  = input_var(BOOL)
-    valve_out = output_var(BOOL)
-    fault     = output_var(BOOL)
+    cmd: Input[bool]
+    feedback: Input[bool]
+    valve_out: Output[bool]
+    fault: Output[bool]
 
     def logic(self):
         self.valve_out = self.cmd
@@ -143,8 +144,8 @@ class BaseValve:
 
 @fb
 class DoubleActingValve(BaseValve):
-    close_feedback = input_var(BOOL)
-    close_fault    = output_var(BOOL)
+    close_feedback: Input[bool]
+    close_fault: Output[bool]
 
     def logic(self):
         super().logic()  # runs BaseValve.logic()
@@ -159,32 +160,34 @@ Beckhoff maps this to `EXTENDS` / `SUPER^()`. For AB and Siemens (which lack FB 
 ### User-defined types
 
 ```python
-from plx.framework import struct, enumeration, REAL, DINT
+from dataclasses import dataclass
+from enum import IntEnum
 
-@struct
+@dataclass
 class Position:
-    x: REAL = 0.0
-    y: REAL = 0.0
-    z: REAL = 0.0
+    x: float = 0.0
+    y: float = 0.0
+    z: float = 0.0
 
-@enumeration
-class MachineState:
+class MachineState(IntEnum):
     STOPPED  = 0
     STARTING = 1
     RUNNING  = 2
     FAULTED  = 99
 ```
 
+`@dataclass` and `IntEnum` work as drop-in replacements for `@struct` and `@enumeration` — both are also re-exported from `plx.framework` for convenience.
+
 ### Sequential Function Charts (SFC)
 
 ```python
-from plx.framework import sfc, step, transition, input_var, output_var, BOOL
+from plx.framework import sfc, step, transition, Input, Output
 
 @sfc
 class FillAndMix:
-    cmd_start = input_var(BOOL)
-    fill_done = input_var(BOOL)
-    mixer     = output_var(BOOL)
+    cmd_start: Input[bool]
+    fill_done: Input[bool]
+    mixer: Output[bool]
 
     def chart(self):
         idle = step("Idle", initial=True)
@@ -220,16 +223,15 @@ ir = proj.compile()
 ```python
 from plx.simulate import simulate
 
-ctrl = simulate(Motor)
+with simulate(Motor) as ctrl:
+    # Set inputs, run scans
+    ctrl.cmd = True
+    ctrl.scan()                  # one PLC scan cycle
+    ctrl.tick(seconds=5)         # advance simulated time
+    assert ctrl.running
 
-# Set inputs, run scans
-ctrl.cmd = True
-ctrl.scan()                  # one PLC scan cycle
-ctrl.tick(seconds=5)         # advance simulated time
-assert ctrl.running
-
-# Inspect any variable
-print(ctrl.running)          # True
+    # Inspect any variable
+    print(ctrl.running)          # True
 ```
 
 The simulator is a tree-walking IR interpreter with deterministic simulated time. No vendor tools required.
@@ -253,7 +255,7 @@ Layer 1:  Vendor Files      ← L5X, SimaticML, TcPOU/tsproj on disk
 - **Native Python** — `if`/`for`/`while`/`and`/`or`/`not`, no context managers, no proxy objects
 - **AST transformation** — source is parsed, never executed. IDE support works naturally.
 - **No abstractions in the IR** — the IR represents what the PLC executes (CASE, IF/ELSE, FBInvocation). Timing helpers and edge detection compile away to plain IR nodes.
-- **Structural variable encoding** — variables carry no redundant direction/scope enums. An `input_var` is an input because it's in the `input_vars` list.
+- **Structural variable encoding** — variables carry no redundant direction/scope enums. An input is an input because it's in the `input_vars` list.
 
 ## Framework API
 
@@ -261,7 +263,8 @@ Everything is imported from a single flat namespace:
 
 ```python
 from plx.framework import (
-    # Primitive types (all IEC 61131-3)
+    # Python builtins work as types: bool→BOOL, int→DINT, float→REAL, str→STRING
+    # IEC types for specific bit widths:
     BOOL, BYTE, SINT, INT, DINT, LINT,
     USINT, UINT, UDINT, ULINT,
     REAL, LREAL, WORD, DWORD, LWORD,
@@ -274,8 +277,9 @@ from plx.framework import (
     # Duration literals
     T, LT,   # T(5), T(ms=500), T(minutes=1, seconds=30)
 
-    # Variable descriptors
-    input_var, output_var, static_var, inout_var, temp_var, constant_var,
+    # Variable wrappers
+    Input, Output, InOut, Static, Temp, Constant, External,
+    Field,  # metadata: Field(initial=, description=, address=, retain=, persistent=, constant=)
 
     # POU decorators
     fb, program, function, method,
@@ -287,7 +291,7 @@ from plx.framework import (
     struct, enumeration,
 
     # Global variables
-    global_vars, global_var,
+    global_vars,
 
     # Timing / edge detection (compile-time sentinels)
     delayed,    # TON — on-delay timer
@@ -306,6 +310,9 @@ from plx.framework import (
 
     # Compilation
     CompileError, discover,
+
+    # Standard library re-exports (convenience)
+    dataclass, IntEnum, Annotated,
 )
 ```
 
@@ -327,7 +334,7 @@ pip install -e ".[dev]"
 pytest
 ```
 
-977 tests across 30 test files.
+1531 tests across 32 test files.
 
 ## Tech stack
 

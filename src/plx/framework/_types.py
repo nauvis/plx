@@ -2,7 +2,7 @@
 
 Provides:
 - Primitive type constants (BOOL, INT, REAL, TIME, etc.) for use in
-  variable descriptors: ``input_var(BOOL)``, ``output_var(REAL)``.
+  variable annotations: ``sensor: Input[BOOL]``, ``speed: Output[REAL]``.
 - TIME/LTIME literal constructors: ``T(5)`` → ``T#5s``,
   ``LT(ms=100)`` → ``LTIME#100ms``.
 """
@@ -26,8 +26,8 @@ from plx.model.types import (
 # ---------------------------------------------------------------------------
 # Primitive type constants
 # ---------------------------------------------------------------------------
-# Re-exported enum members so users write ``input_var(BOOL)`` instead of
-# ``input_var(PrimitiveType.BOOL)``.
+# Re-exported enum members so users write ``sensor: Input[BOOL]`` instead of
+# ``sensor: Input[PrimitiveType.BOOL]``.
 
 BOOL = PrimitiveType.BOOL
 

@@ -253,6 +253,16 @@ class SimulationContext:
         return set(self._state.get("__sfc_active_steps", set()))
 
     # -----------------------------------------------------------------------
+    # Context manager
+    # -----------------------------------------------------------------------
+
+    def __enter__(self) -> SimulationContext:
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+    # -----------------------------------------------------------------------
     # Convenience helpers
     # -----------------------------------------------------------------------
 

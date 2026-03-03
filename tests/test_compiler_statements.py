@@ -3,7 +3,7 @@
 from conftest import compile_stmts
 
 from plx.framework._compiler import CompileContext
-from plx.framework._descriptors import VarDirection
+from plx.framework._descriptors import Field, VarDirection
 from plx.model.expressions import (
     BinaryExpr,
     BinaryOp,

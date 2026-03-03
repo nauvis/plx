@@ -8,8 +8,9 @@ from plx.framework import (
     BOOL,
     REAL,
     fb,
-    input_var,
-    output_var,
+    Input,
+    Output,
+    Field,
 )
 
 
@@ -31,14 +32,14 @@ class AnalogScaler:
         scaled: Scaled output in engineering units (clamped)
         out_of_range: True if raw input is outside raw_lo..raw_hi
     """
-    raw_in = input_var(REAL, description="Raw analog input")
-    raw_lo = input_var(REAL, initial=0.0, description="Raw range low")
-    raw_hi = input_var(REAL, initial=27648.0, description="Raw range high")
-    eng_lo = input_var(REAL, initial=0.0, description="Engineering low")
-    eng_hi = input_var(REAL, initial=100.0, description="Engineering high")
+    raw_in: Input[REAL] = Field(description="Raw analog input")
+    raw_lo: Input[REAL] = Field(initial=0.0, description="Raw range low")
+    raw_hi: Input[REAL] = Field(initial=27648.0, description="Raw range high")
+    eng_lo: Input[REAL] = Field(initial=0.0, description="Engineering low")
+    eng_hi: Input[REAL] = Field(initial=100.0, description="Engineering high")
 
-    scaled = output_var(REAL, description="Scaled output")
-    out_of_range = output_var(BOOL, description="Input outside raw range")
+    scaled: Output[REAL] = Field(description="Scaled output")
+    out_of_range: Output[BOOL] = Field(description="Input outside raw range")
 
     def logic(self):
         # Detect out-of-range

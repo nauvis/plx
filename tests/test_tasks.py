@@ -3,11 +3,16 @@
 import pytest
 
 from plx.framework import (
-    BOOL, REAL,
+    BOOL,
+    REAL,
     T,
-    fb, program,
-    input_var, output_var,
-    project, task,
+    fb,
+    program,
+    Input,
+    Output,
+    project,
+    task,
+    Field,
 )
 from plx.framework._project import PlxTask
 from plx.model.task import Task, TaskType
@@ -18,8 +23,8 @@ from plx.model.project import Project
 
 @program
 class _FastLoop:
-    sensor = input_var(BOOL)
-    out = output_var(BOOL)
+    sensor: Input[BOOL]
+    out: Output[BOOL]
 
     def logic(self):
         self.out = self.sensor
@@ -27,7 +32,7 @@ class _FastLoop:
 
 @program
 class _SlowLoop:
-    value = input_var(REAL)
+    value: Input[REAL]
 
     def logic(self):
         pass
@@ -135,7 +140,7 @@ class TestTaskCompile:
     def test_fb_assigned_to_task_raises(self):
         @fb
         class SomeFB:
-            x = input_var(BOOL)
+            x: Input[BOOL]
             def logic(self):
                 pass
 
@@ -148,7 +153,7 @@ class TestTaskCompile:
 
         @function
         class SomeFunc:
-            x = input_var(REAL)
+            x: Input[REAL]
             def logic(self) -> REAL:
                 return self.x + 1.0
 

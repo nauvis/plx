@@ -288,14 +288,15 @@ class TestPythonTypeConversions:
 
     def test_float_conversion(self):
         from plx.framework._decorators import fb
-        from plx.framework._descriptors import input_var, output_var
+        from plx.framework._descriptors import Input, Output
+        from plx.framework._types import DINT, REAL
         from plx.model.expressions import TypeConversionExpr
         from plx.model.statements import Assignment
 
         @fb
         class FloatConv:
-            x = input_var(PrimitiveType.DINT)
-            y = output_var(PrimitiveType.REAL)
+            x: Input[DINT]
+            y: Output[REAL]
 
             def logic(self):
                 self.y = float(self.x)
@@ -308,14 +309,15 @@ class TestPythonTypeConversions:
 
     def test_int_conversion(self):
         from plx.framework._decorators import fb
-        from plx.framework._descriptors import input_var, output_var
+        from plx.framework._descriptors import Input, Output
+        from plx.framework._types import DINT, REAL
         from plx.model.expressions import TypeConversionExpr
         from plx.model.statements import Assignment
 
         @fb
         class IntConv:
-            x = input_var(PrimitiveType.REAL)
-            y = output_var(PrimitiveType.DINT)
+            x: Input[REAL]
+            y: Output[DINT]
 
             def logic(self):
                 self.y = int(self.x)
@@ -328,14 +330,15 @@ class TestPythonTypeConversions:
 
     def test_bool_conversion(self):
         from plx.framework._decorators import fb
-        from plx.framework._descriptors import input_var, output_var
+        from plx.framework._descriptors import Input, Output
+        from plx.framework._types import BOOL, DINT
         from plx.model.expressions import TypeConversionExpr
         from plx.model.statements import Assignment
 
         @fb
         class BoolConv:
-            x = input_var(PrimitiveType.DINT)
-            y = output_var(PrimitiveType.BOOL)
+            x: Input[DINT]
+            y: Output[BOOL]
 
             def logic(self):
                 self.y = bool(self.x)
@@ -349,13 +352,14 @@ class TestPythonTypeConversions:
     def test_float_too_many_args(self):
         from plx.framework._compiler_core import CompileError
         from plx.framework._decorators import fb
-        from plx.framework._descriptors import input_var, output_var
+        from plx.framework._descriptors import Input, Output
+        from plx.framework._types import DINT, REAL
 
         with pytest.raises(CompileError, match="takes exactly 1 argument"):
             @fb
             class BadConv:
-                x = input_var(PrimitiveType.DINT)
-                y = output_var(PrimitiveType.REAL)
+                x: Input[DINT]
+                y: Output[REAL]
 
                 def logic(self):
                     self.y = float(self.x, self.x)
@@ -363,13 +367,14 @@ class TestPythonTypeConversions:
     def test_str_still_rejected(self):
         from plx.framework._compiler_core import CompileError
         from plx.framework._decorators import fb
-        from plx.framework._descriptors import input_var, output_var
+        from plx.framework._descriptors import Input, Output
+        from plx.framework._types import DINT
 
         with pytest.raises(CompileError, match="str.*not supported"):
             @fb
             class StrConv:
-                x = input_var(PrimitiveType.DINT)
-                y = output_var(PrimitiveType.DINT)
+                x: Input[DINT]
+                y: Output[DINT]
 
                 def logic(self):
                     self.y = str(self.x)

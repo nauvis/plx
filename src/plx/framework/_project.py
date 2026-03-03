@@ -197,6 +197,8 @@ def _resolve_transitive_deps(
     queue = list(pou_classes)
     while queue:
         cls = queue.pop()
+        if not hasattr(cls, "compile"):
+            raise TypeError(f"{cls.__name__} is not a compiled POU")
         pou: POU = cls.compile()
 
         # Collect all NamedTypeRef names from this POU
