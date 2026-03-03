@@ -10,6 +10,7 @@ from plx.framework import (
     program,
     Input,
     Output,
+    ProjectAssemblyError,
     project,
     task,
     Field,
@@ -90,19 +91,19 @@ class TestTaskConstructor:
         assert t.watchdog == "T#1s"
 
     def test_no_mode_raises(self):
-        with pytest.raises(ValueError, match="requires exactly one"):
+        with pytest.raises(ProjectAssemblyError, match="requires exactly one"):
             task("Bad")
 
     def test_multiple_modes_raises(self):
-        with pytest.raises(ValueError, match="only one scheduling mode"):
+        with pytest.raises(ProjectAssemblyError, match="only one scheduling mode"):
             task("Bad", periodic=T(ms=10), continuous=True)
 
     def test_periodic_and_startup_raises(self):
-        with pytest.raises(ValueError, match="only one scheduling mode"):
+        with pytest.raises(ProjectAssemblyError, match="only one scheduling mode"):
             task("Bad", periodic=T(ms=10), startup=True)
 
     def test_invalid_interval_type_raises(self):
-        with pytest.raises(TypeError, match="Expected a duration"):
+        with pytest.raises(ProjectAssemblyError, match="Expected a duration"):
             task("Bad", periodic=42)
 
 
@@ -134,7 +135,7 @@ class TestTaskCompile:
             pass
 
         t = task("Bad", periodic=T(ms=10), pous=[NotAPOU])
-        with pytest.raises(TypeError, match="not a compiled POU"):
+        with pytest.raises(ProjectAssemblyError, match="not a compiled POU"):
             t.compile()
 
     def test_fb_assigned_to_task_raises(self):
@@ -145,7 +146,7 @@ class TestTaskCompile:
                 pass
 
         t = task("Bad", periodic=T(ms=10), pous=[SomeFB])
-        with pytest.raises(TypeError, match="Only programs can be assigned"):
+        with pytest.raises(ProjectAssemblyError, match="Only programs can be assigned"):
             t.compile()
 
     def test_function_assigned_to_task_raises(self):
@@ -158,7 +159,7 @@ class TestTaskCompile:
                 return self.x + 1.0
 
         t = task("Bad", periodic=T(ms=10), pous=[SomeFunc])
-        with pytest.raises(TypeError, match="Only programs can be assigned"):
+        with pytest.raises(ProjectAssemblyError, match="Only programs can be assigned"):
             t.compile()
 
     def test_event_trigger(self):

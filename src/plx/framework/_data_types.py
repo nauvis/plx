@@ -42,6 +42,7 @@ from plx.model.types import (
 )
 
 from ._descriptors import _format_initial
+from ._errors import DefinitionError
 from ._registry import register_type
 from ._types import _resolve_type_ref
 
@@ -66,7 +67,7 @@ def struct(cls: type | None = None, *, folder: str = "") -> Any:
     def _apply(cls: type) -> type:
         annotations = cls.__dict__.get("__annotations__", {})
         if not annotations:
-            raise TypeError(
+            raise DefinitionError(
                 f"@struct class '{cls.__name__}' has no annotated members. "
                 f"Add type annotations like: speed: REAL = 0.0"
             )
@@ -135,7 +136,7 @@ def enumeration(
             if attr_name.startswith("_"):
                 continue
             if not isinstance(value, int):
-                raise TypeError(
+                raise DefinitionError(
                     f"Enum member '{cls.__name__}.{attr_name}' must be an int, "
                     f"got {type(value).__name__}"
                 )
@@ -143,7 +144,7 @@ def enumeration(
             ir_members.append(EnumMember(name=attr_name, value=value))
 
         if not ir_members:
-            raise TypeError(
+            raise DefinitionError(
                 f"@enumeration class '{cls.__name__}' has no members. "
                 f"Add integer attributes like: STOPPED = 0"
             )

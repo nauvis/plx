@@ -72,6 +72,7 @@ from plx.model.types import (
     UnionType,
 )
 from plx.model.variables import Variable
+from plx.framework._constants import STANDARD_FB_TYPES
 
 
 # ---------------------------------------------------------------------------
@@ -212,8 +213,6 @@ _FUNC_REMAP: dict[str, str] = {
     "MAX": "max",
 }
 
-# Standard FB types that get shorthand syntax: timer: TON
-_STANDARD_FB_TYPES = {"TON", "TOF", "TP", "RTO", "R_TRIG", "F_TRIG", "CTU", "CTD", "CTUD", "SR", "RS"}
 
 # IEC time literal regex: T#1h2m3s4ms5us or subsets
 _IEC_TIME_RE = re.compile(
@@ -621,6 +620,9 @@ class PyWriter:
         for v in iface.constant_vars:
             self._write_annotation_var(v, "Constant")
             any_emitted = True
+        for v in iface.external_vars:
+            self._write_annotation_var(v, "External")
+            any_emitted = True
         return any_emitted
 
     def _has_metadata(self, v: Variable) -> bool:
@@ -657,7 +659,7 @@ class PyWriter:
 
     def _write_static_var(self, v: Variable) -> None:
         """Emit a static variable, using shorthand for standard FB types."""
-        if isinstance(v.data_type, NamedTypeRef) and v.data_type.name in _STANDARD_FB_TYPES:
+        if isinstance(v.data_type, NamedTypeRef) and v.data_type.name in STANDARD_FB_TYPES:
             # Standard FB instance: timer: TON
             if not self._has_metadata(v) and v.initial_value is None:
                 self._line(f"{v.name}: {v.data_type.name}")
@@ -727,8 +729,6 @@ class PyWriter:
                     self._line(f"# {item}")
                 else:
                     self._write_stmt(item)
-        else:
-            self._line("pass")
 
         self._indent_dec()
         self._self_vars = saved_self_vars
@@ -1359,7 +1359,7 @@ def _collect_pou_deps(pou: POU, project: Project) -> dict[str, list[str]]:
     # Filter to project-level names only
     deps: dict[str, list[str]] = {}
     for name in referenced:
-        if name in project_names and name not in _STANDARD_FB_TYPES:
+        if name in project_names and name not in STANDARD_FB_TYPES:
             module = project_names[name]
             deps.setdefault(module, []).append(name)
 

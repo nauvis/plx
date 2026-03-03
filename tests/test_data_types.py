@@ -3,6 +3,7 @@
 import pytest
 
 from plx.framework._compiler import CompileError
+from plx.framework._errors import DefinitionError, ProjectAssemblyError
 from plx.framework._data_types import (
     _is_data_type,
     _is_enumeration,
@@ -117,7 +118,7 @@ class TestStruct:
         assert compiled.members[0].data_type.kind == "array"
 
     def test_empty_struct_error(self):
-        with pytest.raises(TypeError, match="no annotated members"):
+        with pytest.raises(DefinitionError, match="no annotated members"):
             @struct
             class Empty:
                 pass
@@ -221,13 +222,13 @@ class TestEnum:
         assert compiled.base_type is None
 
     def test_empty_enum_error(self):
-        with pytest.raises(TypeError, match="has no members"):
+        with pytest.raises(DefinitionError, match="has no members"):
             @enumeration
             class Empty:
                 pass
 
     def test_non_int_member_error(self):
-        with pytest.raises(TypeError, match="must be an int"):
+        with pytest.raises(DefinitionError, match="must be an int"):
             @enumeration
             class Bad:
                 GOOD = 0
@@ -582,7 +583,7 @@ class TestProjectWithDataTypes:
         class NotDecorated:
             pass
 
-        with pytest.raises(TypeError, match="not a data type"):
+        with pytest.raises(ProjectAssemblyError, match="not a data type"):
             proj = project("Test", data_types=[NotDecorated])
             proj.compile()
 

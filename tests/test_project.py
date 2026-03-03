@@ -4,6 +4,7 @@ import pytest
 
 from plx.framework._decorators import fb, function, program
 from plx.framework._descriptors import Input, Field, Output
+from plx.framework._errors import ProjectAssemblyError
 from plx.framework._project import PlxProject, project
 from plx.framework._types import BOOL, DINT, REAL
 from plx.model.pou import POUType
@@ -70,5 +71,5 @@ class TestProject:
             pass
 
         proj = project("Bad", pous=[NotAPOU])
-        with pytest.raises(TypeError, match="not a compiled POU"):
+        with pytest.raises(ProjectAssemblyError, match="not a compiled POU"):
             proj.compile()

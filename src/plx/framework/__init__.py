@@ -104,6 +104,13 @@ from ._protocols import (
     CompiledGlobalVarList,
 )
 
+from ._errors import (
+    PlxError,
+    DeclarationError,
+    DefinitionError,
+    ProjectAssemblyError,
+)
+
 from ._compiler import (
     delayed,
     rising,
@@ -134,6 +141,8 @@ from ._project import (
 )
 
 from ._vendor import (
+    CompileResult,
+    PortabilityWarning,
     Vendor,
     VendorValidationError,
 )
@@ -235,7 +244,11 @@ __all__ = [
     "CompiledDataType",
     "CompiledGlobalVarList",
     # Errors
+    "PlxError",
     "CompileError",
+    "DeclarationError",
+    "DefinitionError",
+    "ProjectAssemblyError",
     # Discovery
     "discover",
     "DiscoveryResult",
@@ -246,6 +259,8 @@ __all__ = [
     "project",
     "task",
     # Vendor targeting
+    "CompileResult",
+    "PortabilityWarning",
     "Vendor",
     "VendorValidationError",
     # Standard library re-exports

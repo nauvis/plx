@@ -5,10 +5,16 @@ import pytest
 from plx.framework._compiler import CompileError
 from plx.framework._data_types import enumeration, struct
 from plx.framework._decorators import fb, method, program
-from plx.framework._descriptors import Input, Field, Output
+from plx.framework._descriptors import Input, Field, Output, Static, TON, RTO, SR, RS, CTU, CTD
 from plx.framework._project import project
-from plx.framework._types import BOOL, DINT, INT, POINTER_TO, REAL, REFERENCE_TO
-from plx.framework._vendor import Vendor, VendorValidationError, validate_target
+from plx.framework._types import BOOL, DINT, INT, POINTER_TO, REAL, REFERENCE_TO, TIME, T
+from plx.framework._vendor import (
+    CompileResult,
+    PortabilityWarning,
+    Vendor,
+    VendorValidationError,
+    validate_target,
+)
 from plx.model.project import Project
 
 
@@ -359,3 +365,226 @@ class TestVendorEnum:
         assert Vendor("beckhoff") is Vendor.BECKHOFF
         assert Vendor("ab") is Vendor.AB
         assert Vendor("siemens") is Vendor.SIEMENS
+
+
+# ---------------------------------------------------------------------------
+# Portability warnings
+# ---------------------------------------------------------------------------
+
+@fb
+class _BaseFB:
+    x: Input[BOOL]
+
+    def logic(self):
+        pass
+
+
+@fb
+class _DerivedFB(_BaseFB):
+    y: Output[BOOL]
+
+    def logic(self):
+        self.y = self.x
+
+
+@fb
+class _FBWithRTO:
+    timer: RTO
+
+    def logic(self):
+        self.timer(IN=self.timer.Q, PT=T(ms=500))
+
+
+@fb
+class _FBWithSR:
+    latch: SR
+
+    def logic(self):
+        self.latch(SET1=True, RESET=False)
+
+
+@fb
+class _FBWithRS:
+    latch: RS
+
+    def logic(self):
+        self.latch(SET=True, RESET1=False)
+
+
+@fb
+class _FBWithCTU:
+    counter: CTU
+
+    def logic(self):
+        self.counter(CU=True, PV=10)
+
+
+@fb
+class _FBWithCTD:
+    counter: CTD
+
+    def logic(self):
+        self.counter(CD=True, PV=10)
+
+
+@fb
+class _FBWithTON:
+    """Uses TON via delayed() — universal, should produce no warnings."""
+    timer: TON
+
+    def logic(self):
+        self.timer(IN=True, PT=T(ms=100))
+
+
+class TestPortabilityWarnings:
+    """Tests for the portability warning system."""
+
+    # --- Backward compatibility ---
+
+    def test_compile_no_target_returns_project(self):
+        """compile() without target returns plain Project, not CompileResult."""
+        ir = project("P", pous=[_SimpleFB]).compile()
+        assert isinstance(ir, Project)
+        assert not isinstance(ir, CompileResult)
+
+    def test_compile_with_target_returns_compile_result(self):
+        """compile(target=...) returns CompileResult."""
+        result = project("P", pous=[_SimpleFB]).compile(target=Vendor.BECKHOFF)
+        assert isinstance(result, CompileResult)
+        assert isinstance(result.project, Project)
+
+    # --- CompileResult delegation ---
+
+    def test_compile_result_delegates_name(self):
+        result = project("P", pous=[_SimpleFB]).compile(target=Vendor.AB)
+        assert result.name == "P"
+
+    def test_compile_result_delegates_pous(self):
+        result = project("P", pous=[_SimpleFB]).compile(target=Vendor.AB)
+        assert len(result.pous) == 1
+        assert result.pous[0].name == "_SimpleFB"
+
+    def test_compile_result_delegates_model_dump(self):
+        result = project("P", pous=[_SimpleFB]).compile(target=Vendor.AB)
+        d = result.model_dump()
+        assert d["name"] == "P"
+
+    def test_compile_result_repr(self):
+        result = project("P", pous=[_SimpleFB]).compile(target=Vendor.AB)
+        assert "CompileResult" in repr(result)
+        assert "'P'" in repr(result)
+
+    # --- No warnings for universal FBs ---
+
+    def test_ton_no_warnings(self):
+        """TON is universal — no warnings for any vendor."""
+        for vendor in Vendor:
+            result = project("P", pous=[_FBWithTON]).compile(target=vendor)
+            assert result.warnings == [], f"Unexpected warnings for {vendor}"
+
+    # --- FB translation warnings ---
+
+    def test_rto_warns_for_beckhoff(self):
+        result = project("P", pous=[_FBWithRTO]).compile(target=Vendor.BECKHOFF)
+        assert len(result.warnings) == 1
+        w = result.warnings[0]
+        assert w.category == "fb_translation"
+        assert w.pou_name == "_FBWithRTO"
+        assert "RTO" in w.message
+        assert w.details["fb_type"] == "RTO"
+
+    def test_rto_no_warning_for_ab(self):
+        result = project("P", pous=[_FBWithRTO]).compile(target=Vendor.AB)
+        assert result.warnings == []
+
+    def test_rto_no_warning_for_siemens(self):
+        result = project("P", pous=[_FBWithRTO]).compile(target=Vendor.SIEMENS)
+        assert result.warnings == []
+
+    def test_sr_warns_for_ab(self):
+        result = project("P", pous=[_FBWithSR]).compile(target=Vendor.AB)
+        fb_warnings = [w for w in result.warnings if w.category == "fb_translation"]
+        assert len(fb_warnings) == 1
+        assert fb_warnings[0].details["fb_type"] == "SR"
+
+    def test_sr_warns_for_siemens(self):
+        result = project("P", pous=[_FBWithSR]).compile(target=Vendor.SIEMENS)
+        fb_warnings = [w for w in result.warnings if w.category == "fb_translation"]
+        assert len(fb_warnings) == 1
+        assert fb_warnings[0].details["fb_type"] == "SR"
+
+    def test_sr_no_warning_for_beckhoff(self):
+        result = project("P", pous=[_FBWithSR]).compile(target=Vendor.BECKHOFF)
+        assert result.warnings == []
+
+    def test_rs_warns_for_ab(self):
+        result = project("P", pous=[_FBWithRS]).compile(target=Vendor.AB)
+        fb_warnings = [w for w in result.warnings if w.category == "fb_translation"]
+        assert len(fb_warnings) == 1
+        assert fb_warnings[0].details["fb_type"] == "RS"
+
+    def test_ctu_warns_for_ab(self):
+        result = project("P", pous=[_FBWithCTU]).compile(target=Vendor.AB)
+        fb_warnings = [w for w in result.warnings if w.category == "fb_translation"]
+        assert len(fb_warnings) == 1
+        assert fb_warnings[0].details["fb_type"] == "CTU"
+
+    def test_ctd_warns_for_siemens(self):
+        result = project("P", pous=[_FBWithCTD]).compile(target=Vendor.SIEMENS)
+        fb_warnings = [w for w in result.warnings if w.category == "fb_translation"]
+        assert len(fb_warnings) == 1
+        assert fb_warnings[0].details["fb_type"] == "CTD"
+
+    # --- OOP flattening warnings ---
+
+    def test_extends_warns_for_ab(self):
+        result = project("P", pous=[_DerivedFB]).compile(target=Vendor.AB)
+        oop_warnings = [w for w in result.warnings if w.category == "oop_flattening"]
+        assert len(oop_warnings) == 1
+        assert oop_warnings[0].pou_name == "_DerivedFB"
+        assert "flattened" in oop_warnings[0].message
+
+    def test_extends_warns_for_siemens(self):
+        result = project("P", pous=[_DerivedFB]).compile(target=Vendor.SIEMENS)
+        oop_warnings = [w for w in result.warnings if w.category == "oop_flattening"]
+        assert len(oop_warnings) == 1
+
+    def test_extends_no_warning_for_beckhoff(self):
+        result = project("P", pous=[_DerivedFB]).compile(target=Vendor.BECKHOFF)
+        oop_warnings = [w for w in result.warnings if w.category == "oop_flattening"]
+        assert len(oop_warnings) == 0
+
+    # --- Hard errors still raise ---
+
+    def test_hard_error_still_raises(self):
+        """Methods are a hard error on AB — should still raise, not return warnings."""
+        with pytest.raises(VendorValidationError, match="methods"):
+            project("P", pous=[_FBWithMethod]).compile(target=Vendor.AB)
+
+    # --- Warnings don't block compilation ---
+
+    def test_warnings_dont_block(self):
+        """Projects with warnings still produce valid IR."""
+        result = project("P", pous=[_FBWithRTO]).compile(target=Vendor.BECKHOFF)
+        assert len(result.warnings) > 0
+        assert result.project.pous[0].name == "_FBWithRTO"
+
+    # --- validate_target returns warnings directly ---
+
+    def test_validate_target_returns_warnings(self):
+        from plx.model.pou import POU, POUType, POUInterface
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="Child",
+            extends="Parent",
+            interface=POUInterface(),
+        )
+        ir = Project(name="P", pous=[pou])
+        warnings = validate_target(ir, Vendor.AB)
+        assert len(warnings) == 1
+        assert warnings[0].category == "oop_flattening"
+
+    def test_validate_target_returns_empty_for_clean_project(self):
+        ir = project("P", pous=[_SimpleFB]).compile()
+        warnings = validate_target(ir, Vendor.AB)
+        assert warnings == []

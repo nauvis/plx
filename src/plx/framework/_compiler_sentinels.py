@@ -103,6 +103,34 @@ def _parse_duration_kwarg(
 class _SentinelMixin:
     """Mixin providing sentinel expansion methods for ASTCompiler."""
 
+    def _emit_fb_sentinel(
+        self,
+        fb_type: str,
+        inputs: dict[str, Expression],
+        output_member: str = "Q",
+    ) -> Expression:
+        """Create an FB instance variable, queue its invocation, return output.
+
+        Shared by timer, edge, counter, and bistable sentinels.
+        """
+        instance_name = self.ctx.next_auto_name(fb_type.lower())
+
+        self.ctx.generated_static_vars.append(Variable(
+            name=instance_name,
+            data_type=NamedTypeRef(name=fb_type),
+        ))
+
+        self.ctx.pending_fb_invocations.append(FBInvocation(
+            instance_name=instance_name,
+            fb_type=fb_type,
+            inputs=inputs,
+        ))
+
+        return MemberAccessExpr(
+            struct=VariableRef(name=instance_name),
+            member=output_member,
+        )
+
     def _compile_timer_sentinel(self, name: str, node: ast.Call) -> Expression:
         """Compile delayed/sustained/pulse sentinel into TON/TOF/TP."""
         fb_type, input_name, pt_name = _TIMER_SENTINELS[name]
@@ -113,26 +141,7 @@ class _SentinelMixin:
         signal = self.compile_expression(node.args[0])
         duration = _parse_duration_kwarg(node, self.ctx, self)
 
-        instance_name = self.ctx.next_auto_name(fb_type.lower())
-
-        # Add to generated static vars
-        self.ctx.generated_static_vars.append(Variable(
-            name=instance_name,
-            data_type=NamedTypeRef(name=fb_type),
-        ))
-
-        # Add FBInvocation to pending
-        self.ctx.pending_fb_invocations.append(FBInvocation(
-            instance_name=instance_name,
-            fb_type=fb_type,
-            inputs={input_name: signal, pt_name: duration},
-        ))
-
-        # Return .Q member access
-        return MemberAccessExpr(
-            struct=VariableRef(name=instance_name),
-            member="Q",
-        )
+        return self._emit_fb_sentinel(fb_type, {input_name: signal, pt_name: duration})
 
     def _compile_edge_sentinel(self, name: str, node: ast.Call) -> Expression:
         """Compile rising/falling sentinel into R_TRIG/F_TRIG."""
@@ -143,26 +152,7 @@ class _SentinelMixin:
 
         signal = self.compile_expression(node.args[0])
 
-        instance_name = self.ctx.next_auto_name(fb_type.lower())
-
-        # Add to generated static vars
-        self.ctx.generated_static_vars.append(Variable(
-            name=instance_name,
-            data_type=NamedTypeRef(name=fb_type),
-        ))
-
-        # Add FBInvocation to pending
-        self.ctx.pending_fb_invocations.append(FBInvocation(
-            instance_name=instance_name,
-            fb_type=fb_type,
-            inputs={"CLK": signal},
-        ))
-
-        # Return .Q member access
-        return MemberAccessExpr(
-            struct=VariableRef(name=instance_name),
-            member="Q",
-        )
+        return self._emit_fb_sentinel(fb_type, {"CLK": signal})
 
     def _compile_counter_sentinel(self, name: str, node: ast.Call) -> Expression:
         """Compile count_up/count_down sentinel into CTU/CTD."""
@@ -191,13 +181,6 @@ class _SentinelMixin:
         else:
             preset_expr = self.compile_expression(preset_node)
 
-        instance_name = self.ctx.next_auto_name(fb_type.lower())
-
-        self.ctx.generated_static_vars.append(Variable(
-            name=instance_name,
-            data_type=NamedTypeRef(name=fb_type),
-        ))
-
         inputs = {count_input: signal, pv_input: preset_expr}
 
         # Optional reset/load
@@ -205,16 +188,7 @@ class _SentinelMixin:
         if ctrl_kwarg in keywords:
             inputs[ctrl_input] = self.compile_expression(keywords[ctrl_kwarg])
 
-        self.ctx.pending_fb_invocations.append(FBInvocation(
-            instance_name=instance_name,
-            fb_type=fb_type,
-            inputs=inputs,
-        ))
-
-        return MemberAccessExpr(
-            struct=VariableRef(name=instance_name),
-            member="Q",
-        )
+        return self._emit_fb_sentinel(fb_type, inputs)
 
     def _compile_bistable_sentinel(self, name: str, node: ast.Call) -> Expression:
         """Compile set_dominant/reset_dominant sentinel into SR/RS."""
@@ -229,22 +203,10 @@ class _SentinelMixin:
         set_signal = self.compile_expression(node.args[0])
         reset_signal = self.compile_expression(node.args[1])
 
-        instance_name = self.ctx.next_auto_name(fb_type.lower())
-
-        self.ctx.generated_static_vars.append(Variable(
-            name=instance_name,
-            data_type=NamedTypeRef(name=fb_type),
-        ))
-
-        self.ctx.pending_fb_invocations.append(FBInvocation(
-            instance_name=instance_name,
-            fb_type=fb_type,
-            inputs={set_input: set_signal, reset_input: reset_signal},
-        ))
-
-        return MemberAccessExpr(
-            struct=VariableRef(name=instance_name),
-            member="Q1",
+        return self._emit_fb_sentinel(
+            fb_type,
+            {set_input: set_signal, reset_input: reset_signal},
+            output_member="Q1",
         )
 
     def _compile_system_flag_sentinel(self, name: str, node: ast.Call) -> Expression:

@@ -15,6 +15,8 @@ from plx.framework import (
     dataclass,
     IntEnum,
     Annotated,
+    # Errors
+    DeclarationError,
     # Core API
     fb,
     program,
@@ -327,7 +329,7 @@ class TestAnnotatedMetadata:
 
     def test_multiple_fields_raises(self):
         """Multiple Field() in Annotated should raise TypeError."""
-        with pytest.raises(TypeError, match="multiple Field"):
+        with pytest.raises(DeclarationError, match="multiple Field"):
             @fb
             class Bad:
                 x: Annotated[Input[bool], Field(retain=True), Field(address="%I0.0")]
@@ -337,7 +339,7 @@ class TestAnnotatedMetadata:
 
     def test_annotated_temp_with_retain_raises(self):
         """Temp variables cannot use retain."""
-        with pytest.raises(TypeError, match="cannot use retain"):
+        with pytest.raises(DeclarationError, match="cannot use retain"):
             @fb
             class Bad:
                 x: Annotated[Temp[int], Field(retain=True)]

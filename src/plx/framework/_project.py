@@ -6,7 +6,7 @@ a ``Project`` IR node.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, overload
 
 from plx.model.pou import POU, POUType
 from plx.model.project import Project
@@ -14,10 +14,11 @@ from plx.model.task import Task, TaskType
 from plx.model.types import ArrayTypeRef, NamedTypeRef
 from plx.model.variables import Variable
 
+from ._errors import ProjectAssemblyError
 from ._protocols import CompiledDataType, CompiledGlobalVarList, CompiledPOU
 from ._registry import lookup_pou, lookup_type
 from ._types import TimeLiteral, LTimeLiteral
-from ._vendor import Vendor, validate_target
+from ._vendor import CompileResult, Vendor, validate_target
 
 
 # ---------------------------------------------------------------------------
@@ -51,13 +52,13 @@ class PlxTask:
         assigned: list[str] = []
         for cls in self._pou_classes:
             if not isinstance(cls, CompiledPOU):
-                raise TypeError(
+                raise ProjectAssemblyError(
                     f"{cls.__name__} is not a compiled POU class "
                     f"(missing @fb, @program, or @function decorator)"
                 )
             pou = cls.compile()
             if pou.pou_type != POUType.PROGRAM:
-                raise TypeError(
+                raise ProjectAssemblyError(
                     f"Only programs can be assigned to tasks, "
                     f"but {cls.__name__} is a {pou.pou_type.value}. "
                     f"Function blocks and functions are called from "
@@ -81,7 +82,7 @@ def _format_interval(value: Any) -> str:
         return value.to_iec()
     if isinstance(value, str):
         return value
-    raise TypeError(
+    raise ProjectAssemblyError(
         f"Expected a duration (T(...), LT(...), or str), got {type(value).__name__}"
     )
 
@@ -112,12 +113,12 @@ def task(
     """
     modes = sum([periodic is not None, continuous, event is not None, startup])
     if modes == 0:
-        raise ValueError(
+        raise ProjectAssemblyError(
             "task() requires exactly one scheduling mode: "
             "periodic=, continuous=, event=, or startup="
         )
     if modes > 1:
-        raise ValueError(
+        raise ProjectAssemblyError(
             "task() accepts only one scheduling mode, "
             "got multiple of: periodic, continuous, event, startup"
         )
@@ -198,7 +199,7 @@ def _resolve_transitive_deps(
     while queue:
         cls = queue.pop()
         if not hasattr(cls, "compile"):
-            raise TypeError(f"{cls.__name__} is not a compiled POU")
+            raise ProjectAssemblyError(f"{cls.__name__} is not a compiled POU")
         pou: POU = cls.compile()
 
         # Collect all NamedTypeRef names from this POU
@@ -269,7 +270,12 @@ class PlxProject:
         self._gvl_classes: list[type] = list(global_var_lists) if global_var_lists else []
         self._packages: list[str] = list(packages) if packages else []
 
-    def compile(self, *, target: Vendor | None = None) -> Project:
+    @overload
+    def compile(self, *, target: None = None) -> Project: ...
+    @overload
+    def compile(self, *, target: Vendor) -> CompileResult: ...
+
+    def compile(self, *, target: Vendor | None = None) -> Project | CompileResult:
         """Compile all registered POUs and data types, return a Project IR node.
 
         Parameters
@@ -279,6 +285,8 @@ class PlxProject:
             that the compiled IR only uses features supported by the
             target vendor (e.g. ``Vendor.AB``).  Raises
             ``VendorValidationError`` if unsupported features are found.
+            Returns a ``CompileResult`` wrapping the project and any
+            portability warnings.
         """
         # Merge discovered items from packages (if any)
         if self._packages:
@@ -325,7 +333,7 @@ class PlxProject:
                 from ._data_types import _ensure_struct_compiled
                 _ensure_struct_compiled(cls)
             if not isinstance(cls, CompiledDataType):
-                raise TypeError(
+                raise ProjectAssemblyError(
                     f"{cls.__name__} is not a data type "
                     f"(missing @struct or @enumeration decorator)"
                 )
@@ -335,7 +343,7 @@ class PlxProject:
         compiled_gvls = []
         for cls in self._gvl_classes:
             if not isinstance(cls, CompiledGlobalVarList):
-                raise TypeError(
+                raise ProjectAssemblyError(
                     f"{cls.__name__} is not a global variable list "
                     f"(missing @global_vars decorator)"
                 )
@@ -345,7 +353,7 @@ class PlxProject:
         compiled_pous: list[POU] = []
         for cls in self._pou_classes:
             if not isinstance(cls, CompiledPOU):
-                raise TypeError(
+                raise ProjectAssemblyError(
                     f"{cls.__name__} is not a compiled POU class "
                     f"(missing @fb, @program, or @function decorator)"
                 )
@@ -372,7 +380,8 @@ class PlxProject:
         )
 
         if target is not None:
-            validate_target(result, target)
+            warnings = validate_target(result, target)
+            return CompileResult(result, warnings)
 
         return result
 

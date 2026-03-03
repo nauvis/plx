@@ -23,6 +23,7 @@ from plx.model.variables import Variable
 
 from plx.model.types import NamedTypeRef
 
+from ._errors import DeclarationError
 from ._types import TimeLiteral, LTimeLiteral, _resolve_type_ref
 
 
@@ -188,7 +189,7 @@ def _format_initial(value: object) -> str | None:
         return value.to_iec()
     if isinstance(value, str):
         return value
-    raise TypeError(
+    raise DeclarationError(
         f"Cannot convert {type(value).__name__} to IEC literal"
     )
 
@@ -205,38 +206,119 @@ def _validate_field_for_direction(
     """Validate that Field() kwargs are legal for the given direction."""
     if direction == VarDirection.TEMP:
         if field.retain:
-            raise TypeError(f"Temp variable '{attr_name}' cannot use retain")
+            raise DeclarationError(f"Temp variable '{attr_name}' cannot use retain")
         if field.persistent:
-            raise TypeError(f"Temp variable '{attr_name}' cannot use persistent")
+            raise DeclarationError(f"Temp variable '{attr_name}' cannot use persistent")
         if field.address is not None:
-            raise TypeError(f"Temp variable '{attr_name}' cannot use address")
+            raise DeclarationError(f"Temp variable '{attr_name}' cannot use address")
         if field.description:
-            raise TypeError(f"Temp variable '{attr_name}' cannot use description")
+            raise DeclarationError(f"Temp variable '{attr_name}' cannot use description")
     elif direction == VarDirection.INOUT:
         if field.initial_value is not None:
-            raise TypeError(f"InOut variable '{attr_name}' cannot use initial")
+            raise DeclarationError(f"InOut variable '{attr_name}' cannot use initial")
         if field.retain:
-            raise TypeError(f"InOut variable '{attr_name}' cannot use retain")
+            raise DeclarationError(f"InOut variable '{attr_name}' cannot use retain")
         if field.persistent:
-            raise TypeError(f"InOut variable '{attr_name}' cannot use persistent")
+            raise DeclarationError(f"InOut variable '{attr_name}' cannot use persistent")
         if field.address is not None:
-            raise TypeError(f"InOut variable '{attr_name}' cannot use address")
+            raise DeclarationError(f"InOut variable '{attr_name}' cannot use address")
     elif direction == VarDirection.EXTERNAL:
         if field.initial_value is not None:
-            raise TypeError(f"External variable '{attr_name}' cannot use initial")
+            raise DeclarationError(f"External variable '{attr_name}' cannot use initial")
         if field.retain:
-            raise TypeError(f"External variable '{attr_name}' cannot use retain")
+            raise DeclarationError(f"External variable '{attr_name}' cannot use retain")
         if field.persistent:
-            raise TypeError(f"External variable '{attr_name}' cannot use persistent")
+            raise DeclarationError(f"External variable '{attr_name}' cannot use persistent")
         if field.address is not None:
-            raise TypeError(f"External variable '{attr_name}' cannot use address")
+            raise DeclarationError(f"External variable '{attr_name}' cannot use address")
     elif direction == VarDirection.CONSTANT:
         if field.retain:
-            raise TypeError(f"Constant variable '{attr_name}' cannot use retain")
+            raise DeclarationError(f"Constant variable '{attr_name}' cannot use retain")
         if field.persistent:
-            raise TypeError(f"Constant variable '{attr_name}' cannot use persistent")
+            raise DeclarationError(f"Constant variable '{attr_name}' cannot use persistent")
         if field.address is not None:
-            raise TypeError(f"Constant variable '{attr_name}' cannot use address")
+            raise DeclarationError(f"Constant variable '{attr_name}' cannot use address")
+
+
+# ---------------------------------------------------------------------------
+# Annotated / FieldDescriptor helpers
+# ---------------------------------------------------------------------------
+
+def _unwrap_annotated(
+    type_hint: object,
+    attr_name: str,
+) -> tuple[object, FieldDescriptor | None]:
+    """Unwrap ``Annotated[T, Field(...)]``, returning the inner type and field.
+
+    If *type_hint* is not ``Annotated``, returns ``(type_hint, None)``.
+    Raises ``TypeError`` if multiple ``Field()`` instances are found.
+    """
+    if get_origin(type_hint) is not Annotated:
+        return type_hint, None
+    ann_args = get_args(type_hint)
+    inner = ann_args[0]
+    fields_found = [a for a in ann_args[1:] if isinstance(a, FieldDescriptor)]
+    if len(fields_found) > 1:
+        raise DeclarationError(
+            f"Variable '{attr_name}' has multiple Field() in Annotated — only one allowed"
+        )
+    return inner, (fields_found[0] if fields_found else None)
+
+
+def _field_to_variable(
+    name: str,
+    data_type: object,
+    field: FieldDescriptor,
+    default: object = None,
+    *,
+    is_constant: bool = False,
+) -> Variable:
+    """Build a ``Variable`` from a ``FieldDescriptor``, merging a class default.
+
+    If *field.initial_value* is ``None`` and *default* is a plain literal,
+    the default supplies the initial value.
+    """
+    if field.initial_value is None and default is not None and not isinstance(default, FieldDescriptor):
+        if isinstance(default, (bool, int, float, str, TimeLiteral, LTimeLiteral)):
+            field = FieldDescriptor(
+                initial_value=_format_initial(default),
+                description=field.description,
+                retain=field.retain,
+                persistent=field.persistent,
+                constant=field.constant,
+                address=field.address,
+            )
+    return Variable(
+        name=name,
+        data_type=data_type,
+        initial_value=field.initial_value,
+        description=field.description,
+        retain=field.retain,
+        persistent=field.persistent,
+        constant=is_constant or field.constant,
+        address=field.address,
+    )
+
+
+# ---------------------------------------------------------------------------
+# MRO override helper
+# ---------------------------------------------------------------------------
+
+def _mro_upsert(
+    collected: list[tuple],
+    seen: set[str],
+    name: str,
+    entry: tuple,
+) -> None:
+    """Insert or replace an entry in an MRO-ordered collected list (in-place).
+
+    If *name* already exists, the earlier entry is removed so the new one
+    takes precedence (child overrides parent).
+    """
+    if name in seen:
+        collected[:] = [item for item in collected if item[0] != name]
+    seen.add(name)
+    collected.append(entry)
 
 
 # ---------------------------------------------------------------------------
@@ -292,10 +374,7 @@ def _collect_descriptors(cls: type, *, own_only: bool = False) -> dict[str, list
                     direction=VarDirection.STATIC,
                     data_type=NamedTypeRef(name=value.__name__),
                 )
-                if attr_name in seen:
-                    collected = [(n, v) for n, v in collected if n != attr_name]
-                seen.add(attr_name)
-                collected.append((attr_name, desc))
+                _mro_upsert(collected, seen, attr_name, (attr_name, desc))
 
     # Track names from first pass
     descriptor_names = set(seen)
@@ -320,19 +399,7 @@ def _collect_descriptors(cls: type, *, own_only: bool = False) -> dict[str, list
             if attr_name in descriptor_names:
                 continue  # first-pass assignment takes precedence
 
-            # Unwrap Annotated[X, Field(...), ...] if present
-            annotated_field: FieldDescriptor | None = None
-            if get_origin(type_hint) is Annotated:
-                ann_args = get_args(type_hint)
-                type_hint = ann_args[0]
-                # Extract FieldDescriptor(s) from metadata
-                fields_found = [a for a in ann_args[1:] if isinstance(a, FieldDescriptor)]
-                if len(fields_found) > 1:
-                    raise TypeError(
-                        f"Variable '{attr_name}' has multiple Field() in Annotated — only one allowed"
-                    )
-                if fields_found:
-                    annotated_field = fields_found[0]
+            type_hint, annotated_field = _unwrap_annotated(type_hint, attr_name)
 
             # Determine direction from annotation wrapper
             origin = get_origin(type_hint)
@@ -366,61 +433,43 @@ def _collect_descriptors(cls: type, *, own_only: bool = False) -> dict[str, list
             # A plain class default (not FieldDescriptor) supplies the initial
             # value when Field(initial=...) is not set.
             if annotated_field is not None:
-                field = annotated_field
-                # If class default is a plain value (not FieldDescriptor),
-                # use it as initial when Field doesn't specify one
-                if field.initial_value is None and default is not None and not isinstance(default, FieldDescriptor):
-                    if isinstance(default, (bool, int, float, str, TimeLiteral, LTimeLiteral)):
-                        field = FieldDescriptor(
-                            initial_value=_format_initial(default),
-                            description=field.description,
-                            retain=field.retain,
-                            persistent=field.persistent,
-                            constant=field.constant,
-                            address=field.address,
-                        )
-                _validate_field_for_direction(field, direction, attr_name)
-                is_constant = direction == VarDirection.CONSTANT or field.constant
-                if direction == VarDirection.CONSTANT and field.initial_value is None:
+                _validate_field_for_direction(annotated_field, direction, attr_name)
+                is_constant = direction == VarDirection.CONSTANT or annotated_field.constant
+                var = _field_to_variable(attr_name, data_type, annotated_field, default, is_constant=is_constant)
+                if direction == VarDirection.CONSTANT and var.initial_value is None:
                     raise TypeError(
                         f"Constant variable '{attr_name}' requires an initial value"
                     )
-                if attr_name in seen:
-                    collected = [(n, v) for n, v in collected if n != attr_name]
-                seen.add(attr_name)
-                collected.append((attr_name, VarDescriptor(
+                _mro_upsert(collected, seen, attr_name, (attr_name, VarDescriptor(
                     direction=direction,
-                    data_type=data_type,
-                    initial_value=field.initial_value,
-                    description=field.description,
-                    retain=field.retain,
-                    persistent=field.persistent,
-                    constant=is_constant,
-                    address=field.address,
+                    data_type=var.data_type,
+                    initial_value=var.initial_value,
+                    description=var.description,
+                    retain=var.retain,
+                    persistent=var.persistent,
+                    constant=var.constant,
+                    address=var.address,
                 )))
                 continue
 
             # Handle FieldDescriptor defaults (= Field(...) syntax)
             if isinstance(default, FieldDescriptor):
                 _validate_field_for_direction(default, direction, attr_name)
-                # For Constant, auto-set constant=True
                 is_constant = direction == VarDirection.CONSTANT or default.constant
-                if direction == VarDirection.CONSTANT and default.initial_value is None:
+                var = _field_to_variable(attr_name, data_type, default, is_constant=is_constant)
+                if direction == VarDirection.CONSTANT and var.initial_value is None:
                     raise TypeError(
                         f"Constant variable '{attr_name}' requires an initial value"
                     )
-                if attr_name in seen:
-                    collected = [(n, v) for n, v in collected if n != attr_name]
-                seen.add(attr_name)
-                collected.append((attr_name, VarDescriptor(
+                _mro_upsert(collected, seen, attr_name, (attr_name, VarDescriptor(
                     direction=direction,
-                    data_type=data_type,
-                    initial_value=default.initial_value,
-                    description=default.description,
-                    retain=default.retain,
-                    persistent=default.persistent,
-                    constant=is_constant,
-                    address=default.address,
+                    data_type=var.data_type,
+                    initial_value=var.initial_value,
+                    description=var.description,
+                    retain=var.retain,
+                    persistent=var.persistent,
+                    constant=var.constant,
+                    address=var.address,
                 )))
                 continue
 
@@ -433,15 +482,11 @@ def _collect_descriptors(cls: type, *, own_only: bool = False) -> dict[str, list
             # For Constant wrapper, auto-set constant=True and require initial
             is_constant = direction == VarDirection.CONSTANT
             if is_constant and initial_value is None:
-                raise TypeError(
+                raise DeclarationError(
                     f"Constant variable '{attr_name}' requires an initial value"
                 )
 
-            if attr_name in seen:
-                # Child overrides parent annotation — remove earlier entry
-                collected = [(n, v) for n, v in collected if n != attr_name]
-            seen.add(attr_name)
-            collected.append((attr_name, VarDescriptor(
+            _mro_upsert(collected, seen, attr_name, (attr_name, VarDescriptor(
                 direction=direction,
                 data_type=data_type,
                 initial_value=initial_value,
@@ -469,6 +514,9 @@ def _collect_descriptors(cls: type, *, own_only: bool = False) -> dict[str, list
 # ---------------------------------------------------------------------------
 # String constants so users can write:  timer: TON
 # Resolves via _resolve_type_ref("TON") → NamedTypeRef("TON")
+# Canonical set lives in _constants.py.
+
+from ._constants import STANDARD_FB_TYPES
 
 TON = "TON"
 TOF = "TOF"
@@ -481,3 +529,5 @@ CTD = "CTD"
 CTUD = "CTUD"
 SR = "SR"
 RS = "RS"
+
+assert {TON, TOF, TP, RTO, R_TRIG, F_TRIG, CTU, CTD, CTUD, SR, RS} == STANDARD_FB_TYPES

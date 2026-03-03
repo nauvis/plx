@@ -4,6 +4,7 @@ import pytest
 
 from plx.framework._data_types import struct, enumeration
 from plx.framework._decorators import fb
+from plx.framework._errors import DefinitionError, ProjectAssemblyError
 from plx.framework._global_vars import global_vars
 from plx.framework._descriptors import Field
 from plx.framework._project import project
@@ -300,20 +301,20 @@ class TestTypeConstructors:
 
 class TestErrors:
     def test_empty_class(self):
-        with pytest.raises(TypeError, match="has no variables"):
+        with pytest.raises(DefinitionError, match="has no variables"):
             @global_vars
             class Empty:
                 pass
 
     def test_empty_class_with_description(self):
-        with pytest.raises(TypeError, match="has no variables"):
+        with pytest.raises(DefinitionError, match="has no variables"):
             @global_vars(description="nothing here")
             class AlsoEmpty:
                 pass
 
     def test_only_dunder_attrs(self):
         """A class with only dunder attributes should be treated as empty."""
-        with pytest.raises(TypeError, match="has no variables"):
+        with pytest.raises(DefinitionError, match="has no variables"):
             @global_vars
             class DunderOnly:
                 __doc__ = "some doc"
@@ -437,7 +438,7 @@ class TestProjectIntegration:
         class NotDecorated:
             pass
 
-        with pytest.raises(TypeError, match="not a global variable list"):
+        with pytest.raises(ProjectAssemblyError, match="not a global variable list"):
             proj = project("Bad", global_var_lists=[NotDecorated])
             proj.compile()
 

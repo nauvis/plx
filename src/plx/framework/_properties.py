@@ -44,7 +44,7 @@ from ._compilation_helpers import (
     _build_compile_context,
     _parse_function_source,
 )
-from ._descriptors import VarDirection
+from ._descriptors import VarDirection, _mro_upsert
 
 
 # ---------------------------------------------------------------------------
@@ -142,10 +142,7 @@ def _collect_properties(cls: type) -> list[tuple[str, _PropertyMarker]]:
         for attr_name, value in base.__dict__.items():
             if not isinstance(value, PropDescriptor):
                 continue
-            if attr_name in seen:
-                collected = [(n, m) for n, m in collected if n != attr_name]
-            seen.add(attr_name)
-            collected.append((attr_name, value._marker))
+            _mro_upsert(collected, seen, attr_name, (attr_name, value._marker))
 
     return collected
 

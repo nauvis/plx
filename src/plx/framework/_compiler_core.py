@@ -30,13 +30,14 @@ from plx.model.types import (
 from plx.model.variables import Variable
 
 from ._descriptors import VarDirection
+from ._errors import PlxError
 
 
 # ---------------------------------------------------------------------------
 # CompileError
 # ---------------------------------------------------------------------------
 
-class CompileError(Exception):
+class CompileError(PlxError):
     """Error during AST compilation with source location."""
 
     def __init__(self, message: str, node: ast.AST | None = None, ctx: CompileContext | None = None):

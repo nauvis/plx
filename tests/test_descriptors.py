@@ -15,6 +15,7 @@ from plx.framework._descriptors import (
     _collect_descriptors,
     _format_initial,
 )
+from plx.framework._errors import DeclarationError
 from plx.framework._types import T, LT, TimeLiteral, REAL, BOOL, INT, DINT
 from plx.model.types import (
     NamedTypeRef,
@@ -55,7 +56,7 @@ class TestFormatInitial:
         assert _format_initial("T#10s") == "T#10s"
 
     def test_invalid_type_raises(self):
-        with pytest.raises(TypeError, match="Cannot convert"):
+        with pytest.raises(DeclarationError, match="Cannot convert"):
             _format_initial([1, 2, 3])
 
 
@@ -282,67 +283,67 @@ class TestAnnotationWithField:
 
 class TestFieldValidation:
     def test_temp_rejects_retain(self):
-        with pytest.raises(TypeError, match="retain"):
+        with pytest.raises(DeclarationError, match="retain"):
             class MyFB:
                 x: Temp[bool] = Field(retain=True)
             _collect_descriptors(MyFB)
 
     def test_temp_rejects_address(self):
-        with pytest.raises(TypeError, match="address"):
+        with pytest.raises(DeclarationError, match="address"):
             class MyFB:
                 x: Temp[bool] = Field(address="%I0.0")
             _collect_descriptors(MyFB)
 
     def test_temp_rejects_description(self):
-        with pytest.raises(TypeError, match="description"):
+        with pytest.raises(DeclarationError, match="description"):
             class MyFB:
                 x: Temp[bool] = Field(description="nope")
             _collect_descriptors(MyFB)
 
     def test_inout_rejects_initial(self):
-        with pytest.raises(TypeError, match="initial"):
+        with pytest.raises(DeclarationError, match="initial"):
             class MyFB:
                 x: InOut[bool] = Field(initial=True)
             _collect_descriptors(MyFB)
 
     def test_inout_rejects_retain(self):
-        with pytest.raises(TypeError, match="retain"):
+        with pytest.raises(DeclarationError, match="retain"):
             class MyFB:
                 x: InOut[bool] = Field(retain=True)
             _collect_descriptors(MyFB)
 
     def test_inout_rejects_address(self):
-        with pytest.raises(TypeError, match="address"):
+        with pytest.raises(DeclarationError, match="address"):
             class MyFB:
                 x: InOut[bool] = Field(address="%I0.0")
             _collect_descriptors(MyFB)
 
     def test_external_rejects_initial(self):
-        with pytest.raises(TypeError, match="initial"):
+        with pytest.raises(DeclarationError, match="initial"):
             class MyFB:
                 x: External[int] = Field(initial=0)
             _collect_descriptors(MyFB)
 
     def test_external_rejects_retain(self):
-        with pytest.raises(TypeError, match="retain"):
+        with pytest.raises(DeclarationError, match="retain"):
             class MyFB:
                 x: External[int] = Field(retain=True)
             _collect_descriptors(MyFB)
 
     def test_constant_rejects_retain(self):
-        with pytest.raises(TypeError, match="retain"):
+        with pytest.raises(DeclarationError, match="retain"):
             class MyFB:
                 x: Constant[float] = Field(initial=3.14, retain=True)
             _collect_descriptors(MyFB)
 
     def test_constant_rejects_address(self):
-        with pytest.raises(TypeError, match="address"):
+        with pytest.raises(DeclarationError, match="address"):
             class MyFB:
                 x: Constant[int] = Field(initial=0, address="%MW0")
             _collect_descriptors(MyFB)
 
     def test_constant_requires_initial(self):
-        with pytest.raises(TypeError, match="requires an initial"):
+        with pytest.raises(DeclarationError, match="requires an initial"):
             class MyFB:
                 x: Constant[int]
             _collect_descriptors(MyFB)

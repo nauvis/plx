@@ -39,7 +39,7 @@ from ._compilation_helpers import (
     _discover_enums,
     _parse_function_source,
 )
-from ._descriptors import VarDescriptor, VarDirection
+from ._descriptors import VarDescriptor, VarDirection, _mro_upsert
 from ._properties import (
     PropDescriptor,
     _collect_properties,
@@ -123,12 +123,8 @@ def _collect_methods(cls: type) -> list[tuple[str, Any, AccessSpecifier]]:
         for attr_name, value in base.__dict__.items():
             if not _is_method(value):
                 continue
-            if attr_name in seen:
-                # Child overrides parent — remove earlier entry
-                collected = [(n, f, a) for n, f, a in collected if n != attr_name]
-            seen.add(attr_name)
             marker = value._plx_marker
-            collected.append((attr_name, value, marker.access))
+            _mro_upsert(collected, seen, attr_name, (attr_name, value, marker.access))
 
     return collected
 
