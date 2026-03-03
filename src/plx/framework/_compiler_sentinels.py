@@ -1,6 +1,6 @@
 """Sentinel expansion methods for the AST compiler.
 
-Handles timer sentinels (delayed/sustained/pulse → TON/TOF/TP),
+Handles timer sentinels (delayed/sustained/pulse/retentive → TON/TOF/TP/RTO),
 edge sentinels (rising/falling → R_TRIG/F_TRIG),
 counter sentinels (count_up/count_down → CTU/CTD),
 and system flag sentinels (first_scan).

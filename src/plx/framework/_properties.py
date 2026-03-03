@@ -27,6 +27,8 @@ import inspect
 from dataclasses import dataclass
 from typing import Any
 
+from plx.model._base import IRModel
+from plx.model.expressions import VariableRef
 from plx.model.pou import (
     AccessSpecifier,
     Network,
@@ -215,6 +217,44 @@ def _compile_accessor(
     compiler = ASTCompiler(ctx)
     stmts = compiler.compile_body(func_def)
 
+    # IEC 61131-3 property setters use the property name as the input
+    # parameter (not the Python parameter name).  Rename VariableRefs.
+    if role == "setter" and len(func_def.args.args) >= 2:
+        py_param = func_def.args.args[1].arg
+        if py_param != prop_name:
+            stmts = [_rename_var(s, py_param, prop_name) for s in stmts]
+
     return PropertyAccessor(
         networks=[Network(statements=stmts)],
     )
+
+
+# ---------------------------------------------------------------------------
+# Variable rename helper (setter parameter → property name)
+# ---------------------------------------------------------------------------
+
+def _rename_in_node(node: IRModel, old: str, new: str) -> IRModel:
+    """Return a copy of *node* with VariableRef *old* renamed to *new*.
+
+    Recursively walks all IRModel fields (expressions and statements).
+    """
+    if isinstance(node, VariableRef) and node.name == old:
+        return node.model_copy(update={"name": new})
+
+    updates: dict[str, object] = {}
+    for field_name in type(node).model_fields:
+        val = getattr(node, field_name)
+        if isinstance(val, IRModel):
+            renamed = _rename_in_node(val, old, new)
+            if renamed is not val:
+                updates[field_name] = renamed
+        elif isinstance(val, list) and val and isinstance(val[0], IRModel):
+            new_list = [_rename_in_node(v, old, new) for v in val]
+            if any(a is not b for a, b in zip(new_list, val)):
+                updates[field_name] = new_list
+    return node.model_copy(update=updates) if updates else node
+
+
+def _rename_var(stmt: IRModel, old: str, new: str) -> IRModel:
+    """Rename VariableRef *old* → *new* throughout a statement tree."""
+    return _rename_in_node(stmt, old, new)

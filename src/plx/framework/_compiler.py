@@ -11,8 +11,8 @@ Key concepts:
 - **ASTCompiler**: dispatch-table compiler that maps Python AST node
   types to handler methods.
 - **Sentinel functions**: ``delayed``, ``rising``, ``falling``,
-  ``sustained``, ``pulse``, ``count_up``, ``count_down`` — importable
-  functions whose bodies raise ``RuntimeError``.  The AST compiler
+  ``sustained``, ``pulse``, ``retentive``, ``count_up``, ``count_down``
+  — importable functions whose bodies raise ``RuntimeError``.  The AST compiler
   recognises them by name and expands them to FBInvocation + instance
   variables.
 """
@@ -79,6 +79,11 @@ def sustained(signal: object, *, seconds: int | float = 0, ms: int | float = 0, 
 def pulse(signal: object, *, seconds: int | float = 0, ms: int | float = 0, duration: object = None) -> bool:
     """TP (pulse timer).  Recognised by the AST compiler."""
     raise RuntimeError("pulse() is a compile-time sentinel — do not call directly")
+
+
+def retentive(signal: object, *, seconds: int | float = 0, ms: int | float = 0, duration: object = None) -> bool:
+    """RTO (retentive timer on).  Recognised by the AST compiler."""
+    raise RuntimeError("retentive() is a compile-time sentinel — do not call directly")
 
 
 def rising(signal: object) -> bool:

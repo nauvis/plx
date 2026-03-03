@@ -94,6 +94,52 @@ class TestPulse:
         assert stmts[0].fb_type == "TP"
 
 
+class TestRetentive:
+    def test_basic(self):
+        ctx = CompileContext()
+        stmts = compile_stmts("self.output = retentive(self.input, seconds=5)", ctx)
+        assert len(stmts) == 2
+        assert isinstance(stmts[0], FBInvocation)
+        assert stmts[0].fb_type == "RTO"
+        assert "IN" in stmts[0].inputs
+        assert "PT" in stmts[0].inputs
+        pt = stmts[0].inputs["PT"]
+        assert isinstance(pt, LiteralExpr)
+        assert pt.value == "T#5s"
+        # Assignment uses .Q
+        assert isinstance(stmts[1], Assignment)
+        assert isinstance(stmts[1].value, MemberAccessExpr)
+        assert stmts[1].value.member == "Q"
+
+    def test_generates_static_var(self):
+        ctx = CompileContext()
+        compile_stmts("self.output = retentive(self.input, seconds=5)", ctx)
+        assert len(ctx.generated_static_vars) == 1
+        var = ctx.generated_static_vars[0]
+        assert var.data_type == NamedTypeRef(name="RTO")
+        assert var.name.startswith("_plx_rto_")
+
+    def test_ms_duration(self):
+        ctx = CompileContext()
+        stmts = compile_stmts("self.output = retentive(self.input, ms=750)", ctx)
+        pt = stmts[0].inputs["PT"]
+        assert pt.value == "T#750ms"
+
+    def test_in_if_condition(self):
+        ctx = CompileContext()
+        stmts = compile_stmts("""\
+if retentive(self.signal, seconds=10):
+    self.done = True
+""", ctx)
+        assert len(stmts) == 2
+        assert isinstance(stmts[0], FBInvocation)
+        assert stmts[0].fb_type == "RTO"
+        assert isinstance(stmts[1], IfStatement)
+        cond = stmts[1].if_branch.condition
+        assert isinstance(cond, MemberAccessExpr)
+        assert cond.member == "Q"
+
+
 # ---------------------------------------------------------------------------
 # Edge sentinels (rising, falling)
 # ---------------------------------------------------------------------------

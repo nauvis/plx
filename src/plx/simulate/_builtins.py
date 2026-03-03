@@ -142,6 +142,49 @@ class TP:
         state["_prev_in"] = in_val
 
 
+class RTO:
+    """Retentive timer on. Q becomes TRUE after IN held TRUE for >= PT ms total.
+
+    Unlike TON, accumulated time is retained when IN goes FALSE.
+    Must be explicitly reset (ET set to 0) to restart.
+    """
+
+    @staticmethod
+    def initial_state() -> dict:
+        return {
+            "IN": False,
+            "PT": 0,
+            "Q": False,
+            "ET": 0,
+            "_last_clock": None,
+        }
+
+    @staticmethod
+    def execute(state: dict, clock_ms: int) -> None:
+        in_val = state["IN"]
+        pt = state["PT"]
+
+        if in_val:
+            # Input is TRUE — accumulate time
+            if state["_last_clock"] is not None:
+                delta = clock_ms - state["_last_clock"]
+                state["ET"] = min(state["ET"] + delta, pt)
+            state["_last_clock"] = clock_ms
+
+            if state["ET"] >= pt:
+                state["Q"] = True
+            else:
+                state["Q"] = False
+        else:
+            # Input is FALSE — retain ET, stop accumulating
+            state["_last_clock"] = None
+            # Q stays based on current ET
+            if state["ET"] >= pt:
+                state["Q"] = True
+            else:
+                state["Q"] = False
+
+
 class R_TRIG:
     """Rising edge detector. Q is TRUE for one scan on FALSE->TRUE."""
 
@@ -182,6 +225,7 @@ BUILTIN_FBS: dict[str, type] = {
     "TON": TON,
     "TOF": TOF,
     "TP": TP,
+    "RTO": RTO,
     "R_TRIG": R_TRIG,
     "F_TRIG": F_TRIG,
 }

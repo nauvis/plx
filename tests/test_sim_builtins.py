@@ -8,6 +8,7 @@ from plx.simulate._builtins import (
     BUILTIN_FBS,
     F_TRIG,
     R_TRIG,
+    RTO,
     STDLIB_FUNCTIONS,
     TOF,
     TON,
@@ -141,6 +142,88 @@ class TestTP:
         TP.execute(s, 0)
         TP.execute(s, 300)
         assert s["ET"] == 300
+
+
+# ---------------------------------------------------------------------------
+# RTO
+# ---------------------------------------------------------------------------
+
+class TestRTO:
+    def test_delays_output(self):
+        s = RTO.initial_state()
+        s["IN"] = True
+        s["PT"] = 5000
+        RTO.execute(s, 0)
+        assert s["Q"] is False
+
+    def test_fires_after_pt(self):
+        s = RTO.initial_state()
+        s["IN"] = True
+        s["PT"] = 5000
+        RTO.execute(s, 0)
+        RTO.execute(s, 5000)
+        assert s["Q"] is True
+
+    def test_retains_time_on_false(self):
+        """Key RTO behavior: accumulated time is NOT reset when IN goes FALSE."""
+        s = RTO.initial_state()
+        s["IN"] = True
+        s["PT"] = 1000
+        RTO.execute(s, 0)
+        RTO.execute(s, 400)
+        assert s["ET"] == 400
+        assert s["Q"] is False
+        # IN goes FALSE — ET must be retained
+        s["IN"] = False
+        RTO.execute(s, 500)
+        assert s["ET"] == 400  # retained, not reset
+        assert s["Q"] is False
+
+    def test_accumulates_across_on_off_cycles(self):
+        """RTO accumulates total ON time across multiple cycles."""
+        s = RTO.initial_state()
+        s["PT"] = 1000
+
+        # First ON period: 0ms to 400ms (400ms accumulated)
+        s["IN"] = True
+        RTO.execute(s, 0)
+        RTO.execute(s, 400)
+        assert s["ET"] == 400
+
+        # OFF period
+        s["IN"] = False
+        RTO.execute(s, 500)
+        assert s["ET"] == 400  # retained
+
+        # Second ON period: 600ms to 1200ms (600ms more = 1000ms total)
+        s["IN"] = True
+        RTO.execute(s, 600)
+        RTO.execute(s, 1200)
+        assert s["ET"] == 1000
+        assert s["Q"] is True
+
+    def test_et_clamps_at_pt(self):
+        s = RTO.initial_state()
+        s["IN"] = True
+        s["PT"] = 100
+        RTO.execute(s, 0)
+        RTO.execute(s, 200)
+        assert s["ET"] == 100
+
+    def test_q_stays_true_after_done(self):
+        """Once Q goes TRUE it stays TRUE (even if IN goes FALSE)."""
+        s = RTO.initial_state()
+        s["IN"] = True
+        s["PT"] = 100
+        RTO.execute(s, 0)
+        RTO.execute(s, 100)
+        assert s["Q"] is True
+        s["IN"] = False
+        RTO.execute(s, 200)
+        assert s["Q"] is True  # retentive — stays done
+
+    def test_registered_in_builtins(self):
+        assert "RTO" in BUILTIN_FBS
 
 
 # ---------------------------------------------------------------------------
