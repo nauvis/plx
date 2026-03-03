@@ -151,9 +151,29 @@ class TestFormatInitialValue:
 class TestTypeRef:
     def test_primitive(self):
         w = _make_writer()
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.BOOL)) == "BOOL"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.BOOL)) == "bool"
         assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.INT)) == "INT"
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.REAL)) == "REAL"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.REAL)) == "float"
+
+    def test_primitive_python_aliases(self):
+        w = _make_writer()
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.DINT)) == "int"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.BOOL)) == "bool"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.REAL)) == "float"
+
+    def test_primitive_non_default_preserved(self):
+        w = _make_writer()
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.SINT)) == "SINT"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.LINT)) == "LINT"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.LREAL)) == "LREAL"
+
+    def test_string_default_as_str(self):
+        w = _make_writer()
+        assert w._type_ref(StringTypeRef(wide=False, max_length=255)) == "str"
+
+    def test_string_non_default_unchanged(self):
+        w = _make_writer()
+        assert w._type_ref(StringTypeRef(wide=False, max_length=80)) == "STRING(80)"
 
     def test_string_default(self):
         w = _make_writer()
@@ -187,15 +207,28 @@ class TestTypeRef:
         )
         assert w._type_ref(tr) == "ARRAY(INT, (1, 10))"
 
+    def test_array_with_python_types(self):
+        w = _make_writer()
+        tr = ArrayTypeRef(
+            element_type=PrimitiveTypeRef(type=PrimitiveType.DINT),
+            dimensions=[DimensionRange(lower=0, upper=9)],
+        )
+        assert w._type_ref(tr) == "ARRAY(int, 10)"
+
     def test_pointer(self):
         w = _make_writer()
         tr = PointerTypeRef(target_type=PrimitiveTypeRef(type=PrimitiveType.INT))
         assert w._type_ref(tr) == "POINTER_TO(INT)"
 
+    def test_pointer_with_python_types(self):
+        w = _make_writer()
+        tr = PointerTypeRef(target_type=PrimitiveTypeRef(type=PrimitiveType.REAL))
+        assert w._type_ref(tr) == "POINTER_TO(float)"
+
     def test_reference(self):
         w = _make_writer()
         tr = ReferenceTypeRef(target_type=PrimitiveTypeRef(type=PrimitiveType.REAL))
-        assert w._type_ref(tr) == "REFERENCE_TO(REAL)"
+        assert w._type_ref(tr) == "REFERENCE_TO(float)"
 
 
 # ===========================================================================
@@ -352,7 +385,7 @@ class TestExpressions:
             target_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
             source=VariableRef(name="x"),
         )
-        assert w._expr(expr) == "REAL(x)"
+        assert w._expr(expr) == "float(x)"
 
     def test_system_flag_first_scan(self):
         w = _make_writer()
@@ -602,8 +635,8 @@ class TestTypeDefinitions:
         out = w.getvalue().strip()
         assert "@struct" in out
         assert "class MotorData:" in out
-        assert "speed: REAL" in out
-        assert "running: BOOL = False" in out
+        assert "speed: float" in out
+        assert "running: bool = False" in out
 
     def test_enum(self):
         td = EnumType(
@@ -686,8 +719,8 @@ class TestGlobalVarLists:
         out = w.getvalue().strip()
         assert "@global_vars" in out
         assert "class SystemIO:" in out
-        assert "speed: REAL = 0.0" in out
-        assert "running: BOOL" in out
+        assert "speed: float = 0.0" in out
+        assert "running: bool" in out
 
     def test_gvl_with_complex_vars(self):
         gvl = GlobalVariableList(
@@ -704,7 +737,7 @@ class TestGlobalVarLists:
         w = _make_writer()
         w._write_global_variable_list(gvl)
         out = w.getvalue().strip()
-        assert 'valve = global_var(BOOL, address="%Q0.0", retain=True)' in out
+        assert 'valve = global_var(bool, address="%Q0.0", retain=True)' in out
 
     def test_gvl_with_description(self):
         gvl = GlobalVariableList(
@@ -758,8 +791,8 @@ class TestPOUEmission:
         out = w.getvalue().strip()
         assert "@fb" in out
         assert "class SimpleFB:" in out
-        assert "sensor = input_var(BOOL)" in out
-        assert "valve = output_var(BOOL)" in out
+        assert "sensor: Input[bool]" in out
+        assert "valve: Output[bool]" in out
         assert "def logic(self):" in out
         assert "self.valve = self.sensor" in out
 
@@ -798,7 +831,7 @@ class TestPOUEmission:
         w._write_pou(pou)
         out = w.getvalue().strip()
         assert "@function" in out
-        assert "def logic(self) -> REAL:" in out
+        assert "def logic(self) -> float:" in out
         assert "return self.x + 1.0" in out
 
     def test_fb_extends(self):
@@ -853,7 +886,7 @@ class TestPOUEmission:
         w._write_pou(pou)
         out = w.getvalue().strip()
         assert "@method" in out
-        assert "def Calculate(self, x: REAL) -> REAL:" in out
+        assert "def Calculate(self, x: float) -> float:" in out
 
     def test_private_method(self):
         pou = POU(
@@ -1228,8 +1261,8 @@ class TestRoundTrip:
 
         # Verify key elements
         assert "class RoundTripFB:" in code
-        assert "sensor = input_var(BOOL)" in code
-        assert "valve = output_var(BOOL)" in code
+        assert "sensor: Input[bool]" in code
+        assert "valve: Output[bool]" in code
         assert "self.valve = self.sensor" in code
 
     def test_function_round_trip(self):
@@ -1249,7 +1282,7 @@ class TestRoundTrip:
         code = generate(proj_ir)
 
         compile(code, "<generated>", "exec")
-        assert "def logic(self) -> REAL:" in code
+        assert "def logic(self) -> float:" in code
 
     def test_if_else_round_trip(self):
         from plx.framework._decorators import fb
@@ -1316,7 +1349,7 @@ class TestRoundTrip:
         compile(code, "<generated>", "exec")
 
         assert "class MotorData:" in code
-        assert "speed: REAL" in code
+        assert "speed: float" in code
         assert "class Mode:" in code
 
     def test_global_vars_round_trip(self):
@@ -1365,6 +1398,97 @@ class TestRoundTrip:
 
         assert 'project("TestApp"' in code
         assert "periodic=T(ms=10)" in code
+
+
+# ===========================================================================
+# Annotation syntax emission
+# ===========================================================================
+
+class TestAnnotationSyntaxEmission:
+    def test_simple_fb_uses_annotation_syntax(self):
+        """Variables without metadata should use annotation syntax."""
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="AnnotFB",
+            interface=POUInterface(
+                input_vars=[Variable(name="sensor", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL))],
+                output_vars=[Variable(name="valve", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL))],
+                inout_vars=[Variable(name="ref", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL))],
+                static_vars=[Variable(name="count", data_type=PrimitiveTypeRef(type=PrimitiveType.DINT), initial_value="0")],
+            ),
+            networks=[Network(statements=[EmptyStatement()])],
+        )
+        w = _make_writer()
+        w._write_pou(pou)
+        out = w.getvalue()
+        assert "sensor: Input[bool]" in out
+        assert "valve: Output[bool]" in out
+        assert "ref: InOut[float]" in out
+        assert "count: int = 0" in out
+
+    def test_metadata_falls_back_to_descriptor(self):
+        """Variables with description/retain should use descriptor syntax."""
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="MetaFB",
+            interface=POUInterface(
+                input_vars=[Variable(name="sensor", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL), description="Main sensor")],
+                output_vars=[Variable(name="valve", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL), retain=True)],
+                static_vars=[Variable(name="count", data_type=PrimitiveTypeRef(type=PrimitiveType.DINT), address="%MW100")],
+            ),
+            networks=[Network(statements=[EmptyStatement()])],
+        )
+        w = _make_writer()
+        w._write_pou(pou)
+        out = w.getvalue()
+        assert 'sensor = input_var(bool, description="Main sensor")' in out
+        assert "valve = output_var(bool, retain=True)" in out
+        assert 'count = static_var(int, address="%MW100")' in out
+
+    def test_standard_fb_shorthand_preserved(self):
+        """Standard FB types (TON, etc.) should still use shorthand."""
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TimerFB",
+            interface=POUInterface(
+                static_vars=[Variable(name="timer", data_type=NamedTypeRef(name="TON"))],
+            ),
+            networks=[Network(statements=[EmptyStatement()])],
+        )
+        w = _make_writer()
+        w._write_pou(pou)
+        out = w.getvalue()
+        assert "timer = TON" in out
+
+    def test_static_var_no_initial_uses_annotation(self):
+        """Static var without initial value uses bare annotation."""
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="BareStaticFB",
+            interface=POUInterface(
+                static_vars=[Variable(name="speed", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL))],
+            ),
+            networks=[Network(statements=[EmptyStatement()])],
+        )
+        w = _make_writer()
+        w._write_pou(pou)
+        out = w.getvalue()
+        assert "speed: float" in out
+
+    def test_input_with_initial_value(self):
+        """Input var with initial value uses annotation syntax with default."""
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="InitInputFB",
+            interface=POUInterface(
+                input_vars=[Variable(name="speed", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL), initial_value="100.0")],
+            ),
+            networks=[Network(statements=[EmptyStatement()])],
+        )
+        w = _make_writer()
+        w._write_pou(pou)
+        out = w.getvalue()
+        assert "speed: Input[float] = 100.0" in out
 
 
 # ===========================================================================

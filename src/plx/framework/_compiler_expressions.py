@@ -38,6 +38,7 @@ from ._compiler_core import (
     _COUNTER_SENTINELS,
     _EDGE_SENTINELS,
     _PYTHON_BUILTIN_MAP,
+    _PYTHON_TYPE_CONV_MAP,
     _REJECTED_BINOP_MESSAGES,
     _REJECTED_BUILTINS,
     _REJECTED_CMPOP_MESSAGES,
@@ -213,6 +214,13 @@ class _ExpressionMixin:
                     "range() can only be used in a for loop",
                     node, self.ctx,
                 )
+
+            # Python type conversions: int(x), float(x), bool(x)
+            if name in _PYTHON_TYPE_CONV_MAP:
+                if len(node.args) != 1 or node.keywords:
+                    raise CompileError(f"{name}() takes exactly 1 argument", node, self.ctx)
+                source = self.compile_expression(node.args[0])
+                return TypeConversionExpr(target_type=_PYTHON_TYPE_CONV_MAP[name], source=source)
 
             # Rejected Python builtins
             if name in _REJECTED_BUILTINS:

@@ -92,6 +92,26 @@ class TestInputVar:
         assert v.address == "%I0.0"
 
 
+class TestPythonBuiltinTypes:
+    def test_input_var_python_bool(self):
+        v = input_var(bool)
+        assert isinstance(v, VarDescriptor)
+        assert v.data_type == PrimitiveTypeRef(type=PrimitiveType.BOOL)
+
+    def test_static_var_python_int(self):
+        v = static_var(int, initial=0)
+        assert v.data_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
+        assert v.initial_value == "0"
+
+    def test_output_var_python_float(self):
+        v = output_var(float)
+        assert v.data_type == PrimitiveTypeRef(type=PrimitiveType.REAL)
+
+    def test_static_var_python_str(self):
+        v = static_var(str)
+        assert v.data_type == StringTypeRef(wide=False, max_length=255)
+
+
 class TestOutputVar:
     def test_basic(self):
         v = output_var(PrimitiveType.BOOL)
@@ -392,3 +412,151 @@ class TestExternalVar:
         assert len(groups["external"]) == 1
         assert groups["external"][0].name == "speed"
         assert len(groups["input"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# Annotation-based variable declarations
+# ---------------------------------------------------------------------------
+
+class TestAnnotationVars:
+    def test_input_annotation(self):
+        from plx.framework._descriptors import Input
+
+        class MyFB:
+            sensor: Input[bool]
+
+        groups = _collect_descriptors(MyFB)
+        assert len(groups["input"]) == 1
+        assert groups["input"][0].name == "sensor"
+        assert groups["input"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.BOOL)
+
+    def test_output_annotation(self):
+        from plx.framework._descriptors import Output
+
+        class MyFB:
+            valve: Output[float]
+
+        groups = _collect_descriptors(MyFB)
+        assert len(groups["output"]) == 1
+        assert groups["output"][0].name == "valve"
+        assert groups["output"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.REAL)
+
+    def test_inout_annotation(self):
+        from plx.framework._descriptors import InOut
+
+        class MyFB:
+            ref_speed: InOut[int]
+
+        groups = _collect_descriptors(MyFB)
+        assert len(groups["inout"]) == 1
+        assert groups["inout"][0].name == "ref_speed"
+        assert groups["inout"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
+
+    def test_bare_annotation_is_static(self):
+        class MyFB:
+            count: int = 0
+
+        groups = _collect_descriptors(MyFB)
+        assert len(groups["static"]) == 1
+        assert groups["static"][0].name == "count"
+        assert groups["static"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
+        assert groups["static"][0].initial_value == "0"
+
+    def test_bare_annotation_no_default(self):
+        class MyFB:
+            flag: bool
+
+        groups = _collect_descriptors(MyFB)
+        assert len(groups["static"]) == 1
+        assert groups["static"][0].name == "flag"
+        assert groups["static"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.BOOL)
+        assert groups["static"][0].initial_value is None
+
+    def test_mixed_descriptor_and_annotation(self):
+        from plx.framework._descriptors import Input, Output
+
+        class MyFB:
+            sensor: Input[bool]
+            valve = output_var(PrimitiveType.REAL, description="Main valve")
+            count: int = 0
+
+        groups = _collect_descriptors(MyFB)
+        assert len(groups["input"]) == 1
+        assert groups["input"][0].name == "sensor"
+        assert len(groups["output"]) == 1
+        assert groups["output"][0].name == "valve"
+        assert groups["output"][0].description == "Main valve"
+        assert len(groups["static"]) == 1
+        assert groups["static"][0].name == "count"
+
+    def test_annotation_inheritance(self):
+        from plx.framework._descriptors import Input
+
+        class Parent:
+            speed: Input[float]
+
+        class Child(Parent):
+            accel: Input[float]
+
+        groups = _collect_descriptors(Child)
+        assert len(groups["input"]) == 2
+        names = [v.name for v in groups["input"]]
+        assert "speed" in names
+        assert "accel" in names
+
+    def test_annotation_override(self):
+        from plx.framework._descriptors import Input, Output
+
+        class Parent:
+            x: Input[int]
+
+        class Child(Parent):
+            x: Output[float]
+
+        groups = _collect_descriptors(Child)
+        # x should be output (child overrides parent)
+        assert len(groups["input"]) == 0
+        assert len(groups["output"]) == 1
+        assert groups["output"][0].name == "x"
+        assert groups["output"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.REAL)
+
+    def test_input_with_struct_type(self):
+        from plx.framework._descriptors import Input
+        from plx.framework._data_types import struct
+        from plx.framework._types import REAL
+
+        @struct
+        class SensorData:
+            value: REAL = 0.0
+
+        class MyFB:
+            data: Input[SensorData]
+
+        groups = _collect_descriptors(MyFB)
+        assert len(groups["input"]) == 1
+        assert groups["input"][0].data_type == NamedTypeRef(name="SensorData")
+
+    def test_input_with_array_type(self):
+        from plx.framework._descriptors import Input
+        from plx.framework._types import ARRAY
+
+        class MyFB:
+            values: Input[ARRAY(int, 10)]
+
+        groups = _collect_descriptors(MyFB)
+        assert len(groups["input"]) == 1
+        assert groups["input"][0].data_type.kind == "array"
+
+    def test_descriptor_takes_precedence_over_annotation(self):
+        """If a name is both a descriptor and annotated, descriptor wins."""
+        from plx.framework._descriptors import Input
+
+        class MyFB:
+            sensor = input_var(PrimitiveType.REAL, description="Temp sensor")
+            sensor: Input[bool]  # annotation should be ignored
+
+        groups = _collect_descriptors(MyFB)
+        assert len(groups["input"]) == 1
+        # Descriptor version wins
+        assert groups["input"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.REAL)
+        assert groups["input"][0].description == "Temp sensor"

@@ -62,6 +62,32 @@ class TestResolveTypeRef:
         result = _resolve_type_ref("MyFB")
         assert result == NamedTypeRef(name="MyFB")
 
+    def test_python_bool(self):
+        result = _resolve_type_ref(bool)
+        assert result == PrimitiveTypeRef(type=PrimitiveType.BOOL)
+
+    def test_python_int(self):
+        result = _resolve_type_ref(int)
+        assert result == PrimitiveTypeRef(type=PrimitiveType.DINT)
+
+    def test_python_float(self):
+        result = _resolve_type_ref(float)
+        assert result == PrimitiveTypeRef(type=PrimitiveType.REAL)
+
+    def test_python_str(self):
+        result = _resolve_type_ref(str)
+        assert result == StringTypeRef(wide=False, max_length=255)
+
+    def test_python_int_in_array(self):
+        result = ARRAY(int, 10)
+        assert isinstance(result, ArrayTypeRef)
+        assert result.element_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
+
+    def test_python_float_in_pointer(self):
+        result = POINTER_TO(float)
+        assert isinstance(result, PointerTypeRef)
+        assert result.target_type == PrimitiveTypeRef(type=PrimitiveType.REAL)
+
     def test_invalid_type_raises(self):
         with pytest.raises(TypeError, match="Expected a type"):
             _resolve_type_ref(42)
@@ -176,3 +202,174 @@ class TestREFERENCE_TO:
     def test_named(self):
         result = REFERENCE_TO("MyFB")
         assert result.target_type == NamedTypeRef(name="MyFB")
+
+
+# ---------------------------------------------------------------------------
+# Python annotation resolution (resolve_annotation)
+# ---------------------------------------------------------------------------
+
+class TestPythonAnnotationResolution:
+    """Test that Python builtin types in annotations resolve correctly."""
+
+    def test_function_return_float(self):
+        from plx.framework._decorators import function
+        from plx.framework._types import REAL
+
+        @function
+        class FloatFunc:
+            def logic(self) -> float:
+                return 1.0
+
+        pou = FloatFunc.compile()
+        assert pou.return_type == PrimitiveTypeRef(type=PrimitiveType.REAL)
+
+    def test_function_return_int(self):
+        from plx.framework._decorators import function
+        from plx.framework._types import DINT
+
+        @function
+        class IntFunc:
+            def logic(self) -> int:
+                return 42
+
+        pou = IntFunc.compile()
+        assert pou.return_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
+
+    def test_function_return_bool(self):
+        from plx.framework._decorators import function
+
+        @function
+        class BoolFunc:
+            def logic(self) -> bool:
+                return True
+
+        pou = BoolFunc.compile()
+        assert pou.return_type == PrimitiveTypeRef(type=PrimitiveType.BOOL)
+
+    def test_method_param_int(self):
+        from plx.framework._decorators import fb, method
+
+        @fb
+        class ParamFB:
+            def logic(self):
+                pass
+
+            @method
+            def set_speed(self, value: int):
+                pass
+
+        pou = ParamFB.compile()
+        m = pou.methods[0]
+        assert m.interface.input_vars[0].data_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
+
+    def test_method_param_float(self):
+        from plx.framework._decorators import fb, method
+
+        @fb
+        class ParamFB2:
+            def logic(self):
+                pass
+
+            @method
+            def set_value(self, value: float):
+                pass
+
+        pou = ParamFB2.compile()
+        m = pou.methods[0]
+        assert m.interface.input_vars[0].data_type == PrimitiveTypeRef(type=PrimitiveType.REAL)
+
+
+# ---------------------------------------------------------------------------
+# Python type conversions: int(), float(), bool()
+# ---------------------------------------------------------------------------
+
+class TestPythonTypeConversions:
+    """Test that int(x), float(x), bool(x) compile to TypeConversionExpr."""
+
+    def test_float_conversion(self):
+        from plx.framework._decorators import fb
+        from plx.framework._descriptors import input_var, output_var
+        from plx.model.expressions import TypeConversionExpr
+        from plx.model.statements import Assignment
+
+        @fb
+        class FloatConv:
+            x = input_var(PrimitiveType.DINT)
+            y = output_var(PrimitiveType.REAL)
+
+            def logic(self):
+                self.y = float(self.x)
+
+        pou = FloatConv.compile()
+        stmt = pou.networks[0].statements[0]
+        assert isinstance(stmt, Assignment)
+        assert isinstance(stmt.value, TypeConversionExpr)
+        assert stmt.value.target_type == PrimitiveTypeRef(type=PrimitiveType.REAL)
+
+    def test_int_conversion(self):
+        from plx.framework._decorators import fb
+        from plx.framework._descriptors import input_var, output_var
+        from plx.model.expressions import TypeConversionExpr
+        from plx.model.statements import Assignment
+
+        @fb
+        class IntConv:
+            x = input_var(PrimitiveType.REAL)
+            y = output_var(PrimitiveType.DINT)
+
+            def logic(self):
+                self.y = int(self.x)
+
+        pou = IntConv.compile()
+        stmt = pou.networks[0].statements[0]
+        assert isinstance(stmt, Assignment)
+        assert isinstance(stmt.value, TypeConversionExpr)
+        assert stmt.value.target_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
+
+    def test_bool_conversion(self):
+        from plx.framework._decorators import fb
+        from plx.framework._descriptors import input_var, output_var
+        from plx.model.expressions import TypeConversionExpr
+        from plx.model.statements import Assignment
+
+        @fb
+        class BoolConv:
+            x = input_var(PrimitiveType.DINT)
+            y = output_var(PrimitiveType.BOOL)
+
+            def logic(self):
+                self.y = bool(self.x)
+
+        pou = BoolConv.compile()
+        stmt = pou.networks[0].statements[0]
+        assert isinstance(stmt, Assignment)
+        assert isinstance(stmt.value, TypeConversionExpr)
+        assert stmt.value.target_type == PrimitiveTypeRef(type=PrimitiveType.BOOL)
+
+    def test_float_too_many_args(self):
+        from plx.framework._compiler_core import CompileError
+        from plx.framework._decorators import fb
+        from plx.framework._descriptors import input_var, output_var
+
+        with pytest.raises(CompileError, match="takes exactly 1 argument"):
+            @fb
+            class BadConv:
+                x = input_var(PrimitiveType.DINT)
+                y = output_var(PrimitiveType.REAL)
+
+                def logic(self):
+                    self.y = float(self.x, self.x)
+
+    def test_str_still_rejected(self):
+        from plx.framework._compiler_core import CompileError
+        from plx.framework._decorators import fb
+        from plx.framework._descriptors import input_var, output_var
+
+        with pytest.raises(CompileError, match="str.*not supported"):
+            @fb
+            class StrConv:
+                x = input_var(PrimitiveType.DINT)
+                y = output_var(PrimitiveType.DINT)
+
+                def logic(self):
+                    self.y = str(self.x)

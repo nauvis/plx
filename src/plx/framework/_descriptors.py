@@ -14,6 +14,7 @@ Users declare variables on their POU classes like::
 from __future__ import annotations
 
 from enum import Enum
+from typing import Generic, TypeVar, get_origin, get_args
 
 from plx.model.types import PrimitiveType, TypeRef
 from plx.model.variables import Variable
@@ -21,6 +22,24 @@ from plx.model.variables import Variable
 from plx.model.types import NamedTypeRef
 
 from ._types import TimeLiteral, LTimeLiteral, _resolve_type_ref
+
+
+_T = TypeVar("_T")
+
+
+class Input(Generic[_T]):
+    """Annotation marker for input variables: ``speed: Input[float]``"""
+    pass
+
+
+class Output(Generic[_T]):
+    """Annotation marker for output variables: ``running: Output[bool]``"""
+    pass
+
+
+class InOut(Generic[_T]):
+    """Annotation marker for in-out variables: ``ref: InOut[float]``"""
+    pass
 
 
 class VarDirection(str, Enum):
@@ -94,7 +113,7 @@ def _format_initial(value: object) -> str | None:
 # ---------------------------------------------------------------------------
 
 def input_var(
-    type_arg: PrimitiveType | TypeRef | str,
+    type_arg: PrimitiveType | TypeRef | type | str,
     *,
     initial: object = None,
     description: str = "",
@@ -113,7 +132,7 @@ def input_var(
 
 
 def output_var(
-    type_arg: PrimitiveType | TypeRef | str,
+    type_arg: PrimitiveType | TypeRef | type | str,
     *,
     initial: object = None,
     description: str = "",
@@ -132,7 +151,7 @@ def output_var(
 
 
 def static_var(
-    type_arg: PrimitiveType | TypeRef | str,
+    type_arg: PrimitiveType | TypeRef | type | str,
     *,
     initial: object = None,
     description: str = "",
@@ -155,7 +174,7 @@ def static_var(
 
 
 def inout_var(
-    type_arg: PrimitiveType | TypeRef | str,
+    type_arg: PrimitiveType | TypeRef | type | str,
     *,
     description: str = "",
 ) -> VarDescriptor:
@@ -168,7 +187,7 @@ def inout_var(
 
 
 def temp_var(
-    type_arg: PrimitiveType | TypeRef | str,
+    type_arg: PrimitiveType | TypeRef | type | str,
     *,
     initial: object = None,
 ) -> VarDescriptor:
@@ -181,7 +200,7 @@ def temp_var(
 
 
 def constant_var(
-    type_arg: PrimitiveType | TypeRef | str,
+    type_arg: PrimitiveType | TypeRef | type | str,
     *,
     initial: object,
     description: str = "",
@@ -197,7 +216,7 @@ def constant_var(
 
 
 def external_var(
-    type_arg: PrimitiveType | TypeRef | str,
+    type_arg: PrimitiveType | TypeRef | type | str,
     *,
     description: str = "",
 ) -> VarDescriptor:
@@ -270,6 +289,56 @@ def _collect_descriptors(cls: type, *, own_only: bool = False) -> dict[str, list
             seen.add(attr_name)
             collected.append((attr_name, value))
 
+    # Track names that came from descriptors (first pass) — these can't be
+    # overridden by annotations
+    descriptor_names = set(seen)
+
+    # Second pass: annotation-based vars
+    for base in reversed(cls.__mro__):
+        if base is object:
+            continue
+        base_annotations = base.__dict__.get("__annotations__", {})
+        for attr_name, type_hint in base_annotations.items():
+            if attr_name in descriptor_names:
+                continue  # descriptor takes precedence
+            # Determine direction from annotation wrapper
+            origin = get_origin(type_hint)
+            if origin is Input:
+                direction = VarDirection.INPUT
+                inner_type = get_args(type_hint)[0]
+            elif origin is Output:
+                direction = VarDirection.OUTPUT
+                inner_type = get_args(type_hint)[0]
+            elif origin is InOut:
+                direction = VarDirection.INOUT
+                inner_type = get_args(type_hint)[0]
+            else:
+                # Bare annotation = static var
+                direction = VarDirection.STATIC
+                inner_type = type_hint
+
+            # Skip non-resolvable annotations (e.g., step() objects stored as annotations)
+            try:
+                data_type = _resolve_type_ref(inner_type)
+            except TypeError:
+                continue
+
+            default = base.__dict__.get(attr_name)
+            # Skip if default is a non-value object (step, transition, etc.)
+            if default is not None and not isinstance(default, (bool, int, float, str, TimeLiteral, LTimeLiteral)):
+                continue
+
+            initial_value = _format_initial(default)
+            if attr_name in seen:
+                # Child overrides parent annotation — remove earlier entry
+                collected = [(n, v) for n, v in collected if n != attr_name]
+            seen.add(attr_name)
+            collected.append((attr_name, VarDescriptor(
+                direction=direction,
+                data_type=data_type,
+                initial_value=initial_value,
+            )))
+
     for attr_name, desc in collected:
         var = Variable(
             name=attr_name,
@@ -297,6 +366,7 @@ def _collect_descriptors(cls: type, *, own_only: bool = False) -> dict[str, list
 TON = VarDescriptor(direction=VarDirection.STATIC, data_type=NamedTypeRef(name="TON"))
 TOF = VarDescriptor(direction=VarDirection.STATIC, data_type=NamedTypeRef(name="TOF"))
 TP = VarDescriptor(direction=VarDirection.STATIC, data_type=NamedTypeRef(name="TP"))
+RTO = VarDescriptor(direction=VarDirection.STATIC, data_type=NamedTypeRef(name="RTO"))
 R_TRIG = VarDescriptor(direction=VarDirection.STATIC, data_type=NamedTypeRef(name="R_TRIG"))
 F_TRIG = VarDescriptor(direction=VarDirection.STATIC, data_type=NamedTypeRef(name="F_TRIG"))
 CTU = VarDescriptor(direction=VarDirection.STATIC, data_type=NamedTypeRef(name="CTU"))

@@ -313,6 +313,15 @@ class PlxProject:
         # Compile data types
         compiled_data_types = []
         for cls in self._data_type_classes:
+            # Auto-compile IntEnum and dataclass types
+            from enum import IntEnum
+            if isinstance(cls, type) and issubclass(cls, IntEnum) and cls is not IntEnum:
+                from ._data_types import _ensure_enum_compiled
+                _ensure_enum_compiled(cls)
+            import dataclasses
+            if isinstance(cls, type) and dataclasses.is_dataclass(cls) and not getattr(cls, "__plx_struct__", False):
+                from ._data_types import _ensure_struct_compiled
+                _ensure_struct_compiled(cls)
             if not isinstance(cls, CompiledDataType):
                 raise TypeError(
                     f"{cls.__name__} is not a data type "

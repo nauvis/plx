@@ -8,9 +8,11 @@ the decorator didn't set one explicitly.
 
 from __future__ import annotations
 
+import dataclasses
 import importlib
 import pkgutil
 import sys
+from enum import IntEnum
 from types import ModuleType
 from typing import Any
 
@@ -149,6 +151,18 @@ def discover(*package_names: str) -> DiscoveryResult:
                     _set_inferred_folder(obj._compiled_pou, obj, pkg_name)
                     result.pous.append(obj)
                 elif isinstance(obj, type) and isinstance(obj, CompiledDataType):
+                    seen_ids.add(obj_id)
+                    _set_inferred_folder(obj._compiled_type, obj, pkg_name)
+                    result.data_types.append(obj)
+                elif isinstance(obj, type) and issubclass(obj, IntEnum) and obj is not IntEnum:
+                    from ._data_types import _ensure_enum_compiled
+                    _ensure_enum_compiled(obj)
+                    seen_ids.add(obj_id)
+                    _set_inferred_folder(obj._compiled_type, obj, pkg_name)
+                    result.data_types.append(obj)
+                elif isinstance(obj, type) and dataclasses.is_dataclass(obj) and not getattr(obj, "__plx_struct__", False):
+                    from ._data_types import _ensure_struct_compiled
+                    _ensure_struct_compiled(obj)
                     seen_ids.add(obj_id)
                     _set_inferred_folder(obj._compiled_type, obj, pkg_name)
                     result.data_types.append(obj)

@@ -277,15 +277,25 @@ def T(
     )
 
 
-def _resolve_type_ref(type_arg: PrimitiveType | TypeRef | str) -> TypeRef:
+def _resolve_type_ref(type_arg: PrimitiveType | TypeRef | type | str) -> TypeRef:
     """Normalize a user-provided type argument into a TypeRef.
 
+    - Python builtins (bool, int, float, str) → default PLC types
     - PrimitiveType enum → PrimitiveTypeRef
     - Any TypeRef subclass → pass through
     - @struct / @enumeration decorated class → NamedTypeRef(name=cls.__name__)
     - @fb / @program decorated class → NamedTypeRef(name=cls.__name__)
     - str → NamedTypeRef(name=...)
     """
+    # Python builtin type aliases (check bool before int — bool is subclass of int)
+    if type_arg is bool:
+        return PrimitiveTypeRef(type=PrimitiveType.BOOL)
+    if type_arg is int:
+        return PrimitiveTypeRef(type=PrimitiveType.DINT)
+    if type_arg is float:
+        return PrimitiveTypeRef(type=PrimitiveType.REAL)
+    if type_arg is str:
+        return StringTypeRef(wide=False, max_length=255)
     if isinstance(type_arg, PrimitiveType):
         return PrimitiveTypeRef(type=type_arg)
     if isinstance(type_arg, (
@@ -293,6 +303,18 @@ def _resolve_type_ref(type_arg: PrimitiveType | TypeRef | str) -> TypeRef:
         ArrayTypeRef, PointerTypeRef, ReferenceTypeRef,
     )):
         return type_arg
+    # IntEnum subclasses → auto-compile and return NamedTypeRef
+    from enum import IntEnum
+    if isinstance(type_arg, type) and issubclass(type_arg, IntEnum) and type_arg is not IntEnum:
+        from ._data_types import _ensure_enum_compiled
+        _ensure_enum_compiled(type_arg)
+        return NamedTypeRef(name=type_arg.__name__)
+    # dataclass → auto-compile and return NamedTypeRef
+    import dataclasses
+    if isinstance(type_arg, type) and dataclasses.is_dataclass(type_arg):
+        from ._data_types import _ensure_struct_compiled
+        _ensure_struct_compiled(type_arg)
+        return NamedTypeRef(name=type_arg.__name__)
     # @struct / @enumeration decorated classes have _compiled_type
     from ._protocols import CompiledDataType, CompiledPOU
     if isinstance(type_arg, CompiledDataType):
@@ -333,7 +355,7 @@ def LT(
 # ---------------------------------------------------------------------------
 
 def ARRAY(
-    element_type: PrimitiveType | TypeRef | str,
+    element_type: PrimitiveType | TypeRef | type | str,
     *dims: int | tuple[int, int],
 ) -> ArrayTypeRef:
     """Create an ARRAY type reference.
@@ -384,12 +406,12 @@ def WSTRING(max_length: int = 255) -> StringTypeRef:
     return StringTypeRef(wide=True, max_length=max_length)
 
 
-def POINTER_TO(target: PrimitiveType | TypeRef | str) -> PointerTypeRef:
+def POINTER_TO(target: PrimitiveType | TypeRef | type | str) -> PointerTypeRef:
     """Create a POINTER TO type reference."""
     return PointerTypeRef(target_type=_resolve_type_ref(target))
 
 
-def REFERENCE_TO(target: PrimitiveType | TypeRef | str) -> ReferenceTypeRef:
+def REFERENCE_TO(target: PrimitiveType | TypeRef | type | str) -> ReferenceTypeRef:
     """Create a REFERENCE TO type reference."""
     return ReferenceTypeRef(target_type=_resolve_type_ref(target))
 

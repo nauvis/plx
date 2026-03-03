@@ -24,6 +24,7 @@ from plx.model.types import (
     NamedTypeRef,
     PrimitiveType,
     PrimitiveTypeRef,
+    StringTypeRef,
     TypeRef,
 )
 from plx.model.variables import Variable
@@ -156,14 +157,24 @@ _PYTHON_BUILTIN_MAP: dict[str, str] = {
     "len": "LEN",
 }
 
+_PYTHON_ANNOTATION_MAP: dict[str, TypeRef] = {
+    "bool": PrimitiveTypeRef(type=PrimitiveType.BOOL),
+    "int": PrimitiveTypeRef(type=PrimitiveType.DINT),
+    "float": PrimitiveTypeRef(type=PrimitiveType.REAL),
+    "str": StringTypeRef(wide=False, max_length=255),
+}
+
+_PYTHON_TYPE_CONV_MAP: dict[str, TypeRef] = {
+    "int": PrimitiveTypeRef(type=PrimitiveType.DINT),
+    "float": PrimitiveTypeRef(type=PrimitiveType.REAL),
+    "bool": PrimitiveTypeRef(type=PrimitiveType.BOOL),
+}
+
 _REJECTED_BUILTINS: dict[str, str] = {
     "print": "print() does not exist in PLC logic.",
     "input": "input() does not exist in PLC logic.",
     "open": "open() does not exist in PLC logic.",
-    "str": "str() is not supported. Use type conversion functions like INT_TO_STRING().",
-    "int": "int() is not supported. Use type conversion functions like REAL_TO_INT().",
-    "float": "float() is not supported. Use type conversion functions like INT_TO_REAL().",
-    "bool": "bool() is not supported. Use type conversion functions like INT_TO_BOOL().",
+    "str": "str() is not supported in PLC logic. Use INT_TO_STRING(), REAL_TO_STRING(), etc.",
     "type": "type() is not supported. PLCs are statically typed.",
     "isinstance": "isinstance() is not supported. PLCs are statically typed.",
     "list": "list() is not supported. Use ARRAY or @struct.",
@@ -189,6 +200,7 @@ _TIMER_SENTINELS = {
     "delayed": ("TON", "IN", "PT"),
     "sustained": ("TOF", "IN", "PT"),
     "pulse": ("TP", "IN", "PT"),
+    "retentive": ("RTO", "IN", "PT"),
 }
 
 _EDGE_SENTINELS = {
@@ -267,6 +279,8 @@ def resolve_annotation(
     Used by both the ASTCompiler and ``_decorators.py``.
     """
     if isinstance(ann, ast.Name):
+        if ann.id in _PYTHON_ANNOTATION_MAP:
+            return _PYTHON_ANNOTATION_MAP[ann.id]
         try:
             return PrimitiveTypeRef(type=PrimitiveType(ann.id))
         except ValueError:

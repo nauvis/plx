@@ -13,6 +13,8 @@ from typing import Any
 
 from plx.model.types import TypeRef
 
+from enum import IntEnum
+
 from ._compiler_core import CompileContext, CompileError
 from ._descriptors import VarDirection, _collect_descriptors
 from ._protocols import CompiledEnum, CompiledPOU
@@ -145,6 +147,8 @@ def _discover_enums(func: Any) -> dict[str, dict[str, int]]:
     for name, obj in func.__globals__.items():
         if isinstance(obj, CompiledEnum):
             known[name] = obj._enum_values
+        elif isinstance(obj, type) and issubclass(obj, IntEnum) and obj is not IntEnum:
+            known[name] = {m.name: m.value for m in obj}
     # Closure variables (locally-scoped enums)
     code = getattr(func, '__code__', None)
     closure = getattr(func, '__closure__', None)
@@ -156,6 +160,8 @@ def _discover_enums(func: Any) -> dict[str, dict[str, int]]:
                 continue
             if isinstance(obj, CompiledEnum):
                 known[name] = obj._enum_values
+            elif isinstance(obj, type) and issubclass(obj, IntEnum) and obj is not IntEnum:
+                known[name] = {m.name: m.value for m in obj}
     return known
 
 

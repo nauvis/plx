@@ -29,6 +29,7 @@ from plx.model.types import (
     NamedTypeRef,
     PrimitiveType,
     PrimitiveTypeRef,
+    StringTypeRef,
     StructMember,
     StructType,
 )
@@ -148,6 +149,28 @@ class TestStruct:
 
         assert hasattr(HasAttr, '_compiled_type')
         assert isinstance(HasAttr._compiled_type, StructType)
+
+    def test_struct_python_types(self):
+        @struct
+        class PythonTyped:
+            speed: float = 0.0
+            count: int = 0
+            active: bool = False
+            name: str = ""
+
+        compiled = PythonTyped.compile()
+        assert compiled.members[0].name == "speed"
+        assert compiled.members[0].data_type == PrimitiveTypeRef(type=PrimitiveType.REAL)
+        assert compiled.members[0].initial_value == "0.0"
+        assert compiled.members[1].name == "count"
+        assert compiled.members[1].data_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
+        assert compiled.members[1].initial_value == "0"
+        assert compiled.members[2].name == "active"
+        assert compiled.members[2].data_type == PrimitiveTypeRef(type=PrimitiveType.BOOL)
+        assert compiled.members[2].initial_value == "FALSE"
+        assert compiled.members[3].name == "name"
+        assert compiled.members[3].data_type == StringTypeRef(wide=False, max_length=255)
+        assert compiled.members[3].initial_value == ""
 
 
 # ---------------------------------------------------------------------------
@@ -648,3 +671,231 @@ class TestDataTypeFolderKwarg:
         compiled = TypedFolderEnum.compile()
         assert compiled.folder == "enums"
         assert compiled.base_type == PrimitiveType.DINT
+
+
+# ---------------------------------------------------------------------------
+# IntEnum support
+# ---------------------------------------------------------------------------
+
+class TestIntEnum:
+    def test_basic_intenum(self):
+        from enum import IntEnum
+
+        class State(IntEnum):
+            IDLE = 0
+            RUNNING = 1
+            DONE = 2
+
+        ref = _resolve_type_ref(State)
+        assert isinstance(ref, NamedTypeRef)
+        assert ref.name == "State"
+
+    def test_intenum_compiles(self):
+        from enum import IntEnum
+
+        class Phase(IntEnum):
+            INIT = 0
+            RUN = 1
+            STOP = 2
+
+        ref = _resolve_type_ref(Phase)
+        compiled = Phase.compile()
+        assert isinstance(compiled, EnumType)
+        assert compiled.name == "Phase"
+        assert len(compiled.members) == 3
+        assert compiled.members[0].name == "INIT"
+        assert compiled.members[0].value == 0
+
+    def test_intenum_in_static_var(self):
+        from enum import IntEnum
+
+        class Mode(IntEnum):
+            AUTO = 0
+            MANUAL = 1
+
+        @fb
+        class UsesIntEnum:
+            mode = static_var(Mode)
+
+            def logic(self):
+                pass
+
+        pou = UsesIntEnum.compile()
+        assert pou.interface.static_vars[0].data_type == NamedTypeRef(name="Mode")
+
+    def test_intenum_literal_in_logic(self):
+        from enum import IntEnum
+
+        class Color(IntEnum):
+            RED = 0
+            GREEN = 1
+            BLUE = 2
+
+        @fb
+        class UsesIntEnumLiteral:
+            out = output_var(INT)
+
+            def logic(self):
+                self.out = Color.GREEN
+
+        pou = UsesIntEnumLiteral.compile()
+        stmt = pou.networks[0].statements[0]
+        assert isinstance(stmt, Assignment)
+        assert isinstance(stmt.value, LiteralExpr)
+        assert stmt.value.value == "Color#GREEN"
+
+    def test_intenum_match_case(self):
+        from enum import IntEnum
+
+        class Step(IntEnum):
+            IDLE = 0
+            ACTIVE = 1
+            DONE = 2
+
+        @fb
+        class IntEnumMatch:
+            state = static_var(INT, initial=0)
+            out = output_var(INT)
+
+            def logic(self):
+                match self.state:
+                    case Step.IDLE:
+                        self.out = 0
+                    case Step.ACTIVE:
+                        self.out = 1
+
+        pou = IntEnumMatch.compile()
+        stmt = pou.networks[0].statements[0]
+        assert isinstance(stmt, CaseStatement)
+        assert stmt.branches[0].values == [0]
+        assert stmt.branches[1].values == [1]
+
+    def test_intenum_is_enumeration(self):
+        from enum import IntEnum
+
+        class TestEnum(IntEnum):
+            A = 0
+            B = 1
+
+        assert _is_enumeration(TestEnum)
+        assert _is_data_type(TestEnum)
+        assert not _is_struct(TestEnum)
+
+    def test_intenum_in_project(self):
+        from enum import IntEnum
+
+        class ProjectEnum(IntEnum):
+            X = 10
+            Y = 20
+
+        @fb
+        class ProjFB_IE:
+            def logic(self):
+                pass
+
+        proj = project("IETest", pous=[ProjFB_IE], data_types=[ProjectEnum])
+        ir = proj.compile()
+        assert len(ir.data_types) == 1
+        assert ir.data_types[0].name == "ProjectEnum"
+        assert ir.data_types[0].kind == "enum"
+
+
+# ---------------------------------------------------------------------------
+# @dataclass support
+# ---------------------------------------------------------------------------
+
+class TestDataclass:
+    def test_basic_dataclass(self):
+        from dataclasses import dataclass
+
+        @dataclass
+        class Point:
+            x: float = 0.0
+            y: float = 0.0
+
+        ref = _resolve_type_ref(Point)
+        assert isinstance(ref, NamedTypeRef)
+        assert ref.name == "Point"
+
+    def test_dataclass_compiles(self):
+        from dataclasses import dataclass
+
+        @dataclass
+        class MotorData:
+            speed: float = 0.0
+            running: bool = False
+            count: int = 0
+
+        ref = _resolve_type_ref(MotorData)
+        compiled = MotorData.compile()
+        assert isinstance(compiled, StructType)
+        assert compiled.name == "MotorData"
+        assert len(compiled.members) == 3
+        assert compiled.members[0].name == "speed"
+        assert compiled.members[0].data_type == PrimitiveTypeRef(type=PrimitiveType.REAL)
+        assert compiled.members[0].initial_value == "0.0"
+        assert compiled.members[1].name == "running"
+        assert compiled.members[1].data_type == PrimitiveTypeRef(type=PrimitiveType.BOOL)
+        assert compiled.members[1].initial_value == "FALSE"
+        assert compiled.members[2].name == "count"
+        assert compiled.members[2].data_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
+        assert compiled.members[2].initial_value == "0"
+
+    def test_dataclass_in_static_var(self):
+        from dataclasses import dataclass
+
+        @dataclass
+        class SensorReading:
+            value: float = 0.0
+
+        @fb
+        class UsesDataclass:
+            reading = static_var(SensorReading)
+
+            def logic(self):
+                pass
+
+        pou = UsesDataclass.compile()
+        assert pou.interface.static_vars[0].data_type == NamedTypeRef(name="SensorReading")
+
+    def test_dataclass_is_struct(self):
+        from dataclasses import dataclass
+
+        @dataclass
+        class TestDC:
+            x: int = 0
+
+        assert _is_struct(TestDC)
+        assert _is_data_type(TestDC)
+        assert not _is_enumeration(TestDC)
+
+    def test_dataclass_in_project(self):
+        from dataclasses import dataclass
+
+        @dataclass
+        class ProjDC:
+            val: float = 0.0
+
+        @fb
+        class ProjFB_DC:
+            def logic(self):
+                pass
+
+        proj = project("DCTest", pous=[ProjFB_DC], data_types=[ProjDC])
+        ir = proj.compile()
+        assert len(ir.data_types) == 1
+        assert ir.data_types[0].name == "ProjDC"
+        assert ir.data_types[0].kind == "struct"
+
+    def test_dataclass_with_plx_types(self):
+        from dataclasses import dataclass
+
+        @dataclass
+        class MixedDC:
+            speed: REAL = 0.0
+            count: DINT = 0
+
+        ref = _resolve_type_ref(MixedDC)
+        compiled = MixedDC.compile()
+        assert compiled.members[0].data_type == PrimitiveTypeRef(type=PrimitiveType.REAL)
+        assert compiled.members[1].data_type == PrimitiveTypeRef(type=PrimitiveType.DINT)

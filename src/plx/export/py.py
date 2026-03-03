@@ -213,7 +213,7 @@ _FUNC_REMAP: dict[str, str] = {
 }
 
 # Standard FB types that get shorthand syntax: timer = TON
-_STANDARD_FB_TYPES = {"TON", "TOF", "TP", "R_TRIG", "F_TRIG", "CTU", "CTD"}
+_STANDARD_FB_TYPES = {"TON", "TOF", "TP", "RTO", "R_TRIG", "F_TRIG", "CTU", "CTD"}
 
 # IEC time literal regex: T#1h2m3s4ms5us or subsets
 _IEC_TIME_RE = re.compile(
@@ -628,13 +628,13 @@ class PyWriter:
         """Emit variable declarations. Returns True if any were emitted."""
         any_emitted = False
         for v in iface.input_vars:
-            self._write_var_descriptor(v, "input_var")
+            self._write_annotation_or_descriptor(v, "input_var", "Input")
             any_emitted = True
         for v in iface.output_vars:
-            self._write_var_descriptor(v, "output_var")
+            self._write_annotation_or_descriptor(v, "output_var", "Output")
             any_emitted = True
         for v in iface.inout_vars:
-            self._write_var_descriptor(v, "inout_var")
+            self._write_annotation_or_descriptor(v, "inout_var", "InOut")
             any_emitted = True
         for v in iface.static_vars:
             self._write_static_var(v)
@@ -647,19 +647,36 @@ class PyWriter:
             any_emitted = True
         return any_emitted
 
+    def _has_metadata(self, v: Variable) -> bool:
+        """Check if a variable has metadata that requires descriptor syntax."""
+        return bool(v.description or v.retain or v.persistent or v.address is not None or v.constant)
+
+    def _write_annotation_or_descriptor(self, v: Variable, func: str, wrapper: str) -> None:
+        """Emit annotation syntax when possible, falling back to descriptor."""
+        if self._has_metadata(v):
+            self._write_var_descriptor(v, func)
+            return
+        type_str = self._type_ref(v.data_type)
+        if v.initial_value is not None:
+            self._line(f"{v.name}: {wrapper}[{type_str}] = {_format_initial_value(v.initial_value)}")
+        else:
+            self._line(f"{v.name}: {wrapper}[{type_str}]")
+
     def _write_static_var(self, v: Variable) -> None:
         """Emit a static variable, using shorthand for standard FB types."""
         if isinstance(v.data_type, NamedTypeRef) and v.data_type.name in _STANDARD_FB_TYPES:
             # Check if it's a simple FB instance (no extra fields)
-            if (
-                v.initial_value is None
-                and not v.description
-                and not v.retain
-                and not v.persistent
-                and v.address is None
-            ):
+            if not self._has_metadata(v) and v.initial_value is None:
                 self._line(f"{v.name} = {v.data_type.name}")
                 return
+        # No metadata → annotation syntax
+        if not self._has_metadata(v):
+            type_str = self._type_ref(v.data_type)
+            if v.initial_value is not None:
+                self._line(f"{v.name}: {type_str} = {_format_initial_value(v.initial_value)}")
+            else:
+                self._line(f"{v.name}: {type_str}")
+            return
         self._write_var_descriptor(v, "static_var")
 
     def _write_var_descriptor(self, v: Variable, func: str) -> None:
@@ -853,10 +870,20 @@ class PyWriter:
     # Type references
     # ======================================================================
 
+    # Python builtin names for default PLC types
+    _PYTHON_TYPE_NAMES = {
+        PrimitiveType.BOOL: "bool",
+        PrimitiveType.DINT: "int",
+        PrimitiveType.REAL: "float",
+    }
+
     def _type_ref(self, tr: TypeRef) -> str:
         if isinstance(tr, PrimitiveTypeRef):
-            return tr.type.value
+            return self._PYTHON_TYPE_NAMES.get(tr.type, tr.type.value)
         if isinstance(tr, StringTypeRef):
+            # STRING[255] → str (default max-length string)
+            if not tr.wide and tr.max_length == 255:
+                return "str"
             base = "WSTRING" if tr.wide else "STRING"
             if tr.max_length is not None:
                 return f"{base}({tr.max_length})"

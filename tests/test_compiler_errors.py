@@ -275,16 +275,8 @@ class TestRejectedBuiltins:
             compile_stmts("print('hello')")
 
     def test_str_rejected(self):
-        with pytest.raises(CompileError, match="str.*type conversion"):
+        with pytest.raises(CompileError, match="str.*not supported"):
             compile_expr("str(42)")
-
-    def test_int_rejected(self):
-        with pytest.raises(CompileError, match="int.*type conversion"):
-            compile_expr("int(3.14)")
-
-    def test_float_rejected(self):
-        with pytest.raises(CompileError, match="float.*type conversion"):
-            compile_expr("float(42)")
 
     def test_isinstance_rejected(self):
         with pytest.raises(CompileError, match="isinstance.*statically typed"):
