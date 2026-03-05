@@ -594,7 +594,8 @@ class PyWriter:
                 if kind == "comment":
                     if i > 0:
                         self._line()
-                    self._line(f"# {item}")
+                    for comment_line in item.split("\n"):
+                        self._line(f"# {comment_line}")
                 else:
                     self._write_stmt(item)
 
@@ -780,9 +781,12 @@ class PyWriter:
         if not stmts and not m.interface.output_vars and not m.interface.static_vars and not m.interface.temp_vars:
             self._line("pass")
         elif stmts:
-            for kind, item in stmts:
+            for i, (kind, item) in enumerate(stmts):
                 if kind == "comment":
-                    self._line(f"# {item}")
+                    if i > 0:
+                        self._line()
+                    for comment_line in item.split("\n"):
+                        self._line(f"# {comment_line}")
                 else:
                     self._write_stmt(item)
 
@@ -825,9 +829,12 @@ class PyWriter:
             if not stmts:
                 self._line("pass")
             else:
-                for kind, item in stmts:
+                for i, (kind, item) in enumerate(stmts):
                     if kind == "comment":
-                        self._line(f"# {item}")
+                        if i > 0:
+                            self._line()
+                        for comment_line in item.split("\n"):
+                            self._line(f"# {comment_line}")
                     else:
                         self._write_stmt(item)
         else:
@@ -851,9 +858,12 @@ class PyWriter:
             if not stmts:
                 self._line("pass")
             else:
-                for kind, item in stmts:
+                for i, (kind, item) in enumerate(stmts):
                     if kind == "comment":
-                        self._line(f"# {item}")
+                        if i > 0:
+                            self._line()
+                        for comment_line in item.split("\n"):
+                            self._line(f"# {comment_line}")
                     else:
                         self._write_stmt(item)
             self._indent_dec()

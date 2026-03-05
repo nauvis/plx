@@ -42,6 +42,9 @@ class SimulationContext:
         Enum name -> IntEnum class for literal resolution.
     scan_period_ms : int
         Simulated time advance per scan (default 10ms).
+    global_state : dict[str, dict[str, object]]
+        Shared global variable state: GVL name -> {var_name: value}.
+        External vars in POUs resolve against this dict.
     """
 
     def __init__(
@@ -51,6 +54,7 @@ class SimulationContext:
         data_type_registry: dict | None = None,
         enum_registry: dict[str, type[IntEnum]] | None = None,
         scan_period_ms: int = 10,
+        global_state: dict[str, dict[str, object]] | None = None,
     ) -> None:
         object.__setattr__(self, "_pou", pou)
         object.__setattr__(self, "_pou_registry", pou_registry or {})
@@ -58,6 +62,7 @@ class SimulationContext:
         object.__setattr__(self, "_enum_registry", enum_registry or {})
         object.__setattr__(self, "_scan_period_ms", scan_period_ms)
         object.__setattr__(self, "_clock_ms", 0)
+        object.__setattr__(self, "_global_state", global_state if global_state is not None else {})
 
         # Allocate state
         state = self._allocate_state(pou)
@@ -111,7 +116,34 @@ class SimulationContext:
         for var in all_vars:
             state[var.name] = self._allocate_var(var)
 
+        # External vars: allocate defaults in global_state if not present,
+        # then snapshot into local state. Sync back after each scan.
+        for var in pou.interface.external_vars:
+            gvl_name = var.description or "__default__"
+            if gvl_name not in self._global_state:
+                self._global_state[gvl_name] = {}
+            gvl = self._global_state[gvl_name]
+            if var.name not in gvl:
+                gvl[var.name] = self._allocate_var(var)
+            state[var.name] = gvl[var.name]
+
         return state
+
+    def _sync_externals_in(self) -> None:
+        """Copy global state → local state for external vars (pre-scan)."""
+        for var in self._pou.interface.external_vars:
+            gvl_name = var.description or "__default__"
+            gvl = self._global_state.get(gvl_name, {})
+            if var.name in gvl:
+                self._state[var.name] = gvl[var.name]
+
+    def _sync_externals_out(self) -> None:
+        """Copy local state → global state for external vars (post-scan)."""
+        for var in self._pou.interface.external_vars:
+            gvl_name = var.description or "__default__"
+            if gvl_name not in self._global_state:
+                self._global_state[gvl_name] = {}
+            self._global_state[gvl_name][var.name] = self._state[var.name]
 
     def _allocate_var(self, var: Variable) -> object:
         """Allocate initial value for a single variable."""
@@ -213,6 +245,9 @@ class SimulationContext:
         3. Advance clock by scan_period_ms
         """
         for _ in range(n):
+            # Sync external vars from global state
+            self._sync_externals_in()
+
             # Fresh temp vars
             for var in self._temp_vars:
                 self._state[var.name] = self._allocate_var(var)
@@ -227,6 +262,9 @@ class SimulationContext:
                 enum_registry=self._enum_registry,
             )
             engine.execute()
+
+            # Sync external vars back to global state
+            self._sync_externals_out()
 
             # Clear first-scan flag after the first scan
             if self._state.get("__system_first_scan", False):
@@ -250,6 +288,11 @@ class SimulationContext:
     def clock_ms(self) -> int:
         """Current simulated time in milliseconds."""
         return self._clock_ms
+
+    @property
+    def global_state(self) -> dict[str, dict[str, object]]:
+        """Shared global variable state: GVL name -> {var_name: value}."""
+        return self._global_state
 
     @property
     def active_steps(self) -> set[str]:

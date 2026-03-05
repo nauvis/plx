@@ -274,6 +274,47 @@ class CTD:
         state["_prev_cd"] = state["CD"]
 
 
+class CTUD:
+    """Up/down counter. CU rising edge increments, CD rising edge decrements.
+
+    Q_UP = CV >= PV, Q_DOWN = CV <= 0.
+    RESET sets CV to 0, LOAD sets CV to PV.
+    """
+
+    @staticmethod
+    def initial_state() -> dict:
+        return {
+            "CU": False,
+            "CD": False,
+            "PV": 0,
+            "RESET": False,
+            "LOAD": False,
+            "QU": False,
+            "QD": False,
+            "CV": 0,
+            "_prev_cu": False,
+            "_prev_cd": False,
+        }
+
+    @staticmethod
+    def execute(state: dict, clock_ms: int) -> None:
+        if state["RESET"]:
+            state["CV"] = 0
+        elif state["LOAD"]:
+            state["CV"] = state["PV"]
+        else:
+            cu = state["CU"]
+            cd = state["CD"]
+            if cu and not state["_prev_cu"]:
+                state["CV"] = state["CV"] + 1
+            if cd and not state["_prev_cd"]:
+                state["CV"] = state["CV"] - 1
+        state["QU"] = state["CV"] >= state["PV"]
+        state["QD"] = state["CV"] <= 0
+        state["_prev_cu"] = state["CU"]
+        state["_prev_cd"] = state["CD"]
+
+
 class SR:
     """Set-dominant bistable. Q1 = SET1 OR (NOT RESET AND Q1_prev)."""
 
@@ -315,6 +356,7 @@ BUILTIN_FBS: dict[str, type] = {
     "F_TRIG": F_TRIG,
     "CTU": CTU,
     "CTD": CTD,
+    "CTUD": CTUD,
     "SR": SR,
     "RS": RS,
 }

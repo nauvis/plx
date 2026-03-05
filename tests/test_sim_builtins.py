@@ -8,6 +8,7 @@ from plx.simulate._builtins import (
     BUILTIN_FBS,
     CTD,
     CTU,
+    CTUD,
     F_TRIG,
     R_TRIG,
     RS,
@@ -580,3 +581,90 @@ class TestRS:
 
     def test_registered(self):
         assert "RS" in BUILTIN_FBS
+
+
+# ---------------------------------------------------------------------------
+# CTUD
+# ---------------------------------------------------------------------------
+
+class TestCTUD:
+    def test_count_up(self):
+        s = CTUD.initial_state()
+        s["PV"] = 3
+        # Rising edge on CU
+        s["CU"] = True
+        CTUD.execute(s, 0)
+        assert s["CV"] == 1
+        assert s["QU"] is False
+        assert s["QD"] is False
+
+    def test_count_down(self):
+        s = CTUD.initial_state()
+        s["PV"] = 3
+        s["CV"] = 2
+        s["CD"] = True
+        CTUD.execute(s, 0)
+        assert s["CV"] == 1
+
+    def test_both_edges_simultaneous(self):
+        s = CTUD.initial_state()
+        s["PV"] = 5
+        s["CV"] = 3
+        s["CU"] = True
+        s["CD"] = True
+        CTUD.execute(s, 0)
+        # Both edges fire: +1 then -1 = net 0
+        assert s["CV"] == 3
+
+    def test_qu_when_cv_reaches_pv(self):
+        s = CTUD.initial_state()
+        s["PV"] = 2
+        s["CU"] = True
+        CTUD.execute(s, 0)  # CV = 1
+        s["CU"] = False
+        CTUD.execute(s, 10)
+        s["CU"] = True
+        CTUD.execute(s, 20)  # CV = 2
+        assert s["QU"] is True
+
+    def test_qd_when_cv_reaches_zero(self):
+        s = CTUD.initial_state()
+        s["PV"] = 5
+        s["CV"] = 1
+        s["CD"] = True
+        CTUD.execute(s, 0)  # CV = 0
+        assert s["QD"] is True
+
+    def test_reset_clears_cv(self):
+        s = CTUD.initial_state()
+        s["PV"] = 5
+        s["CV"] = 3
+        s["RESET"] = True
+        CTUD.execute(s, 0)
+        assert s["CV"] == 0
+
+    def test_load_sets_cv_to_pv(self):
+        s = CTUD.initial_state()
+        s["PV"] = 10
+        s["LOAD"] = True
+        CTUD.execute(s, 0)
+        assert s["CV"] == 10
+
+    def test_reset_takes_priority_over_load(self):
+        s = CTUD.initial_state()
+        s["PV"] = 10
+        s["RESET"] = True
+        s["LOAD"] = True
+        CTUD.execute(s, 0)
+        assert s["CV"] == 0  # RESET wins
+
+    def test_no_count_without_edge(self):
+        s = CTUD.initial_state()
+        s["PV"] = 5
+        s["CU"] = True
+        CTUD.execute(s, 0)  # CV = 1 (first rising edge)
+        CTUD.execute(s, 10)  # No edge — CU still True
+        assert s["CV"] == 1
+
+    def test_registered(self):
+        assert "CTUD" in BUILTIN_FBS

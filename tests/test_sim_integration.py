@@ -704,3 +704,229 @@ class TestEnumIntEnumReturns:
         assert ctx.state == 0
         assert isinstance(ctx.state, IntEnum)
         assert ctx.state.name == "IDLE"
+
+
+# ---------------------------------------------------------------------------
+# CTUD integration
+# ---------------------------------------------------------------------------
+
+class TestCTUDIntegration:
+    def test_ctud_via_framework(self):
+        """CTUD declared as a static var and invoked directly."""
+        from plx.framework._descriptors import CTUD as CTUD_TYPE
+
+        @fb
+        class CounterFB:
+            pulse_in: Input[BOOL]
+            reached: Output[BOOL]
+            counter: CTUD_TYPE
+
+            def logic(self):
+                self.counter(CU=self.pulse_in, PV=3)
+                self.reached = self.counter.QU
+
+        ctx = simulate(CounterFB)
+        # 3 rising edges
+        for _ in range(3):
+            ctx.pulse_in = True
+            ctx.scan()
+            ctx.pulse_in = False
+            ctx.scan()
+
+        assert ctx.reached is True
+
+
+# ---------------------------------------------------------------------------
+# POUAction resolution in SFC
+# ---------------------------------------------------------------------------
+
+class TestPOUActionResolution:
+    def test_sfc_action_name_resolves(self):
+        """SFC step action with action_name references a named POUAction."""
+        from plx.model.pou import POU, POUType, POUInterface, POUAction, Network
+        from plx.model.sfc import SFCBody, Step, Transition, Action, ActionQualifier
+        from plx.model.statements import Assignment
+        from plx.model.expressions import VariableRef, LiteralExpr
+        from plx.model.variables import Variable
+        from plx.model.types import PrimitiveType, PrimitiveTypeRef
+
+        bool_ref = PrimitiveTypeRef(type=PrimitiveType.BOOL)
+
+        pou = POU(
+            pou_type=POUType.PROGRAM,
+            name="SFCWithAction",
+            interface=POUInterface(
+                output_vars=[Variable(name="done", data_type=bool_ref)],
+            ),
+            actions=[
+                POUAction(
+                    name="SetDone",
+                    body=[Network(statements=[
+                        Assignment(
+                            target=VariableRef(name="done"),
+                            value=LiteralExpr(value="TRUE", data_type=bool_ref),
+                        ),
+                    ])],
+                ),
+            ],
+            sfc_body=SFCBody(
+                steps=[
+                    Step(
+                        name="Init",
+                        is_initial=True,
+                        actions=[
+                            Action(
+                                name="act_ref",
+                                qualifier=ActionQualifier.N,
+                                action_name="SetDone",
+                            ),
+                        ],
+                    ),
+                ],
+                transitions=[
+                    Transition(
+                        source_steps=["Init"],
+                        target_steps=["Init"],
+                        condition=LiteralExpr(value="FALSE", data_type=bool_ref),
+                    ),
+                ],
+            ),
+        )
+
+        ctx = simulate(pou)
+        ctx.scan()
+        assert ctx.done is True
+
+
+# ---------------------------------------------------------------------------
+# GVL / External vars
+# ---------------------------------------------------------------------------
+
+class TestGlobalState:
+    def test_shared_global_state(self):
+        """Two POUs sharing a global variable via external vars."""
+        from plx.model.pou import POU, POUType, POUInterface, Network
+        from plx.model.statements import Assignment
+        from plx.model.expressions import VariableRef, LiteralExpr, BinaryExpr, BinaryOp
+        from plx.model.variables import Variable
+        from plx.model.types import PrimitiveType, PrimitiveTypeRef
+
+        int_ref = PrimitiveTypeRef(type=PrimitiveType.DINT)
+
+        # Writer POU: increments shared_counter by 1 each scan
+        writer = POU(
+            pou_type=POUType.PROGRAM,
+            name="Writer",
+            interface=POUInterface(
+                external_vars=[Variable(
+                    name="shared_counter",
+                    data_type=int_ref,
+                    description="Globals",
+                )],
+            ),
+            networks=[Network(statements=[
+                Assignment(
+                    target=VariableRef(name="shared_counter"),
+                    value=BinaryExpr(
+                        op=BinaryOp.ADD,
+                        left=VariableRef(name="shared_counter"),
+                        right=LiteralExpr(value="1", data_type=int_ref),
+                    ),
+                ),
+            ])],
+        )
+
+        # Reader POU: copies shared_counter to local output
+        reader = POU(
+            pou_type=POUType.PROGRAM,
+            name="Reader",
+            interface=POUInterface(
+                external_vars=[Variable(
+                    name="shared_counter",
+                    data_type=int_ref,
+                    description="Globals",
+                )],
+                output_vars=[Variable(name="local_copy", data_type=int_ref)],
+            ),
+            networks=[Network(statements=[
+                Assignment(
+                    target=VariableRef(name="local_copy"),
+                    value=VariableRef(name="shared_counter"),
+                ),
+            ])],
+        )
+
+        # Share global state between both contexts
+        shared = {}
+        ctx_w = simulate(writer, global_state=shared)
+        ctx_r = simulate(reader, global_state=shared)
+
+        # Writer runs 3 scans
+        ctx_w.scan(3)
+        # shared_counter should be 3 in global state
+        assert shared["Globals"]["shared_counter"] == 3
+
+        # Reader picks it up
+        ctx_r.scan()
+        assert ctx_r.local_copy == 3
+
+    def test_external_var_default_allocation(self):
+        """External var is auto-allocated to default if not in global state."""
+        from plx.model.pou import POU, POUType, POUInterface, Network
+        from plx.model.statements import Assignment
+        from plx.model.expressions import VariableRef, LiteralExpr
+        from plx.model.variables import Variable
+        from plx.model.types import PrimitiveType, PrimitiveTypeRef
+
+        bool_ref = PrimitiveTypeRef(type=PrimitiveType.BOOL)
+
+        pou = POU(
+            pou_type=POUType.PROGRAM,
+            name="ExtProg",
+            interface=POUInterface(
+                external_vars=[Variable(
+                    name="flag",
+                    data_type=bool_ref,
+                    description="IO",
+                )],
+            ),
+            networks=[Network(statements=[
+                Assignment(
+                    target=VariableRef(name="flag"),
+                    value=LiteralExpr(value="TRUE", data_type=bool_ref),
+                ),
+            ])],
+        )
+
+        shared = {}
+        ctx = simulate(pou, global_state=shared)
+        # Before scan, flag should be default (False)
+        assert ctx.flag is False
+        ctx.scan()
+        # After scan, flag written back
+        assert ctx.flag is True
+        assert shared["IO"]["flag"] is True
+
+    def test_global_state_accessible(self):
+        """SimulationContext.global_state property returns the shared dict."""
+        from plx.model.pou import POU, POUType, POUInterface
+        from plx.model.variables import Variable
+        from plx.model.types import PrimitiveType, PrimitiveTypeRef
+
+        pou = POU(
+            pou_type=POUType.PROGRAM,
+            name="Prog",
+            interface=POUInterface(
+                external_vars=[Variable(
+                    name="x",
+                    data_type=PrimitiveTypeRef(type=PrimitiveType.DINT),
+                    description="GVL",
+                )],
+            ),
+        )
+
+        shared = {"GVL": {"x": 42}}
+        ctx = simulate(pou, global_state=shared)
+        assert ctx.global_state is shared
+        ctx.scan()
+        assert ctx.x == 42

@@ -33,6 +33,7 @@ def simulate(
     pous: list[Any] | None = None,
     data_types: list[Any] | None = None,
     scan_period_ms: int = 10,
+    global_state: dict[str, dict[str, object]] | None = None,
 ) -> SimulationContext:
     """Create a simulation context for a POU.
 
@@ -48,6 +49,10 @@ def simulate(
         for type resolution.
     scan_period_ms
         Simulated time advance per scan cycle (default 10ms).
+    global_state
+        Shared global variable state for external vars: GVL name ->
+        {var_name: value}. Pass the same dict to multiple ``simulate()``
+        calls to share state between POUs.
 
     Returns
     -------
@@ -94,6 +99,7 @@ def simulate(
         data_type_registry=data_type_registry,
         enum_registry=enum_registry,
         scan_period_ms=scan_period_ms,
+        global_state=global_state,
     )
 
 

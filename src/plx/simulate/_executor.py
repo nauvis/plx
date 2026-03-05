@@ -107,8 +107,12 @@ class ExecutionEngine:
     # Public API
     # -----------------------------------------------------------------------
 
-    def execute(self) -> None:
-        """Execute all networks (or SFC body) in the POU."""
+    def execute(self) -> object | None:
+        """Execute all networks (or SFC body) in the POU.
+
+        Returns the value from a RETURN statement if one is executed,
+        otherwise returns None.
+        """
         if self.pou.sfc_body is not None:
             self._execute_sfc()
         else:
@@ -116,8 +120,9 @@ class ExecutionEngine:
                 for network in self.pou.networks:
                     for stmt in network.statements:
                         self._exec_stmt(stmt)
-            except _ReturnSignal:
-                pass
+            except _ReturnSignal as ret:
+                return ret.value
+        return None
 
     # -----------------------------------------------------------------------
     # SFC execution
@@ -331,11 +336,32 @@ class ExecutionEngine:
         state["__sfc_just_deactivated"] = new_just_deactivated
 
     def _exec_action_body(self, action: Action) -> None:
-        """Execute an action's body statements."""
+        """Execute an action's body statements, or resolve action_name reference."""
+        # If the action references a named POUAction, look it up
+        if action.action_name is not None and not action.body:
+            pou_action = self._find_pou_action(action.action_name)
+            if pou_action is not None:
+                try:
+                    for network in pou_action.body:
+                        for stmt in network.statements:
+                            self._exec_stmt(stmt)
+                except _ReturnSignal:
+                    pass
+                return
+            raise SimulationError(
+                f"POUAction '{action.action_name}' not found on POU '{self.pou.name}'"
+            )
         try:
             self._exec_body(action.body)
         except _ReturnSignal:
             pass
+
+    def _find_pou_action(self, name: str):
+        """Find a named POUAction on the current POU."""
+        for a in self.pou.actions:
+            if a.name == name:
+                return a
+        return None
 
     @staticmethod
     def _parse_action_duration(action: Action) -> int | None:
@@ -741,12 +767,7 @@ class ExecutionEngine:
             data_type_registry=self.data_type_registry,
             enum_registry=self.enum_registry,
         )
-        try:
-            engine.execute()
-        except _ReturnSignal as ret:
-            return ret.value
-
-        return None
+        return engine.execute()
 
     def _find_property(self, struct_expr: Expression, member: str) -> tuple[Property, POU] | None:
         """Find a Property on the FB type of a struct expression.
