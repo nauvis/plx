@@ -25,8 +25,9 @@ from plx.model.expressions import (
     UnaryOp,
     VariableRef,
 )
-from plx.model.pou import POU
+from plx.model.pou import POU, Property
 from plx.model.sfc import Action, ActionQualifier, SFCBody, Step, Transition
+from plx.model.types import NamedTypeRef
 from plx.model.statements import (
     Assignment,
     CaseStatement,
@@ -82,8 +83,8 @@ class ExecutionEngine:
         Registry of user-defined POUs for nested FB execution.
     data_type_registry : dict[str, object]
         Registry of type definitions (StructType, EnumType) for resolution.
-    enum_registry : dict[str, dict[str, int]]
-        Enum name -> {member: int_value} for literal resolution.
+    enum_registry : dict
+        Enum name -> IntEnum class for literal resolution.
     """
 
     def __init__(
@@ -93,7 +94,7 @@ class ExecutionEngine:
         clock_ms: int,
         pou_registry: dict[str, POU] | None = None,
         data_type_registry: dict | None = None,
-        enum_registry: dict[str, dict[str, int]] | None = None,
+        enum_registry: dict | None = None,
     ) -> None:
         self.pou = pou
         self.state = state
@@ -359,12 +360,12 @@ class ExecutionEngine:
         self._write_target(stmt.target, value)
 
     def _exec_if(self, stmt: IfStatement) -> None:
-        if self._eval(stmt.if_branch.condition):
+        if self._scalar(self._eval(stmt.if_branch.condition)):
             self._exec_body(stmt.if_branch.body)
             return
 
         for branch in stmt.elsif_branches:
-            if self._eval(branch.condition):
+            if self._scalar(self._eval(branch.condition)):
                 self._exec_body(branch.body)
                 return
 
@@ -416,7 +417,7 @@ class ExecutionEngine:
             i += by_val
 
     def _exec_while(self, stmt: WhileStatement) -> None:
-        while self._eval(stmt.condition):
+        while self._scalar(self._eval(stmt.condition)):
             try:
                 self._exec_body(stmt.body)
             except _ExitSignal:
@@ -432,7 +433,7 @@ class ExecutionEngine:
                 break
             except _ContinueSignal:
                 pass
-            if self._eval(stmt.until):
+            if self._scalar(self._eval(stmt.until)):
                 break
 
     def _exec_return(self, stmt: ReturnStatement) -> None:
@@ -440,18 +441,25 @@ class ExecutionEngine:
         raise _ReturnSignal(value)
 
     def _exec_fb_invocation(self, stmt: FBInvocation) -> None:
-        instance_name = stmt.instance_name
         fb_type = stmt.fb_type
 
         # 1. Resolve instance state
-        if instance_name not in self.state:
-            raise SimulationError(
-                f"FB instance '{instance_name}' not found in state"
-            )
-        instance_state = self.state[instance_name]
+        if isinstance(stmt.instance_name, str):
+            instance_name = stmt.instance_name
+            if instance_name not in self.state:
+                raise SimulationError(
+                    f"FB instance '{instance_name}' not found in state"
+                )
+            instance_state = self.state[instance_name]
+            display_name = instance_name
+        else:
+            # Expression instance_name (e.g. ArrayAccessExpr for arr[i])
+            instance_state = self._eval(stmt.instance_name)
+            display_name = "<array element>"
+
         if not isinstance(instance_state, dict):
             raise SimulationError(
-                f"FB instance '{instance_name}' is not a dict (got {type(instance_state).__name__})"
+                f"FB instance '{display_name}' is not a dict (got {type(instance_state).__name__})"
             )
 
         # 2. Map inputs
@@ -465,7 +473,7 @@ class ExecutionEngine:
             self._exec_user_fb(self.pou_registry[fb_type], instance_state)
         else:
             raise SimulationError(
-                f"Unknown FB type '{fb_type}' for instance '{instance_name}'"
+                f"Unknown FB type '{fb_type}' for instance '{display_name}'"
             )
 
         # 4. Map outputs
@@ -578,6 +586,18 @@ class ExecutionEngine:
     # Expression dispatch
     # -----------------------------------------------------------------------
 
+    @staticmethod
+    def _scalar(value: object) -> object:
+        """Coerce FB instances (dicts) to their Q output for scalar contexts.
+
+        In PLC semantics, referencing an FB instance in a boolean/arithmetic
+        context implicitly reads its Q output (e.g. ``NOT timer`` means
+        ``NOT timer.Q``).
+        """
+        if isinstance(value, dict):
+            return value.get("Q", value.get("q", False))
+        return value
+
     def _eval(self, expr: Expression) -> object:
         handler = self._EXPR_DISPATCH.get(expr.kind)
         if handler is None:
@@ -595,8 +615,8 @@ class ExecutionEngine:
 
     def _eval_binary(self, expr: BinaryExpr) -> object:
         # No short-circuit — evaluate both sides (PLC semantics)
-        left = self._eval(expr.left)
-        right = self._eval(expr.right)
+        left = self._scalar(self._eval(expr.left))
+        right = self._scalar(self._eval(expr.right))
         return self._apply_binop(expr.op, left, right)
 
     def _apply_binop(self, op: BinaryOp, left: object, right: object) -> object:
@@ -659,7 +679,7 @@ class ExecutionEngine:
         raise SimulationError(f"Unsupported binary op: {op}")
 
     def _eval_unary(self, expr: UnaryExpr) -> object:
-        operand = self._eval(expr.operand)
+        operand = self._scalar(self._eval(expr.operand))
         if expr.op == UnaryOp.NEG:
             return -operand
         if expr.op == UnaryOp.NOT:
@@ -728,11 +748,41 @@ class ExecutionEngine:
 
         return None
 
+    def _find_property(self, struct_expr: Expression, member: str) -> tuple[Property, POU] | None:
+        """Find a Property on the FB type of a struct expression.
+
+        Returns (Property, POU) or None if not found.
+        """
+        if struct_expr.kind != "variable_ref":
+            return None
+        var_name = struct_expr.name
+        # Look up the variable in the current POU's interface
+        for var in (
+            self.pou.interface.static_vars
+            + self.pou.interface.input_vars
+            + self.pou.interface.output_vars
+            + self.pou.interface.inout_vars
+        ):
+            if var.name == var_name and isinstance(var.data_type, NamedTypeRef):
+                fb_name = var.data_type.name
+                if fb_name in self.pou_registry:
+                    fb_pou = self.pou_registry[fb_name]
+                    for prop in fb_pou.properties:
+                        if prop.name == member:
+                            return prop, fb_pou
+        return None
+
     def _eval_member_access(self, expr: MemberAccessExpr) -> object:
         struct = self._eval(expr.struct)
         if isinstance(struct, dict):
             if expr.member in struct:
                 return struct[expr.member]
+            # Check for property getter
+            result = self._find_property(expr.struct, expr.member)
+            if result is not None:
+                prop, fb_pou = result
+                if prop.getter is not None:
+                    return self._exec_property_getter(prop, fb_pou, struct)
             raise SimulationError(
                 f"Member '{expr.member}' not found in struct. "
                 f"Available: {list(struct.keys())}"
@@ -740,6 +790,52 @@ class ExecutionEngine:
         raise SimulationError(
             f"Cannot access member '{expr.member}' on {type(struct).__name__}"
         )
+
+    def _exec_property_getter(self, prop: Property, fb_pou: POU, instance_state: dict) -> object:
+        """Execute a property getter body and return the result."""
+        engine = ExecutionEngine(
+            pou=fb_pou,
+            state=instance_state,
+            clock_ms=self.clock_ms,
+            pou_registry=self.pou_registry,
+            data_type_registry=self.data_type_registry,
+            enum_registry=self.enum_registry,
+        )
+        try:
+            for network in prop.getter.networks:
+                for stmt in network.statements:
+                    engine._exec_stmt(stmt)
+        except _ReturnSignal as ret:
+            return ret.value
+        return None
+
+    _MISSING = object()  # sentinel for property setter cleanup
+
+    def _exec_property_setter(self, prop: Property, fb_pou: POU, instance_state: dict, value: object) -> None:
+        """Execute a property setter body with the given value."""
+        # Inject value as prop_name (setter body uses the property name as var ref)
+        old_val = instance_state.get(prop.name, self._MISSING)
+        instance_state[prop.name] = value
+        engine = ExecutionEngine(
+            pou=fb_pou,
+            state=instance_state,
+            clock_ms=self.clock_ms,
+            pou_registry=self.pou_registry,
+            data_type_registry=self.data_type_registry,
+            enum_registry=self.enum_registry,
+        )
+        try:
+            for network in prop.setter.networks:
+                for stmt in network.statements:
+                    engine._exec_stmt(stmt)
+        except _ReturnSignal:
+            pass
+        finally:
+            # Clean up the injected property name if it wasn't part of the state
+            if old_val is self._MISSING:
+                instance_state.pop(prop.name, None)
+            else:
+                instance_state[prop.name] = old_val
 
     def _eval_bit_access(self, expr: BitAccessExpr) -> object:
         value = self._eval(expr.target)
@@ -800,7 +896,12 @@ class ExecutionEngine:
         elif target.kind == "member_access":
             struct = self._eval(target.struct)
             if isinstance(struct, dict):
-                struct[target.member] = value
+                # Check for property setter
+                result = self._find_property(target.struct, target.member)
+                if result is not None and result[0].setter is not None:
+                    self._exec_property_setter(result[0], result[1], struct, value)
+                else:
+                    struct[target.member] = value
             else:
                 raise SimulationError(
                     f"Cannot write member '{target.member}' on {type(struct).__name__}"

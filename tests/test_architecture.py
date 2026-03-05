@@ -12,9 +12,7 @@ import pytest
 
 from plx.framework import (
     BOOL,
-    DINT,
     INT,
-    T,
     count_down,
     count_up,
     fb,
@@ -22,11 +20,9 @@ from plx.framework import (
     Output,
     reset_dominant,
     set_dominant,
-    Field,
 )
 from plx.simulate import simulate
 from plx.simulate._builtins import BUILTIN_FBS
-from plx.simulate._values import SimulationError
 
 
 # ---------------------------------------------------------------------------
@@ -35,58 +31,62 @@ from plx.simulate._values import SimulationError
 # ---------------------------------------------------------------------------
 
 
-class TestMissingBuiltins:
-    """Sentinel-generated FB types that are absent from BUILTIN_FBS."""
+class TestBuiltinCoverage:
+    """All sentinel-generated FB types have implementations in BUILTIN_FBS."""
 
-    def test_ctu_not_in_builtin_fbs(self):
-        assert "CTU" not in BUILTIN_FBS
-
-    def test_ctd_not_in_builtin_fbs(self):
-        assert "CTD" not in BUILTIN_FBS
-
-    def test_sr_not_in_builtin_fbs(self):
-        assert "SR" not in BUILTIN_FBS
-
-    def test_rs_not_in_builtin_fbs(self):
-        assert "RS" not in BUILTIN_FBS
-
-    def test_existing_builtins_present(self):
-        for name in ("TON", "TOF", "TP", "R_TRIG", "F_TRIG"):
+    def test_all_builtins_present(self):
+        for name in ("TON", "TOF", "TP", "RTO", "R_TRIG", "F_TRIG", "CTU", "CTD", "SR", "RS"):
             assert name in BUILTIN_FBS, f"{name} should be in BUILTIN_FBS"
 
-    # -- End-to-end: compiles fine, crashes at scan time --
+    def test_sentinel_fb_types_fully_covered(self):
+        """All sentinel FB types are present in BUILTIN_FBS."""
+        from plx.framework._compiler_core import (
+            _BISTABLE_SENTINELS,
+            _COUNTER_SENTINELS,
+            _EDGE_SENTINELS,
+            _TIMER_SENTINELS,
+        )
 
-    def test_count_up_compiles_but_crashes_simulator(self):
+        sentinel_fb_types: set[str] = set()
+        for _name, val in _TIMER_SENTINELS.items():
+            sentinel_fb_types.add(val[0])
+        for _name, val in _COUNTER_SENTINELS.items():
+            sentinel_fb_types.add(val[0])
+        for _name, val in _BISTABLE_SENTINELS.items():
+            sentinel_fb_types.add(val[0])
+        for _name, fb_type in _EDGE_SENTINELS.items():
+            sentinel_fb_types.add(fb_type)
+
+        missing = sentinel_fb_types - BUILTIN_FBS.keys()
+        assert missing == set(), f"Missing builtin FBs: {missing}"
+
+    def test_count_up_simulates(self):
         @fb
         class CountUpFB:
             trigger: Input[BOOL]
             done: Output[BOOL]
-            _inst: DINT
 
             def logic(self):
                 self.done = count_up(self.trigger, preset=5)
 
         ctx = simulate(CountUpFB)
         ctx.trigger = True
-        with pytest.raises(SimulationError, match="CTU"):
-            ctx.scan()
+        ctx.scan()  # should not raise
 
-    def test_count_down_compiles_but_crashes_simulator(self):
+    def test_count_down_simulates(self):
         @fb
         class CountDownFB:
             trigger: Input[BOOL]
             done: Output[BOOL]
-            _inst: DINT
 
             def logic(self):
                 self.done = count_down(self.trigger, preset=5)
 
         ctx = simulate(CountDownFB)
         ctx.trigger = True
-        with pytest.raises(SimulationError, match="CTD"):
-            ctx.scan()
+        ctx.scan()  # should not raise
 
-    def test_set_dominant_compiles_but_crashes_simulator(self):
+    def test_set_dominant_simulates(self):
         @fb
         class SetDomFB:
             s: Input[BOOL]
@@ -99,10 +99,9 @@ class TestMissingBuiltins:
         ctx = simulate(SetDomFB)
         ctx.s = True
         ctx.r = False
-        with pytest.raises(SimulationError, match="SR"):
-            ctx.scan()
+        ctx.scan()  # should not raise
 
-    def test_reset_dominant_compiles_but_crashes_simulator(self):
+    def test_reset_dominant_simulates(self):
         @fb
         class ResetDomFB:
             s: Input[BOOL]
@@ -115,35 +114,7 @@ class TestMissingBuiltins:
         ctx = simulate(ResetDomFB)
         ctx.s = True
         ctx.r = False
-        with pytest.raises(SimulationError, match="RS"):
-            ctx.scan()
-
-    def test_sentinel_fb_types_vs_builtin_registry(self):
-        """Programmatically compute all sentinel FB types and diff against BUILTIN_FBS."""
-        from plx.framework._compiler_core import (
-            _BISTABLE_SENTINELS,
-            _COUNTER_SENTINELS,
-            _EDGE_SENTINELS,
-            _TIMER_SENTINELS,
-        )
-
-        # Collect every FB type name from sentinel dicts
-        sentinel_fb_types: set[str] = set()
-
-        # Timer/counter/bistable: value is (fb_type, ...)
-        for _name, val in _TIMER_SENTINELS.items():
-            sentinel_fb_types.add(val[0])
-        for _name, val in _COUNTER_SENTINELS.items():
-            sentinel_fb_types.add(val[0])
-        for _name, val in _BISTABLE_SENTINELS.items():
-            sentinel_fb_types.add(val[0])
-
-        # Edge: value is fb_type string directly
-        for _name, fb_type in _EDGE_SENTINELS.items():
-            sentinel_fb_types.add(fb_type)
-
-        missing = sentinel_fb_types - BUILTIN_FBS.keys()
-        assert missing == {"CTU", "CTD", "SR", "RS"}
+        ctx.scan()  # should not raise
 
 
 # ---------------------------------------------------------------------------

@@ -22,13 +22,16 @@ from __future__ import annotations
 import ast
 
 from plx.model.expressions import (
+    ArrayAccessExpr,
     Expression,
+    VariableRef,
 )
 from plx.model.statements import (
     FBInvocation,
     Statement,
 )
 from plx.model.types import (
+    ArrayTypeRef,
     NamedTypeRef,
 )
 
@@ -66,52 +69,52 @@ from ._compiler_statements import _StatementMixin
 # These exist for IDE autocompletion / linting.  The AST compiler
 # recognises them by name and never calls them.
 
-def delayed(signal: object, *, seconds: int | float = 0, ms: int | float = 0, duration: object = None) -> bool:
+def delayed(signal: object, *, seconds: int | float = 0, ms: int | float = 0, duration: object = None, name: str | None = None) -> bool:
     """TON (on-delay timer).  Recognised by the AST compiler."""
     raise RuntimeError("delayed() is a compile-time sentinel — do not call directly")
 
 
-def sustained(signal: object, *, seconds: int | float = 0, ms: int | float = 0, duration: object = None) -> bool:
+def sustained(signal: object, *, seconds: int | float = 0, ms: int | float = 0, duration: object = None, name: str | None = None) -> bool:
     """TOF (off-delay timer).  Recognised by the AST compiler."""
     raise RuntimeError("sustained() is a compile-time sentinel — do not call directly")
 
 
-def pulse(signal: object, *, seconds: int | float = 0, ms: int | float = 0, duration: object = None) -> bool:
+def pulse(signal: object, *, seconds: int | float = 0, ms: int | float = 0, duration: object = None, name: str | None = None) -> bool:
     """TP (pulse timer).  Recognised by the AST compiler."""
     raise RuntimeError("pulse() is a compile-time sentinel — do not call directly")
 
 
-def retentive(signal: object, *, seconds: int | float = 0, ms: int | float = 0, duration: object = None) -> bool:
+def retentive(signal: object, *, seconds: int | float = 0, ms: int | float = 0, duration: object = None, name: str | None = None) -> bool:
     """RTO (retentive timer on).  Recognised by the AST compiler."""
     raise RuntimeError("retentive() is a compile-time sentinel — do not call directly")
 
 
-def rising(signal: object) -> bool:
+def rising(signal: object, *, name: str | None = None) -> bool:
     """R_TRIG (rising edge detect).  Recognised by the AST compiler."""
     raise RuntimeError("rising() is a compile-time sentinel — do not call directly")
 
 
-def falling(signal: object) -> bool:
+def falling(signal: object, *, name: str | None = None) -> bool:
     """F_TRIG (falling edge detect).  Recognised by the AST compiler."""
     raise RuntimeError("falling() is a compile-time sentinel — do not call directly")
 
 
-def count_up(signal: object, *, preset: int = 0, reset: object = None) -> bool:
+def count_up(signal: object, *, preset: int = 0, reset: object = None, name: str | None = None) -> bool:
     """CTU (count up).  Recognised by the AST compiler."""
     raise RuntimeError("count_up() is a compile-time sentinel — do not call directly")
 
 
-def count_down(signal: object, *, preset: int = 0, load: object = None) -> bool:
+def count_down(signal: object, *, preset: int = 0, load: object = None, name: str | None = None) -> bool:
     """CTD (count down).  Recognised by the AST compiler."""
     raise RuntimeError("count_down() is a compile-time sentinel — do not call directly")
 
 
-def set_dominant(set_signal: object, reset_signal: object) -> bool:
+def set_dominant(set_signal: object, reset_signal: object, *, name: str | None = None) -> bool:
     """SR (set-dominant bistable).  Recognised by the AST compiler."""
     raise RuntimeError("set_dominant() is a compile-time sentinel — do not call directly")
 
 
-def reset_dominant(set_signal: object, reset_signal: object) -> bool:
+def reset_dominant(set_signal: object, reset_signal: object, *, name: str | None = None) -> bool:
     """RS (reset-dominant bistable).  Recognised by the AST compiler."""
     raise RuntimeError("reset_dominant() is a compile-time sentinel — do not call directly")
 
@@ -210,5 +213,27 @@ class ASTCompiler(_StatementMixin, _ExpressionMixin, _SentinelMixin):
         return FBInvocation(
             instance_name=instance_name,
             fb_type=fb_type,
+            inputs=inputs,
+        )
+
+    def _build_fb_array_invocation(
+        self, array_name: str, index_exprs: list[Expression], call_node: ast.Call,
+    ) -> FBInvocation | None:
+        """Build an FBInvocation for an array-subscripted FB: ``self.timers[i](...)``."""
+        if array_name not in self.ctx.static_var_types:
+            return None
+        type_ref = self.ctx.static_var_types[array_name]
+        if not isinstance(type_ref, ArrayTypeRef):
+            return None
+        elem = type_ref.element_type
+        if not isinstance(elem, NamedTypeRef):
+            return None  # Only FB arrays, not primitive arrays
+        inputs = self._compile_call_kwargs(call_node)
+        return FBInvocation(
+            instance_name=ArrayAccessExpr(
+                array=VariableRef(name=array_name),
+                indices=index_exprs,
+            ),
+            fb_type=elem.name,
             inputs=inputs,
         )

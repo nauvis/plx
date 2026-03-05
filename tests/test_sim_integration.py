@@ -2,16 +2,20 @@
 
 import pytest
 
+from datetime import timedelta
+
 from plx.framework import (
     ARRAY,
     BOOL,
     DINT,
     INT,
     REAL,
-    T,
+    count_down,
+    count_up,
     delayed,
     enumeration,
     fb,
+    fb_property,
     falling,
     first_scan,
     function,
@@ -19,7 +23,10 @@ from plx.framework import (
     Output,
     program,
     pulse,
+    reset_dominant,
     rising,
+    set_dominant,
+    Static,
     struct,
     sustained,
     Temp,
@@ -40,7 +47,7 @@ class TestMotorStartsAfterDelay:
             running: Output[BOOL]
 
             def logic(self):
-                self.running = delayed(self.cmd, seconds=5)
+                self.running = delayed(self.cmd, timedelta(seconds=5))
 
         ctrl = simulate(Motor)
         ctrl.cmd = True
@@ -56,7 +63,7 @@ class TestMotorStartsAfterDelay:
             running: Output[BOOL]
 
             def logic(self):
-                self.running = delayed(self.cmd, seconds=2)
+                self.running = delayed(self.cmd, timedelta(seconds=2))
 
         ctrl = simulate(Motor2)
         ctrl.cmd = True
@@ -328,7 +335,7 @@ class TestSustainedTimer:
             output: Output[BOOL]
 
             def logic(self):
-                self.output = sustained(self.trigger, seconds=1)
+                self.output = sustained(self.trigger, timedelta(seconds=1))
 
         ctx = simulate(SustainedTest)
         ctx.trigger = True
@@ -353,7 +360,7 @@ class TestPulseTimer:
             output: Output[BOOL]
 
             def logic(self):
-                self.output = pulse(self.trigger, ms=500)
+                self.output = pulse(self.trigger, timedelta(milliseconds=500))
 
         ctx = simulate(PulseTest)
         ctx.trigger = True
@@ -513,3 +520,187 @@ class TestFirstScanIntegration:
         # Second scan: first_scan() is False → count = 101 + 1 = 102
         ctx.scan()
         assert ctx.count == 102
+
+
+# ---------------------------------------------------------------------------
+# Count up (CTU)
+# ---------------------------------------------------------------------------
+
+class TestCountUp:
+    def test_count_up_basic(self):
+        @fb
+        class CountTest:
+            trigger: Input[BOOL]
+            done: Output[BOOL]
+
+            def logic(self):
+                self.done = count_up(self.trigger, preset=3)
+
+        ctx = simulate(CountTest)
+        # 3 rising edges
+        for _ in range(3):
+            ctx.trigger = True
+            ctx.scan()
+            ctx.trigger = False
+            ctx.scan()
+        assert ctx.done is True
+
+
+# ---------------------------------------------------------------------------
+# Count down (CTD)
+# ---------------------------------------------------------------------------
+
+class TestCountDown:
+    def test_count_down_basic(self):
+        @fb
+        class CountDownTest:
+            trigger: Input[BOOL]
+            done: Output[BOOL]
+
+            def logic(self):
+                self.done = count_down(self.trigger, preset=2)
+
+        ctx = simulate(CountDownTest)
+        # First edge: CV goes from 0 to -1, Q = CV <= 0 → True
+        ctx.trigger = True
+        ctx.scan()
+        assert ctx.done is True
+
+
+# ---------------------------------------------------------------------------
+# Set dominant (SR)
+# ---------------------------------------------------------------------------
+
+class TestSetDominant:
+    def test_set_dominant_basic(self):
+        @fb
+        class SRTest:
+            s: Input[BOOL]
+            r: Input[BOOL]
+            out: Output[BOOL]
+
+            def logic(self):
+                self.out = set_dominant(self.s, self.r)
+
+        ctx = simulate(SRTest)
+        ctx.s = True
+        ctx.r = True
+        ctx.scan()
+        assert ctx.out is True  # set-dominant
+
+        ctx.s = False
+        ctx.scan()
+        assert ctx.out is False  # reset wins when no set
+
+
+# ---------------------------------------------------------------------------
+# Reset dominant (RS)
+# ---------------------------------------------------------------------------
+
+class TestResetDominant:
+    def test_reset_dominant_basic(self):
+        @fb
+        class RSTest:
+            s: Input[BOOL]
+            r: Input[BOOL]
+            out: Output[BOOL]
+
+            def logic(self):
+                self.out = reset_dominant(self.s, self.r)
+
+        ctx = simulate(RSTest)
+        ctx.s = True
+        ctx.r = True
+        ctx.scan()
+        assert ctx.out is False  # reset-dominant
+
+        ctx.r = False
+        ctx.scan()
+        assert ctx.out is True  # set wins when no reset
+
+
+# ---------------------------------------------------------------------------
+# Property getter/setter (integration)
+# ---------------------------------------------------------------------------
+
+class TestPropertyIntegration:
+    def test_property_getter_setter(self):
+        @fb
+        class MotorProp:
+            _speed: Static[REAL]
+
+            @fb_property(REAL)
+            def speed(self):
+                return self._speed
+
+            @speed.setter
+            def speed(self, value: REAL):
+                self._speed = value
+
+            def logic(self):
+                pass
+
+        @fb
+        class Controller:
+            m: MotorProp
+            out: Output[REAL]
+
+            def logic(self):
+                self.m.speed = 75.5
+                self.out = self.m.speed
+
+        ctx = simulate(Controller, pous=[MotorProp])
+        ctx.scan()
+        assert ctx.out == pytest.approx(75.5)
+
+
+# ---------------------------------------------------------------------------
+# Enum values return IntEnum members
+# ---------------------------------------------------------------------------
+
+class TestEnumIntEnumReturns:
+    def test_enum_literal_returns_intenum(self):
+        """Enum literals in POU logic resolve to IntEnum members."""
+        from enum import IntEnum
+
+        @enumeration
+        class Color:
+            RED = 0
+            GREEN = 1
+            BLUE = 2
+
+        @fb
+        class ColorPicker:
+            out: Output[DINT]
+
+            def logic(self):
+                self.out = Color.GREEN
+
+        ctx = simulate(ColorPicker, data_types=[Color])
+        ctx.scan()
+        assert ctx.out == 1
+        assert isinstance(ctx.out, IntEnum)
+        assert ctx.out.name == "GREEN"
+
+    def test_enum_default_is_intenum(self):
+        """Enum-typed variable defaults are IntEnum members."""
+        from enum import IntEnum
+
+        @enumeration
+        class MachineState:
+            IDLE = 0
+            RUNNING = 1
+            FAULTED = 2
+
+        @fb
+        class Machine:
+            state: Static[MachineState]
+
+            def logic(self):
+                pass
+
+        ctx = simulate(Machine, data_types=[MachineState])
+        # Before any scan, the default should be first member as IntEnum
+        assert ctx.state == 0
+        assert isinstance(ctx.state, IntEnum)
+        assert ctx.state.name == "IDLE"

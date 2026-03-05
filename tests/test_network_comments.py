@@ -2,6 +2,7 @@
 
 import ast
 import textwrap
+from datetime import timedelta
 
 from plx.framework import (
     BOOL,
@@ -306,10 +307,10 @@ class TestNetworkComments:
 
             def logic(self):
                 # First timer
-                if delayed(self.a, seconds=1):
+                if delayed(self.a, timedelta(seconds=1)):
                     self.x = True
                 # Second timer
-                if delayed(self.b, seconds=2):
+                if delayed(self.b, timedelta(seconds=2)):
                     self.y = True
 
         pou = SentinelGroups.compile()

@@ -14,10 +14,12 @@ from plx.model.task import Task, TaskType
 from plx.model.types import ArrayTypeRef, NamedTypeRef, PointerTypeRef, ReferenceTypeRef
 from plx.model.variables import Variable
 
+from datetime import timedelta
+
 from ._errors import ProjectAssemblyError
 from ._protocols import CompiledDataType, CompiledGlobalVarList, CompiledPOU
 from ._registry import lookup_pou, lookup_type
-from ._types import TimeLiteral, LTimeLiteral
+from ._types import timedelta_to_iec
 from ._vendor import CompileResult, Vendor, validate_target
 
 
@@ -78,12 +80,12 @@ class PlxTask:
 
 def _format_interval(value: Any) -> str:
     """Convert a duration value to an IEC time literal string."""
-    if isinstance(value, (TimeLiteral, LTimeLiteral)):
-        return value.to_iec()
+    if isinstance(value, timedelta):
+        return timedelta_to_iec(value)
     if isinstance(value, str):
         return value
     raise ProjectAssemblyError(
-        f"Expected a duration (T(...), LT(...), or str), got {type(value).__name__}"
+        f"Expected a duration (timedelta or str), got {type(value).__name__}"
     )
 
 

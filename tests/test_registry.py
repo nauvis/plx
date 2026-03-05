@@ -1,5 +1,7 @@
 """Tests for the POU/type registry and transitive dependency resolution."""
 
+from datetime import timedelta
+
 import pytest
 
 from plx.framework import (
@@ -176,7 +178,7 @@ class TestTransitiveDeps:
             cmd: Input[BOOL]
             out: Output[BOOL]
             def logic(self):
-                self.out = delayed(self.cmd, seconds=5)
+                self.out = delayed(self.cmd, timedelta(seconds=5))
 
         # TON is generated as a NamedTypeRef but shouldn't cause errors
         proj = project("Test", pous=[TimerProg]).compile()

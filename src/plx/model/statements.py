@@ -113,7 +113,7 @@ class FBInvocation(IRModel):
     """
 
     kind: Literal["fb_invocation"] = "fb_invocation"
-    instance_name: str
+    instance_name: str | Expression
     fb_type: str | None = None
     inputs: dict[str, Expression] = {}
     outputs: dict[str, Expression] = {}

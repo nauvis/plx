@@ -118,6 +118,7 @@ def generate_files(project: Project) -> dict[str, str]:
     for pou in project.pous:
         fw = PyWriter()
         fw._line("from plx.framework import *")
+        fw._line("import math")
 
         # Import any types/GVLs/FBs this POU might reference
         deps = _collect_pou_deps(pou, project)
@@ -205,11 +206,26 @@ _BINOP_PRECEDENCE: dict[BinaryOp, int] = {
 
 _FUNC_CALL_OPS = {BinaryOp.SHL, BinaryOp.SHR, BinaryOp.ROL, BinaryOp.ROR}
 
-# IEC functions → Python builtins
+# IEC functions → Python builtins / math module
 _FUNC_REMAP: dict[str, str] = {
     "ABS": "abs",
     "MIN": "min",
     "MAX": "max",
+    "SQRT": "math.sqrt",
+    "LN": "math.log",
+    "LOG": "math.log10",
+    "EXP": "math.exp",
+    "SIN": "math.sin",
+    "COS": "math.cos",
+    "TAN": "math.tan",
+    "ASIN": "math.asin",
+    "ACOS": "math.acos",
+    "ATAN": "math.atan",
+    "TRUNC": "math.trunc",
+    "CEIL": "math.ceil",
+    "FLOOR": "math.floor",
+    "CEIL": "math.ceil",
+    "FLOOR": "math.floor",
 }
 
 
@@ -233,31 +249,30 @@ _IEC_TIME_UNIT_RE = re.compile(
 
 
 def _parse_iec_time(value: str) -> str | None:
-    """Parse an IEC time literal like T#100ms into T(ms=100).
+    """Parse an IEC time literal like T#100ms into timedelta(milliseconds=100).
 
     Returns None if not a time literal.
     """
     if not re.match(r"^(?:L?TIME#|[LT]#)", value, re.IGNORECASE):
         return None
 
-    is_ltime = value.upper().startswith("LTIME#") or value.upper().startswith("LT#")
-    prefix = "LT" if is_ltime else "T"
+    # Map IEC unit abbreviations to timedelta kwarg names
+    _UNIT_TO_KWARG = {
+        "h": "hours",
+        "m": "minutes",
+        "s": "seconds",
+        "ms": "milliseconds",
+        "us": "microseconds",
+    }
 
     # Extract units
     parts: dict[str, str] = {}
     for match in _IEC_TIME_UNIT_RE.finditer(value):
         amount = match.group(1)
         unit = match.group(2).lower()
-        if unit == "h":
-            parts["hours"] = amount
-        elif unit == "m":
-            parts["minutes"] = amount
-        elif unit == "s":
-            parts["seconds"] = amount
-        elif unit == "ms":
-            parts["ms"] = amount
-        elif unit == "us":
-            parts["us"] = amount
+        kwarg_name = _UNIT_TO_KWARG.get(unit)
+        if kwarg_name:
+            parts[kwarg_name] = amount
 
     if not parts:
         return None
@@ -271,7 +286,7 @@ def _parse_iec_time(value: str) -> str | None:
                 v = str(int(fv))
         kwargs.append(f"{k}={v}")
 
-    return f"{prefix}({', '.join(kwargs)})"
+    return f"timedelta({', '.join(kwargs)})"
 
 
 def _format_initial_value(value: str) -> str:
@@ -350,6 +365,7 @@ class PyWriter:
 
     def write_project(self, proj: Project) -> None:
         self._line("from plx.framework import *")
+        self._line("import math")
         self._line()
 
         # Collect POU names for identifier reference
@@ -574,8 +590,10 @@ class PyWriter:
         if not stmts:
             self._line("pass")
         else:
-            for kind, item in stmts:
+            for i, (kind, item) in enumerate(stmts):
                 if kind == "comment":
+                    if i > 0:
+                        self._line()
                     self._line(f"# {item}")
                 else:
                     self._write_stmt(item)
@@ -1117,7 +1135,10 @@ class PyWriter:
 
     def _write_fb_invocation(self, stmt: FBInvocation) -> None:
         # Emit: self.instance(IN=val, PT=val)
-        instance = f"self.{stmt.instance_name}" if stmt.instance_name in self._self_vars else stmt.instance_name
+        if isinstance(stmt.instance_name, str):
+            instance = f"self.{stmt.instance_name}" if stmt.instance_name in self._self_vars else stmt.instance_name
+        else:
+            instance = f"self.{self._expr(stmt.instance_name)}"
         parts: list[str] = []
         for name, expr in stmt.inputs.items():
             parts.append(f"{name}={self._expr(expr)}")
@@ -1224,11 +1245,24 @@ class PyWriter:
         return f"{self._expr(expr.target, 10)}.bit{expr.bit_index}"
 
     def _expr_type_conversion(self, expr: TypeConversionExpr, _prec: int) -> str:
+        if expr.source_type is not None:
+            # Use IEC names: DINT_TO_REAL(x) — the framework compiler handles this form
+            source = self._iec_type_name(expr.source_type)
+            target = self._iec_type_name(expr.target_type)
+            return f"{source}_TO_{target}({self._expr(expr.source)})"
         target = self._type_ref(expr.target_type)
-        source_type = ""
-        # For type conversions, emit SRCTYPE_TO_TARGETTYPE(expr)
-        # We don't always know the source type, so just emit target(expr)
         return f"{target}({self._expr(expr.source)})"
+
+    @staticmethod
+    def _iec_type_name(tr: TypeRef) -> str:
+        """Return the IEC 61131-3 type name (no Python mapping)."""
+        if isinstance(tr, PrimitiveTypeRef):
+            return tr.type.value
+        if isinstance(tr, StringTypeRef):
+            return "WSTRING" if tr.wide else "STRING"
+        if isinstance(tr, NamedTypeRef):
+            return tr.name
+        return "???"
 
     def _expr_system_flag(self, expr: SystemFlagExpr, _prec: int) -> str:
         if expr.flag == SystemFlag.FIRST_SCAN:

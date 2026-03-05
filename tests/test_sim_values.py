@@ -72,8 +72,13 @@ class TestParseLiteral:
         assert parse_literal("''") == ""
 
     def test_enum_literal(self):
-        registry = {"MachineState": {"RUNNING": 1, "STOPPED": 0}}
-        assert parse_literal("MachineState#RUNNING", enum_registry=registry) == 1
+        from enum import IntEnum
+        MachineState = IntEnum("MachineState", {"RUNNING": 1, "STOPPED": 0})
+        registry = {"MachineState": MachineState}
+        result = parse_literal("MachineState#RUNNING", enum_registry=registry)
+        assert result == 1
+        assert isinstance(result, IntEnum)
+        assert result.name == "RUNNING"
 
     def test_enum_unknown_raises(self):
         with pytest.raises(SimulationError, match="Cannot resolve enum"):
@@ -86,6 +91,66 @@ class TestParseLiteral:
     def test_with_int_type_hint(self):
         dtype = PrimitiveTypeRef(type=PrimitiveType.INT)
         assert isinstance(parse_literal("42", data_type=dtype), int)
+
+    # --- DATE/TOD/DT literals ---
+
+    def test_date_literal(self):
+        result = parse_literal("DATE#2024-01-15")
+        from datetime import datetime, timezone
+        expected = int(datetime(2024, 1, 15, tzinfo=timezone.utc).timestamp() * 1000)
+        assert result == expected
+
+    def test_date_d_prefix(self):
+        result = parse_literal("D#2024-06-01")
+        from datetime import datetime, timezone
+        expected = int(datetime(2024, 6, 1, tzinfo=timezone.utc).timestamp() * 1000)
+        assert result == expected
+
+    def test_ldate_literal(self):
+        result = parse_literal("LDATE#2024-01-15")
+        from datetime import datetime, timezone
+        expected = int(datetime(2024, 1, 15, tzinfo=timezone.utc).timestamp() * 1000)
+        assert result == expected
+
+    def test_tod_literal(self):
+        result = parse_literal("TOD#14:30:00")
+        assert result == 14 * 3_600_000 + 30 * 60_000
+
+    def test_tod_with_fraction(self):
+        result = parse_literal("TOD#14:30:00.500")
+        assert result == 14 * 3_600_000 + 30 * 60_000 + 500
+
+    def test_ltod_literal(self):
+        result = parse_literal("LTOD#01:00:00")
+        assert result == 3_600_000
+
+    def test_time_of_day_prefix(self):
+        result = parse_literal("TIME_OF_DAY#12:00:00")
+        assert result == 12 * 3_600_000
+
+    def test_dt_literal(self):
+        result = parse_literal("DT#2024-01-15-14:30:00")
+        from datetime import datetime, timezone
+        expected = int(datetime(2024, 1, 15, 14, 30, 0, tzinfo=timezone.utc).timestamp() * 1000)
+        assert result == expected
+
+    def test_ldt_literal(self):
+        result = parse_literal("LDT#2024-01-15-14:30:00")
+        from datetime import datetime, timezone
+        expected = int(datetime(2024, 1, 15, 14, 30, 0, tzinfo=timezone.utc).timestamp() * 1000)
+        assert result == expected
+
+    def test_date_and_time_prefix(self):
+        result = parse_literal("DATE_AND_TIME#2024-06-01-00:00:00")
+        from datetime import datetime, timezone
+        expected = int(datetime(2024, 6, 1, 0, 0, 0, tzinfo=timezone.utc).timestamp() * 1000)
+        assert result == expected
+
+    def test_dt_with_fraction(self):
+        result = parse_literal("DT#2024-01-15-14:30:00.250")
+        from datetime import datetime, timezone
+        expected = int(datetime(2024, 1, 15, 14, 30, 0, tzinfo=timezone.utc).timestamp() * 1000) + 250
+        assert result == expected
 
 
 # ---------------------------------------------------------------------------
@@ -115,6 +180,18 @@ class TestTypeDefault:
 
     def test_string(self):
         assert type_default(StringTypeRef()) == ""
+
+    def test_date(self):
+        assert type_default(PrimitiveTypeRef(type=PrimitiveType.DATE)) == 0
+
+    def test_tod(self):
+        assert type_default(PrimitiveTypeRef(type=PrimitiveType.TOD)) == 0
+
+    def test_dt(self):
+        assert type_default(PrimitiveTypeRef(type=PrimitiveType.DT)) == 0
+
+    def test_ldt(self):
+        assert type_default(PrimitiveTypeRef(type=PrimitiveType.LDT)) == 0
 
     def test_named_returns_none(self):
         assert type_default(NamedTypeRef(name="SomeFB")) is None

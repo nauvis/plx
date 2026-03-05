@@ -157,14 +157,14 @@ for a, b in range(10):
 
     def test_sentinel_as_statement(self):
         with pytest.raises(CompileError, match="must be used in an expression"):
-            compile_stmts("delayed(self.input, seconds=5)")
+            compile_stmts("delayed(self.input, timedelta(seconds=5))")
 
     def test_sentinel_no_signal(self):
         with pytest.raises(CompileError, match="requires a signal"):
             compile_expr("delayed()")
 
     def test_sentinel_no_duration(self):
-        with pytest.raises(CompileError, match="requires seconds"):
+        with pytest.raises(CompileError, match="requires a duration"):
             ctx = CompileContext()
             stmts = compile_stmts("self.x = delayed(self.input)", ctx)
 

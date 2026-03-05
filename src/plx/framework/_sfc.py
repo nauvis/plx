@@ -294,14 +294,15 @@ def transition(path: TransitionPath) -> Any:
 
 def _format_duration(duration: Any) -> str:
     """Convert a duration value to an IEC duration string."""
-    from ._types import TimeLiteral, LTimeLiteral
-    if isinstance(duration, (TimeLiteral, LTimeLiteral)):
-        return duration.to_iec()
+    from datetime import timedelta
+    from ._types import timedelta_to_iec
+    if isinstance(duration, timedelta):
+        return timedelta_to_iec(duration)
     if isinstance(duration, str):
         return duration
     raise TypeError(
-        f"Duration must be a TimeLiteral (T(...)), LTimeLiteral (LT(...)), "
-        f"or IEC duration string, got {type(duration).__name__}"
+        f"Duration must be a timedelta or IEC duration string, "
+        f"got {type(duration).__name__}"
     )
 
 

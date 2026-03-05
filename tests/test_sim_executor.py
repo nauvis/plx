@@ -25,6 +25,8 @@ from plx.model.pou import (
     POU,
     POUInterface,
     POUType,
+    Property,
+    PropertyAccessor,
 )
 from plx.model.statements import (
     Assignment,
@@ -43,7 +45,7 @@ from plx.model.statements import (
     ReturnStatement,
     WhileStatement,
 )
-from plx.model.types import PrimitiveType, PrimitiveTypeRef
+from plx.model.types import NamedTypeRef, PrimitiveType, PrimitiveTypeRef
 from plx.model.variables import Variable
 from plx.simulate._executor import ExecutionEngine
 from plx.simulate._values import SimulationError
@@ -929,3 +931,141 @@ class TestSystemFlagExpr:
         ])
         state = _run(pou, {"result": True})
         assert state["result"] is False
+
+
+# ---------------------------------------------------------------------------
+# Property getter/setter execution
+# ---------------------------------------------------------------------------
+
+class TestPropertyExecution:
+    def _make_motor_fb_with_property(self):
+        """Create a Motor FB with a 'speed' property backed by '_speed'."""
+        motor_pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="Motor",
+            interface=POUInterface(
+                static_vars=[
+                    Variable(name="_speed", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL)),
+                ],
+            ),
+            networks=[Network(statements=[])],
+            properties=[
+                Property(
+                    name="speed",
+                    data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
+                    getter=PropertyAccessor(
+                        networks=[Network(statements=[
+                            ReturnStatement(value=VariableRef(name="_speed")),
+                        ])],
+                    ),
+                    setter=PropertyAccessor(
+                        networks=[Network(statements=[
+                            Assignment(
+                                target=VariableRef(name="_speed"),
+                                value=VariableRef(name="speed"),
+                            ),
+                        ])],
+                    ),
+                ),
+            ],
+        )
+        return motor_pou
+
+    def test_getter_returns_computed_value(self):
+        """Property getter returns the backing variable's value."""
+        motor_pou = self._make_motor_fb_with_property()
+        outer_pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="Outer",
+            interface=POUInterface(
+                static_vars=[
+                    Variable(name="m", data_type=NamedTypeRef(name="Motor")),
+                    Variable(name="result", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL)),
+                ],
+            ),
+            networks=[Network(statements=[
+                Assignment(
+                    target=VariableRef(name="result"),
+                    value=MemberAccessExpr(struct=VariableRef(name="m"), member="speed"),
+                ),
+            ])],
+        )
+        state = {
+            "m": {"_speed": 42.5},
+            "result": 0.0,
+        }
+        _run(outer_pou, state, pou_registry={"Motor": motor_pou})
+        assert state["result"] == 42.5
+
+    def test_setter_modifies_backing_var(self):
+        """Property setter writes through to the backing variable."""
+        motor_pou = self._make_motor_fb_with_property()
+        outer_pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="Outer",
+            interface=POUInterface(
+                static_vars=[
+                    Variable(name="m", data_type=NamedTypeRef(name="Motor")),
+                ],
+            ),
+            networks=[Network(statements=[
+                Assignment(
+                    target=MemberAccessExpr(struct=VariableRef(name="m"), member="speed"),
+                    value=LiteralExpr(value="99.9"),
+                ),
+            ])],
+        )
+        state = {
+            "m": {"_speed": 0.0},
+        }
+        _run(outer_pou, state, pou_registry={"Motor": motor_pou})
+        assert state["m"]["_speed"] == pytest.approx(99.9)
+
+    def test_getter_with_computation(self):
+        """Property getter that multiplies backing var."""
+        motor_pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="Motor",
+            interface=POUInterface(
+                static_vars=[
+                    Variable(name="_rpm", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL)),
+                ],
+            ),
+            networks=[Network(statements=[])],
+            properties=[
+                Property(
+                    name="speed_pct",
+                    data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
+                    getter=PropertyAccessor(
+                        networks=[Network(statements=[
+                            ReturnStatement(
+                                value=BinaryExpr(
+                                    op=BinaryOp.DIV,
+                                    left=VariableRef(name="_rpm"),
+                                    right=LiteralExpr(value="60.0"),
+                                ),
+                            ),
+                        ])],
+                    ),
+                ),
+            ],
+        )
+        outer_pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="Outer",
+            interface=POUInterface(
+                static_vars=[
+                    Variable(name="m", data_type=NamedTypeRef(name="Motor")),
+                    Variable(name="result", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL)),
+                ],
+            ),
+            networks=[Network(statements=[
+                Assignment(
+                    target=VariableRef(name="result"),
+                    value=MemberAccessExpr(struct=VariableRef(name="m"), member="speed_pct"),
+                ),
+            ])],
+        )
+        state = {"m": {"_rpm": 120.0}, "result": 0.0}
+        _run(outer_pou, state, pou_registry={"Motor": motor_pou})
+        assert state["result"] == pytest.approx(2.0)

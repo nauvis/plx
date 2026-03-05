@@ -11,7 +11,8 @@ from plx.framework._descriptors import Input, Output, Static, Field
 from plx.framework._errors import ProjectAssemblyError
 from plx.framework._global_vars import global_vars
 from plx.framework._project import PlxProject, project, _resolve_transitive_deps, _format_interval
-from plx.framework._types import ARRAY, BOOL, DINT, INT, REAL, STRING, T, LT
+from datetime import timedelta
+from plx.framework._types import ARRAY, BOOL, DINT, INT, REAL, STRING
 from plx.model.pou import POUType
 from plx.model.project import Project
 
@@ -166,14 +167,13 @@ class TestProjectGVLs:
 class TestFullProject:
     def test_all_sections(self):
         from plx.framework._project import task
-        from plx.framework._types import T
 
         ir = project(
             "FullProject",
             pous=[_MainProg, _InnerFB],
             data_types=[_MotorData, _MachineState],
             global_var_lists=[_SystemIO, _Constants],
-            tasks=[task("Main", periodic=T(ms=10), pous=[_MainProg])],
+            tasks=[task("Main", periodic=timedelta(milliseconds=10), pous=[_MainProg])],
         ).compile()
 
         assert ir.name == "FullProject"
@@ -282,10 +282,10 @@ class TestAutoCompilation:
 
 class TestFormatInterval:
     def test_time_literal(self):
-        assert _format_interval(T(ms=100)) == "T#100ms"
+        assert _format_interval(timedelta(milliseconds=100)) == "T#100ms"
 
-    def test_ltime_literal(self):
-        assert _format_interval(LT(ms=500)) == "LTIME#500ms"
+    def test_timedelta(self):
+        assert _format_interval(timedelta(milliseconds=500)) == "T#500ms"
 
     def test_string_passthrough(self):
         assert _format_interval("T#2s") == "T#2s"

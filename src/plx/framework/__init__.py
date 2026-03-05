@@ -2,7 +2,7 @@
 
 Users import everything from this single flat namespace::
 
-    from plx.framework import fb, Input, BOOL, REAL, TIME, T, Field, delayed
+    from plx.framework import fb, Input, BOOL, REAL, TIME, Field, delayed, timedelta
 """
 
 from ._types import (
@@ -32,12 +32,9 @@ from ._types import (
     USINT,
     WCHAR,
     WORD,
-    # Duration literal constructors
-    T,
-    LT,
-    # Duration literal types (for isinstance checks / type annotations)
-    TimeLiteral,
-    LTimeLiteral,
+    # timedelta → IEC conversion helpers
+    timedelta_to_iec,
+    timedelta_to_ir,
     # Type constructors
     ARRAY,
     STRING,
@@ -149,6 +146,7 @@ from ._vendor import (
 
 # Standard library re-exports for convenience
 from dataclasses import dataclass
+from datetime import timedelta
 from enum import IntEnum
 from typing import Annotated
 
@@ -179,11 +177,11 @@ __all__ = [
     "USINT",
     "WCHAR",
     "WORD",
-    # Duration literals
-    "T",
-    "LT",
-    "TimeLiteral",
-    "LTimeLiteral",
+    # timedelta (re-exported from datetime)
+    "timedelta",
+    # timedelta → IEC conversion helpers
+    "timedelta_to_iec",
+    "timedelta_to_ir",
     # Type constructors
     "ARRAY",
     "STRING",

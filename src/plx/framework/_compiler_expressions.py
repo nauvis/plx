@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import ast
 from collections.abc import Callable
+from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from plx.model.expressions import (
@@ -26,7 +27,7 @@ from plx.model.expressions import (
     UnaryOp,
     VariableRef,
 )
-from plx.model.types import NamedTypeRef, PrimitiveType, PrimitiveTypeRef, TypeRef
+from plx.model.types import ArrayTypeRef, NamedTypeRef, PrimitiveType, PrimitiveTypeRef, TypeRef
 
 from ._compiler_core import (
     CompileError,
@@ -35,6 +36,8 @@ from ._compiler_core import (
     _BINOP_MAP,
     _BUILTIN_FUNCS,
     _CMPOP_MAP,
+    _MATH_CONSTANTS,
+    _MATH_FUNC_MAP,
     _PYTHON_BUILTIN_MAP,
     _PYTHON_TYPE_CONV_MAP,
     _REJECTED_BINOP_MESSAGES,
@@ -99,6 +102,15 @@ class _ExpressionMixin:
             return LiteralExpr(
                 value=f"{enum_name}#{member_name}",
                 data_type=NamedTypeRef(name=enum_name),
+            )
+        # math module constants: math.pi, math.e, math.tau, math.inf
+        if isinstance(node.value, ast.Name) and node.value.id == "math":
+            if node.attr in _MATH_CONSTANTS:
+                return LiteralExpr(value=_MATH_CONSTANTS[node.attr])
+            raise CompileError(
+                f"math.{node.attr} is not supported in PLC logic. "
+                f"Supported: {', '.join(f'math.{k}' for k in sorted(_MATH_CONSTANTS))}",
+                node, self.ctx,
             )
         # Bit access: expr.bit5 → BitAccessExpr(target=expr, bit_index=5)
         m = _BIT_ACCESS_RE.match(node.attr)
@@ -197,6 +209,10 @@ class _ExpressionMixin:
                 handler = _sentinel_dispatch[sentinel.category]
                 return handler(name, node)
 
+            # timedelta(...) → LiteralExpr("T#...")
+            if name == "timedelta":
+                return self._compile_timedelta(node)
+
             # range() — error (only valid in for)
             if name == "range":
                 raise CompileError(
@@ -236,7 +252,11 @@ class _ExpressionMixin:
                     target_type: TypeRef = PrimitiveTypeRef(type=PrimitiveType(target_type_name))
                 except ValueError:
                     target_type = NamedTypeRef(name=target_type_name)
-                return TypeConversionExpr(target_type=target_type, source=source)
+                try:
+                    source_type: TypeRef = PrimitiveTypeRef(type=PrimitiveType(source_type_name))
+                except ValueError:
+                    source_type = NamedTypeRef(name=source_type_name)
+                return TypeConversionExpr(target_type=target_type, source=source, source_type=source_type)
 
             # Direct IEC type name as conversion: INT(x), SINT(x), LREAL(x)
             if len(node.args) == 1 and not node.keywords:
@@ -259,12 +279,46 @@ class _ExpressionMixin:
             args = self._compile_call_args(node)
             return FunctionCallExpr(function_name=name, args=args)
 
+        # self.fb_array[i](...) → FBInvocation with Expression instance_name
+        if isinstance(func, ast.Subscript):
+            attr = func.value
+            if isinstance(attr, ast.Attribute) and isinstance(attr.value, ast.Name) and attr.value.id == "self":
+                array_name = attr.attr
+                if isinstance(func.slice, ast.Tuple):
+                    index_exprs = [self.compile_expression(elt) for elt in func.slice.elts]
+                else:
+                    index_exprs = [self.compile_expression(func.slice)]
+                inv = self._build_fb_array_invocation(array_name, index_exprs, node)
+                if inv is not None:
+                    self.ctx.pending_fb_invocations.append(inv)
+                    return ArrayAccessExpr(array=VariableRef(name=array_name), indices=index_exprs)
+
         # self.fb_instance(...) → FBInvocation (as expression)
         if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id == "self":
             inv = self._build_fb_invocation(func.attr, node)
             if inv is not None:
                 self.ctx.pending_fb_invocations.append(inv)
                 return VariableRef(name=func.attr)
+            # self.method_name(...) → FunctionCallExpr (method call, no self arg)
+            if func.attr in self.ctx.known_methods:
+                args = self._compile_call_args(node)
+                return FunctionCallExpr(function_name=func.attr, args=args)
+
+        # datetime.timedelta(...) → LiteralExpr("T#...")
+        if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id == "datetime" and func.attr == "timedelta":
+            return self._compile_timedelta(node)
+
+        # math module functions: math.sqrt(x) → SQRT(x)
+        if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id == "math":
+            iec_name = _MATH_FUNC_MAP.get(func.attr)
+            if iec_name is None:
+                raise CompileError(
+                    f"math.{func.attr}() is not supported in PLC logic. "
+                    f"Supported: {', '.join(f'math.{k}()' for k in sorted(_MATH_FUNC_MAP))}",
+                    node, self.ctx,
+                )
+            args = self._compile_call_args(node)
+            return FunctionCallExpr(function_name=iec_name, args=args)
 
         # Other attribute calls
         if isinstance(func, ast.Attribute):
@@ -302,6 +356,37 @@ class _ExpressionMixin:
                 CallArg(value=true_val),
             ],
         )
+
+    def _compile_timedelta(self, node: ast.Call) -> LiteralExpr:
+        """Compile ``timedelta(...)`` to a TIME LiteralExpr at compile time."""
+        from ._types import timedelta_to_ir
+        if node.args:
+            raise CompileError(
+                "timedelta() in logic must use keyword arguments only "
+                "(e.g. timedelta(seconds=5), timedelta(milliseconds=500))",
+                node, self.ctx,
+            )
+        _VALID_KWARGS = {"weeks", "days", "hours", "minutes", "seconds", "milliseconds", "microseconds"}
+        kwargs: dict[str, int | float] = {}
+        for kw in node.keywords:
+            if kw.arg is None:
+                raise CompileError("**kwargs not supported in timedelta()", node, self.ctx)
+            if kw.arg not in _VALID_KWARGS:
+                raise CompileError(
+                    f"timedelta() got unexpected keyword argument '{kw.arg}'. "
+                    f"Supported: {', '.join(sorted(_VALID_KWARGS))}",
+                    node, self.ctx,
+                )
+            if not isinstance(kw.value, ast.Constant) or not isinstance(kw.value.value, (int, float)):
+                raise CompileError(
+                    f"timedelta({kw.arg}=...) must be a numeric literal",
+                    node, self.ctx,
+                )
+            kwargs[kw.arg] = kw.value.value
+        if not kwargs:
+            raise CompileError("timedelta() requires at least one argument", node, self.ctx)
+        td = timedelta(**kwargs)
+        return timedelta_to_ir(td)
 
     def _compile_call_args(self, node: ast.Call) -> list[CallArg]:
         """Compile positional and keyword arguments."""

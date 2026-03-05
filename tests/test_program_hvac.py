@@ -6,12 +6,13 @@ sustained() for fan coast-down, and first_scan() for initialization.
 
 import pytest
 
+from datetime import timedelta
+
 from plx.framework import (
     BOOL,
     DINT,
     INT,
     REAL,
-    T,
     delayed,
     fb,
     first_scan,
@@ -179,7 +180,7 @@ class FullZoneController(OccupancyZoneController):
 
         # Fan coast-down: fan runs while demand exists, plus 30s after
         any_demand: BOOL = self.heat_demand > 0.0 or self.cool_demand > 0.0
-        self.fan_running = sustained(any_demand, seconds=30)
+        self.fan_running = sustained(any_demand, timedelta(seconds=30))
 
 
 # ==========================================================================
@@ -241,7 +242,7 @@ class FilterAlarm:
         self.dp_high = self.filter_dp > self.alarm_sp
 
         # Debounce: DP must be high for 30 continuous seconds
-        self.alarm = delayed(self.dp_high, seconds=30)
+        self.alarm = delayed(self.dp_high, timedelta(seconds=30))
 
         # Latch alarm until acknowledged (and DP drops)
         if self.alarm:
@@ -838,13 +839,13 @@ class TestHVACProjectCompilation:
             tasks=[
                 task(
                     "TempControl",
-                    periodic=T(ms=100),
+                    periodic=timedelta(milliseconds=100),
                     pous=[HVACSystem],
                     priority=2,
                 ),
                 task(
                     "Trending",
-                    periodic=T(seconds=1),
+                    periodic=timedelta(seconds=1),
                     pous=[TrendProgram],
                     priority=10,
                 ),

@@ -1,5 +1,7 @@
 """Tests for vendor target validation."""
 
+import math
+
 import pytest
 
 from plx.framework._compiler import CompileError
@@ -7,7 +9,8 @@ from plx.framework._data_types import enumeration, struct
 from plx.framework._decorators import fb, method, program
 from plx.framework._descriptors import Input, Field, Output, Static, TON, RTO, SR, RS, CTU, CTD
 from plx.framework._project import project
-from plx.framework._types import BOOL, DINT, INT, POINTER_TO, REAL, REFERENCE_TO, TIME, T
+from datetime import timedelta
+from plx.framework._types import BOOL, DINT, INT, POINTER_TO, REAL, REFERENCE_TO, TIME
 from plx.framework._vendor import (
     CompileResult,
     PortabilityWarning,
@@ -392,7 +395,7 @@ class _FBWithRTO:
     timer: RTO
 
     def logic(self):
-        self.timer(IN=self.timer.Q, PT=T(ms=500))
+        self.timer(IN=self.timer.Q, PT=timedelta(milliseconds=500))
 
 
 @fb
@@ -433,7 +436,7 @@ class _FBWithTON:
     timer: TON
 
     def logic(self):
-        self.timer(IN=True, PT=T(ms=100))
+        self.timer(IN=True, PT=timedelta(milliseconds=100))
 
 
 class TestPortabilityWarnings:
@@ -588,3 +591,76 @@ class TestPortabilityWarnings:
         ir = project("P", pous=[_SimpleFB]).compile()
         warnings = validate_target(ir, Vendor.AB)
         assert warnings == []
+
+    # --- Math function portability warnings ---
+
+    def test_exp_warns_for_ab(self):
+        @fb
+        class _FBWithExp:
+            x: Input[REAL]
+            y: Output[REAL]
+
+            def logic(self):
+                self.y = math.exp(self.x)
+
+        result = project("P", pous=[_FBWithExp]).compile(target=Vendor.AB)
+        math_warnings = [w for w in result.warnings if w.category == "math_translation"]
+        assert len(math_warnings) == 1
+        assert math_warnings[0].details["function"] == "EXP"
+        assert "EXPT" in math_warnings[0].message
+
+    def test_exp_no_warning_for_beckhoff(self):
+        @fb
+        class _FBWithExp2:
+            x: Input[REAL]
+            y: Output[REAL]
+
+            def logic(self):
+                self.y = math.exp(self.x)
+
+        result = project("P", pous=[_FBWithExp2]).compile(target=Vendor.BECKHOFF)
+        math_warnings = [w for w in result.warnings if w.category == "math_translation"]
+        assert math_warnings == []
+
+    def test_ceil_warns_for_ab(self):
+        @fb
+        class _FBWithCeil:
+            x: Input[REAL]
+            y: Output[REAL]
+
+            def logic(self):
+                self.y = math.ceil(self.x)
+
+        result = project("P", pous=[_FBWithCeil]).compile(target=Vendor.AB)
+        math_warnings = [w for w in result.warnings if w.category == "math_translation"]
+        assert len(math_warnings) == 1
+        assert math_warnings[0].details["function"] == "CEIL"
+
+    def test_floor_warns_for_ab(self):
+        @fb
+        class _FBWithFloor:
+            x: Input[REAL]
+            y: Output[REAL]
+
+            def logic(self):
+                self.y = math.floor(self.x)
+
+        result = project("P", pous=[_FBWithFloor]).compile(target=Vendor.AB)
+        math_warnings = [w for w in result.warnings if w.category == "math_translation"]
+        assert len(math_warnings) == 1
+        assert math_warnings[0].details["function"] == "FLOOR"
+
+    def test_sqrt_no_math_warning(self):
+        """SQRT is universal — no math_translation warning for any vendor."""
+        @fb
+        class _FBWithSqrt:
+            x: Input[REAL]
+            y: Output[REAL]
+
+            def logic(self):
+                self.y = math.sqrt(self.x)
+
+        for vendor in Vendor:
+            result = project("P", pous=[_FBWithSqrt]).compile(target=vendor)
+            math_warnings = [w for w in result.warnings if w.category == "math_translation"]
+            assert math_warnings == [], f"Unexpected warning for {vendor}"

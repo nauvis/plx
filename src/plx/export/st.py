@@ -458,9 +458,12 @@ class STWriter:
     # ======================================================================
 
     def _write_networks(self, networks: list[Network]) -> None:
-        for net in networks:
+        for i, net in enumerate(networks):
             if net.comment:
-                self._line(f"// {net.comment}")
+                if i > 0:
+                    self._line()
+                for comment_line in net.comment.split("\n"):
+                    self._line(f"// {comment_line}")
             for stmt in net.statements:
                 self._write_stmt(stmt)
 
@@ -580,7 +583,8 @@ class STWriter:
         for name, expr in stmt.outputs.items():
             parts.append(f"{name} => {self._expr(expr)}")
         args = ", ".join(parts)
-        self._line(f"{stmt.instance_name}({args});")
+        instance_text = stmt.instance_name if isinstance(stmt.instance_name, str) else self._expr(stmt.instance_name)
+        self._line(f"{instance_text}({args});")
 
     def _write_empty(self, _stmt: EmptyStatement) -> None:
         self._line(";")
@@ -640,7 +644,9 @@ class STWriter:
 
     def _expr_type_conversion(self, expr: TypeConversionExpr, _prec: int) -> str:
         target = self._type_ref(expr.target_type)
-        # IEC style: TYPE_TO_TYPE(value) — but we simplify to target(source)
+        if expr.source_type is not None:
+            source = self._type_ref(expr.source_type)
+            return f"{source}_TO_{target}({self._expr(expr.source)})"
         return f"{target}({self._expr(expr.source)})"
 
     def _expr_system_flag(self, expr: SystemFlagExpr, _prec: int) -> str:

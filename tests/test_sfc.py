@@ -2,12 +2,13 @@
 
 import pytest
 
+from datetime import timedelta
+
 from plx.framework import (
     BOOL,
     DINT,
     INT,
     REAL,
-    T,
     CompileError,
     Input,
     method,
@@ -202,7 +203,7 @@ class TestActions:
             out: Output[BOOL]
             S0 = step(initial=True)
 
-            @S0.action(qualifier="L", duration=T(seconds=10))
+            @S0.action(qualifier="L", duration=timedelta(seconds=10))
             def limited(self):
                 self.out = True
 
@@ -241,7 +242,7 @@ class TestActions:
 
             @S0.action
             def act(self):
-                self.out = delayed(self.cmd, seconds=3)
+                self.out = delayed(self.cmd, timedelta(seconds=3))
 
         pou = Sentinel.compile()
         # Should generate static vars for the timer FB

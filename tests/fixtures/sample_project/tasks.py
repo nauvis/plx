@@ -1,8 +1,9 @@
 """Task definitions for the sample project."""
 
+from datetime import timedelta
+
 from plx.framework._project import task
-from plx.framework._types import T
 
 from . import MainProgram
 
-main_task = task("MainTask", periodic=T(ms=10), pous=[MainProgram], priority=1)
+main_task = task("MainTask", periodic=timedelta(milliseconds=10), pous=[MainProgram], priority=1)

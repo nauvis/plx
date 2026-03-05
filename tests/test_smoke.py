@@ -2,12 +2,13 @@
 
 import json
 
+from datetime import timedelta
+
 from plx.framework import (
     BOOL,
     DINT,
     REAL,
     TIME,
-    T,
     ARRAY,
     STRING,
     CompileError,
@@ -36,7 +37,7 @@ class PneumaticActuator:
     retract_cmd: Input[BOOL] = Field(description="Command to retract")
     extend_fb: Input[BOOL] = Field(description="Extended feedback")
     retract_fb: Input[BOOL] = Field(description="Retracted feedback")
-    fault_time: TIME = T(5)
+    fault_time: TIME = timedelta(seconds=5)
     extend_sol: Output[BOOL]
     retract_sol: Output[BOOL]
     fault: Output[BOOL]
@@ -49,9 +50,9 @@ class PneumaticActuator:
             self.extend_sol = False
             self.retract_sol = True
 
-        if self.extend_sol and delayed(not self.extend_fb, seconds=5):
+        if self.extend_sol and delayed(not self.extend_fb, timedelta(seconds=5)):
             self.fault = True
-        elif self.retract_sol and delayed(not self.retract_fb, seconds=5):
+        elif self.retract_sol and delayed(not self.retract_fb, timedelta(seconds=5)):
             self.fault = True
 
 
@@ -136,8 +137,7 @@ class TestSmokeEndToEnd:
             REAL,
             TIME,
             LTIME,
-            T,
-            LT,
+            timedelta,
             ARRAY,
             STRING,
             WSTRING,

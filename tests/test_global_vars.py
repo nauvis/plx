@@ -9,6 +9,7 @@ from plx.framework._global_vars import global_vars
 from plx.framework._descriptors import Field
 from plx.framework._project import project
 from plx.framework._protocols import CompiledGlobalVarList
+from datetime import timedelta
 from plx.framework._types import (
     ARRAY,
     BOOL,
@@ -17,7 +18,6 @@ from plx.framework._types import (
     REAL,
     STRING,
     TIME,
-    T,
     POINTER_TO,
 )
 from plx.model.project import GlobalVariableList
@@ -289,7 +289,7 @@ class TestTypeConstructors:
     def test_time_initial_value(self):
         @global_vars
         class WithTime:
-            timeout: TIME = T(5)
+            timeout: TIME = timedelta(seconds=5)
 
         gvl = WithTime.compile()
         assert gvl.variables[0].initial_value == "T#5s"

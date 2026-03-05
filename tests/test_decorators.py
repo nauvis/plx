@@ -1,11 +1,13 @@
 """Tests for POU decorators — end-to-end compilation."""
 
+from datetime import timedelta
+
 import pytest
 
 from plx.framework._compiler import CompileError
 from plx.framework._decorators import fb, function, program
 from plx.framework._descriptors import Input, Field, Output, InOut
-from plx.framework._types import BOOL, DINT, INT, REAL, TIME, T
+from plx.framework._types import BOOL, DINT, INT, REAL, TIME
 from plx.model.expressions import (
     BinaryExpr,
     BinaryOp,
@@ -68,7 +70,7 @@ class TestFBDecorator:
             output_signal: Output[BOOL]
 
             def logic(self):
-                self.output_signal = delayed(self.input_signal, seconds=5)
+                self.output_signal = delayed(self.input_signal, timedelta(seconds=5))
 
         pou = DelayedFB.compile()
         # Should have generated a TON static var

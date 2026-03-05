@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import inspect
 import sys
+from enum import IntEnum
 from typing import Any
 
 from plx.model.pou import POU
@@ -79,7 +80,7 @@ def simulate(
 
     # Build data type and enum registries (auto-discovered + explicit)
     data_type_registry: dict[str, StructType | EnumType] = {}
-    enum_registry: dict[str, dict[str, int]] = {}
+    enum_registry: dict[str, type[IntEnum]] = {}
 
     for dt in auto_data_types:
         _register_typedef(dt, data_type_registry, enum_registry)
@@ -114,6 +115,13 @@ def _resolve_typedef(dt: Any) -> StructType | EnumType:
         return dt
     if isinstance(dt, CompiledDataType):
         return dt._compiled_type
+    # Auto-compile bare IntEnum/dataclass that hasn't been compiled yet
+    if isinstance(dt, type):
+        from plx.framework._data_types import _ensure_enum_compiled, _ensure_struct_compiled
+        _ensure_enum_compiled(dt)
+        _ensure_struct_compiled(dt)
+        if isinstance(dt, CompiledDataType):
+            return dt._compiled_type
     raise TypeError(
         f"data_types entries must be @struct/@enumeration classes or TypeDefinition IR, "
         f"got {type(dt).__name__}"
@@ -123,15 +131,15 @@ def _resolve_typedef(dt: Any) -> StructType | EnumType:
 def _register_typedef(
     dt: Any,
     data_type_registry: dict[str, StructType | EnumType],
-    enum_registry: dict[str, dict[str, int]],
+    enum_registry: dict[str, type[IntEnum]],
 ) -> None:
     """Resolve a data type and add it to both registries."""
     typedef = _resolve_typedef(dt)
     data_type_registry[typedef.name] = typedef
     if isinstance(typedef, EnumType):
-        enum_registry[typedef.name] = {
-            m.name: m.value for m in typedef.members if m.value is not None
-        }
+        members = {m.name: m.value for m in typedef.members if m.value is not None}
+        if members:
+            enum_registry[typedef.name] = IntEnum(typedef.name, members)
 
 
 def _auto_discover(target: Any) -> tuple[list[Any], list[Any]]:

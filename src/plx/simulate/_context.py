@@ -7,6 +7,7 @@ provides attribute-style access to POU variables.
 from __future__ import annotations
 
 import math
+from enum import IntEnum
 
 from plx.model.pou import POU
 from plx.model.types import (
@@ -37,8 +38,8 @@ class SimulationContext:
         Registry of user-defined POUs for nested FB resolution.
     data_type_registry : dict[str, StructType | EnumType]
         Registry of type definitions.
-    enum_registry : dict[str, dict[str, int]]
-        Enum name -> {member: int_value} for literal resolution.
+    enum_registry : dict[str, type[IntEnum]]
+        Enum name -> IntEnum class for literal resolution.
     scan_period_ms : int
         Simulated time advance per scan (default 10ms).
     """
@@ -48,7 +49,7 @@ class SimulationContext:
         pou: POU,
         pou_registry: dict[str, POU] | None = None,
         data_type_registry: dict | None = None,
-        enum_registry: dict[str, dict[str, int]] | None = None,
+        enum_registry: dict[str, type[IntEnum]] | None = None,
         scan_period_ms: int = 10,
     ) -> None:
         object.__setattr__(self, "_pou", pou)
@@ -168,9 +169,12 @@ class SimulationContext:
             if isinstance(typedef, StructType):
                 return self._allocate_struct(typedef)
             if isinstance(typedef, EnumType):
-                # Enum default = first member value or 0
-                if typedef.members:
-                    return typedef.members[0].value if typedef.members[0].value is not None else 0
+                # Enum default = first member as IntEnum member if available
+                if typedef.members and typedef.members[0].value is not None:
+                    if name in self._enum_registry:
+                        enum_cls = self._enum_registry[name]
+                        return enum_cls(typedef.members[0].value)
+                    return typedef.members[0].value
                 return 0
 
         # Unknown named type — return empty dict

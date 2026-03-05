@@ -424,6 +424,8 @@ def _compile_pou_class(
 
     extends = _detect_parent_pou(cls)
     var_groups, declared_vars, static_var_types = _build_var_context(cls)
+    # Snapshot before body compilation mutates declared_vars with temp vars
+    descriptor_vars = dict(declared_vars)
 
     has_logic = hasattr(cls, "logic")
 
@@ -464,6 +466,7 @@ def _compile_pou_class(
             declared_vars, static_var_types,
             start_lineno, source_file,
         )
+        ctx.known_methods = {name for name, _, _ in _collect_methods(cls)}
 
         networks = _compile_logic_networks(func_def, ctx, source)
         generated_static_vars = ctx.generated_static_vars
@@ -474,8 +477,8 @@ def _compile_pou_class(
         except (TypeError, OSError):
             source_file = "<unknown>"
 
-    compiled_methods = _compile_all_methods(cls, declared_vars, static_var_types, source_file)
-    compiled_properties = _compile_all_properties(cls, declared_vars, static_var_types, source_file)
+    compiled_methods = _compile_all_methods(cls, descriptor_vars, static_var_types, source_file)
+    compiled_properties = _compile_all_properties(cls, descriptor_vars, static_var_types, source_file)
 
     interface = POUInterface(
         input_vars=var_groups["input"],

@@ -126,6 +126,7 @@ class TypeConversionExpr(IRModel):
     kind: Literal["type_conversion"] = "type_conversion"
     target_type: TypeRef
     source: Expression
+    source_type: TypeRef | None = None
 
 
 Expression = Annotated[

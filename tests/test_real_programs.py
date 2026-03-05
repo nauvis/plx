@@ -6,6 +6,8 @@ but complete control systems that exercise the framework end-to-end.
 
 import pytest
 
+from datetime import timedelta
+
 from plx.framework import (
     ARRAY,
     BOOL,
@@ -13,7 +15,6 @@ from plx.framework import (
     INT,
     REAL,
     STRING,
-    T,
     delayed,
     enumeration,
     fb,
@@ -84,7 +85,7 @@ class ConveyorDrive:
             self.overload_latched = False
 
         # Jam detection: photo-eye blocked > 10 seconds
-        self.jam_detected = delayed(self.photo_eye, seconds=10)
+        self.jam_detected = delayed(self.photo_eye, timedelta(seconds=10))
         self.jam_alarm = self.jam_detected
 
         # Fault = overload OR jam
@@ -111,11 +112,11 @@ class DiverterGate:
     def logic(self):
         # On trigger, fire appropriate gate for 2 seconds
         if self.sort_left:
-            self.gate_left = pulse(self.trigger, seconds=2)
+            self.gate_left = pulse(self.trigger, timedelta(seconds=2))
             self.gate_right = False
         else:
             self.gate_left = False
-            self.gate_right = pulse(self.trigger, seconds=2)
+            self.gate_right = pulse(self.trigger, timedelta(seconds=2))
 
 
 @fb
@@ -2209,13 +2210,13 @@ class TestProjectAssembly:
             tasks=[
                 task(
                     "FastScan",
-                    periodic=T(ms=10),
+                    periodic=timedelta(milliseconds=10),
                     pous=[SortingMain],
                     priority=1,
                 ),
                 task(
                     "SlowScan",
-                    periodic=T(ms=100),
+                    periodic=timedelta(milliseconds=100),
                     pous=[ProcessMain],
                     priority=5,
                 ),

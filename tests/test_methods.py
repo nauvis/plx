@@ -2,12 +2,13 @@
 
 import pytest
 
+from datetime import timedelta
+
 from plx.framework import (
     BOOL,
     DINT,
     REAL,
     TIME,
-    T,
     fb,
     method,
     Input,
@@ -17,8 +18,8 @@ from plx.framework import (
     Field,
 )
 from plx.model.pou import AccessSpecifier, Method, POU, POUType
-from plx.model.expressions import BinaryExpr, LiteralExpr, VariableRef
-from plx.model.statements import Assignment, ReturnStatement
+from plx.model.expressions import BinaryExpr, FunctionCallExpr, LiteralExpr, VariableRef
+from plx.model.statements import Assignment, FunctionCallStatement, ReturnStatement
 from plx.model.types import NamedTypeRef, PrimitiveType, PrimitiveTypeRef
 
 
@@ -360,6 +361,75 @@ class TestMethodAccessFBVars:
 
 
 # ---------------------------------------------------------------------------
+# Methods called from logic()
+# ---------------------------------------------------------------------------
+
+class TestMethodCalledFromLogic:
+    def test_method_call_as_expression(self):
+        """self.method() in expression context should not prepend self as arg."""
+        @fb
+        class Valve:
+            pressure: REAL
+            limit: REAL = 100.0
+
+            def logic(self):
+                self.pressure = self.check_limits()
+
+            @method
+            def check_limits(self) -> REAL:
+                return self.limit
+
+        pou = Valve.compile()
+        stmt = pou.networks[0].statements[0]
+        assert isinstance(stmt, Assignment)
+        assert isinstance(stmt.value, FunctionCallExpr)
+        assert stmt.value.function_name == "check_limits"
+        # No 'self' argument should be present
+        assert len(stmt.value.args) == 0
+
+    def test_method_call_with_args_as_expression(self):
+        """self.method(arg) in expression context compiles args correctly."""
+        @fb
+        class Limiter:
+            val: REAL
+
+            def logic(self):
+                self.val = self.clamp(self.val)
+
+            @method
+            def clamp(self, x: REAL) -> REAL:
+                return x
+
+        pou = Limiter.compile()
+        stmt = pou.networks[0].statements[0]
+        assert isinstance(stmt, Assignment)
+        assert isinstance(stmt.value, FunctionCallExpr)
+        assert stmt.value.function_name == "clamp"
+        assert len(stmt.value.args) == 1
+        assert isinstance(stmt.value.args[0].value, VariableRef)
+        assert stmt.value.args[0].value.name == "val"
+
+    def test_method_call_as_statement(self):
+        """self.method() as a statement should also work correctly."""
+        @fb
+        class Motor:
+            speed: REAL
+
+            def logic(self):
+                self.reset()
+
+            @method
+            def reset(self):
+                self.speed = 0.0
+
+        pou = Motor.compile()
+        stmt = pou.networks[0].statements[0]
+        assert isinstance(stmt, FunctionCallStatement)
+        assert stmt.function_name == "reset"
+        assert len(stmt.args) == 0
+
+
+# ---------------------------------------------------------------------------
 # Methods with sentinels
 # ---------------------------------------------------------------------------
 
@@ -375,7 +445,7 @@ class TestMethodWithSentinels:
 
             @method
             def timed_check(self) -> BOOL:
-                return delayed(self.sig, seconds=5)
+                return delayed(self.sig, timedelta(seconds=5))
 
         m = MyFB.compile().methods[0]
         # Should have generated a TON static var on the method

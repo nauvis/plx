@@ -30,7 +30,7 @@ from plx.model.variables import Variable
 class TestDelayed:
     def test_basic(self):
         ctx = CompileContext()
-        stmts = compile_stmts("self.output = delayed(self.input, seconds=5)", ctx)
+        stmts = compile_stmts("self.output = delayed(self.input, timedelta(seconds=5))", ctx)
         # Should have: FBInvocation (TON), Assignment
         assert len(stmts) == 2
         assert isinstance(stmts[0], FBInvocation)
@@ -49,7 +49,7 @@ class TestDelayed:
 
     def test_generates_static_var(self):
         ctx = CompileContext()
-        compile_stmts("self.output = delayed(self.input, seconds=5)", ctx)
+        compile_stmts("self.output = delayed(self.input, timedelta(seconds=5))", ctx)
         assert len(ctx.generated_static_vars) == 1
         var = ctx.generated_static_vars[0]
         assert var.data_type == NamedTypeRef(name="TON")
@@ -57,21 +57,21 @@ class TestDelayed:
 
     def test_ms_duration(self):
         ctx = CompileContext()
-        stmts = compile_stmts("self.output = delayed(self.input, ms=500)", ctx)
+        stmts = compile_stmts("self.output = delayed(self.input, timedelta(milliseconds=500))", ctx)
         pt = stmts[0].inputs["PT"]
         assert pt.value == "T#500ms"
 
     def test_combined_duration(self):
         ctx = CompileContext()
-        stmts = compile_stmts("self.output = delayed(self.input, seconds=1, ms=500)", ctx)
+        stmts = compile_stmts("self.output = delayed(self.input, timedelta(seconds=1, milliseconds=500))", ctx)
         pt = stmts[0].inputs["PT"]
-        assert pt.value == "T#1500ms"
+        assert pt.value == "T#1s500ms"
 
     def test_multiple_instances_unique_names(self):
         ctx = CompileContext()
         compile_stmts("""\
-self.a = delayed(self.x, seconds=1)
-self.b = delayed(self.y, seconds=2)
+self.a = delayed(self.x, timedelta(seconds=1))
+self.b = delayed(self.y, timedelta(seconds=2))
 """, ctx)
         assert len(ctx.generated_static_vars) == 2
         names = [v.name for v in ctx.generated_static_vars]
@@ -81,7 +81,7 @@ self.b = delayed(self.y, seconds=2)
 class TestSustained:
     def test_basic(self):
         ctx = CompileContext()
-        stmts = compile_stmts("self.output = sustained(self.input, seconds=3)", ctx)
+        stmts = compile_stmts("self.output = sustained(self.input, timedelta(seconds=3))", ctx)
         assert isinstance(stmts[0], FBInvocation)
         assert stmts[0].fb_type == "TOF"
 
@@ -89,7 +89,7 @@ class TestSustained:
 class TestPulse:
     def test_basic(self):
         ctx = CompileContext()
-        stmts = compile_stmts("self.output = pulse(self.input, ms=500)", ctx)
+        stmts = compile_stmts("self.output = pulse(self.input, timedelta(milliseconds=500))", ctx)
         assert isinstance(stmts[0], FBInvocation)
         assert stmts[0].fb_type == "TP"
 
@@ -97,7 +97,7 @@ class TestPulse:
 class TestRetentive:
     def test_basic(self):
         ctx = CompileContext()
-        stmts = compile_stmts("self.output = retentive(self.input, seconds=5)", ctx)
+        stmts = compile_stmts("self.output = retentive(self.input, timedelta(seconds=5))", ctx)
         assert len(stmts) == 2
         assert isinstance(stmts[0], FBInvocation)
         assert stmts[0].fb_type == "RTO"
@@ -113,7 +113,7 @@ class TestRetentive:
 
     def test_generates_static_var(self):
         ctx = CompileContext()
-        compile_stmts("self.output = retentive(self.input, seconds=5)", ctx)
+        compile_stmts("self.output = retentive(self.input, timedelta(seconds=5))", ctx)
         assert len(ctx.generated_static_vars) == 1
         var = ctx.generated_static_vars[0]
         assert var.data_type == NamedTypeRef(name="RTO")
@@ -121,14 +121,14 @@ class TestRetentive:
 
     def test_ms_duration(self):
         ctx = CompileContext()
-        stmts = compile_stmts("self.output = retentive(self.input, ms=750)", ctx)
+        stmts = compile_stmts("self.output = retentive(self.input, timedelta(milliseconds=750))", ctx)
         pt = stmts[0].inputs["PT"]
         assert pt.value == "T#750ms"
 
     def test_in_if_condition(self):
         ctx = CompileContext()
         stmts = compile_stmts("""\
-if retentive(self.signal, seconds=10):
+if retentive(self.signal, timedelta(seconds=10)):
     self.done = True
 """, ctx)
         assert len(stmts) == 2
@@ -257,13 +257,13 @@ class TestDurationParsing:
 
     def test_seconds_only(self):
         ctx = CompileContext()
-        stmts = compile_stmts("self.output = delayed(self.input, seconds=10)", ctx)
+        stmts = compile_stmts("self.output = delayed(self.input, timedelta(seconds=10))", ctx)
         pt = stmts[0].inputs["PT"]
         assert pt.value == "T#10s"
 
     def test_ms_only(self):
         ctx = CompileContext()
-        stmts = compile_stmts("self.output = delayed(self.input, ms=250)", ctx)
+        stmts = compile_stmts("self.output = delayed(self.input, timedelta(milliseconds=250))", ctx)
         pt = stmts[0].inputs["PT"]
         assert pt.value == "T#250ms"
 
@@ -277,7 +277,7 @@ class TestPendingFlush:
         """Sentinel used in condition should flush before the if statement."""
         ctx = CompileContext()
         stmts = compile_stmts("""\
-if delayed(self.sensor, seconds=3):
+if delayed(self.sensor, timedelta(seconds=3)):
     self.output = True
 """, ctx)
         assert len(stmts) == 2
@@ -287,7 +287,7 @@ if delayed(self.sensor, seconds=3):
     def test_multiple_sentinels_in_expression(self):
         ctx = CompileContext()
         stmts = compile_stmts("""\
-self.output = delayed(self.a, seconds=1) and delayed(self.b, seconds=2)
+self.output = delayed(self.a, timedelta(seconds=1)) and delayed(self.b, timedelta(seconds=2))
 """, ctx)
         # Two FBInvocations + one Assignment
         assert len(stmts) == 3
@@ -544,3 +544,72 @@ if reset_dominant(self.s, self.r):
         cond = stmts[1].if_branch.condition
         assert isinstance(cond, MemberAccessExpr)
         assert cond.member == "Q1"
+
+
+# ---------------------------------------------------------------------------
+# Named sentinels (name= kwarg)
+# ---------------------------------------------------------------------------
+
+class TestNamedSentinels:
+    def test_delayed_with_name(self):
+        ctx = CompileContext()
+        stmts = compile_stmts('self.output = delayed(self.input, timedelta(seconds=5), name="cure_timer")', ctx)
+        assert stmts[0].instance_name == "cure_timer"
+        assert ctx.generated_static_vars[0].name == "cure_timer"
+
+    def test_rising_with_name(self):
+        ctx = CompileContext()
+        stmts = compile_stmts('self.output = rising(self.input, name="start_edge")', ctx)
+        assert stmts[0].instance_name == "start_edge"
+        assert ctx.generated_static_vars[0].name == "start_edge"
+
+    def test_count_up_with_name(self):
+        ctx = CompileContext()
+        stmts = compile_stmts('self.output = count_up(self.input, preset=10, name="part_counter")', ctx)
+        assert stmts[0].instance_name == "part_counter"
+        assert ctx.generated_static_vars[0].name == "part_counter"
+
+    def test_bistable_with_name(self):
+        ctx = CompileContext()
+        stmts = compile_stmts('self.output = set_dominant(self.s, self.r, name="latch")', ctx)
+        assert stmts[0].instance_name == "latch"
+        assert ctx.generated_static_vars[0].name == "latch"
+
+    def test_without_name_uses_auto(self):
+        ctx = CompileContext()
+        compile_stmts("self.output = delayed(self.input, timedelta(seconds=5))", ctx)
+        assert ctx.generated_static_vars[0].name.startswith("_plx_")
+
+    def test_name_must_be_string_literal(self):
+        import pytest
+        ctx = CompileContext()
+        with pytest.raises(Exception, match="name= must be a string literal"):
+            compile_stmts("self.output = delayed(self.input, timedelta(seconds=5), name=my_var)", ctx)
+
+    def test_name_must_be_valid_identifier(self):
+        import pytest
+        ctx = CompileContext()
+        with pytest.raises(Exception, match="not a valid identifier"):
+            compile_stmts('self.output = delayed(self.input, timedelta(seconds=5), name="123bad")', ctx)
+
+    def test_name_conflict_with_declared_var(self):
+        import pytest
+        from plx.framework._descriptors import VarDirection
+        ctx = CompileContext(declared_vars={"cure_timer": VarDirection.STATIC})
+        with pytest.raises(Exception, match="conflicts with a declared variable"):
+            compile_stmts('self.output = delayed(self.input, timedelta(seconds=5), name="cure_timer")', ctx)
+
+    def test_name_conflict_with_generated_var(self):
+        import pytest
+        ctx = CompileContext()
+        # First sentinel uses the name
+        compile_stmts('self.a = delayed(self.x, timedelta(seconds=1), name="my_timer")', ctx)
+        # Second sentinel tries the same name
+        with pytest.raises(Exception, match="conflicts with an existing generated variable"):
+            compile_stmts('self.b = delayed(self.y, timedelta(seconds=2), name="my_timer")', ctx)
+
+    def test_first_scan_rejects_name(self):
+        import pytest
+        ctx = CompileContext()
+        with pytest.raises(Exception, match="takes no arguments"):
+            compile_stmts('self.flag = first_scan(name="init")', ctx)

@@ -2,6 +2,7 @@
 sentinel registry, and vendor extensibility."""
 
 import warnings
+from datetime import timedelta
 
 import pytest
 
@@ -301,7 +302,7 @@ class TestSentinelRegistry:
             cmd: Input[BOOL]
             out: Output[BOOL]
             def logic(self):
-                self.out = delayed(self.cmd, seconds=5)
+                self.out = delayed(self.cmd, timedelta(seconds=5))
 
         pou = SentinelDispatchProg.compile()
         # Should have generated a TON static var
@@ -374,7 +375,7 @@ class TestVendorCheckExtensibility:
             cmd: Input[BOOL]
             out: Output[BOOL]
             def logic(self):
-                self.out = delayed(self.cmd, seconds=1)
+                self.out = delayed(self.cmd, timedelta(seconds=1))
 
         result = project("Test", pous=[FBWarnProg]).compile(target=Vendor.AB)
         ton_warnings = [

@@ -6,9 +6,13 @@ import pytest
 
 from plx.simulate._builtins import (
     BUILTIN_FBS,
+    CTD,
+    CTU,
     F_TRIG,
     R_TRIG,
+    RS,
     RTO,
+    SR,
     STDLIB_FUNCTIONS,
     TOF,
     TON,
@@ -338,5 +342,241 @@ class TestStdlib:
     def test_log(self):
         assert STDLIB_FUNCTIONS["LOG"](100) == pytest.approx(2.0)
 
-    def test_atan2(self):
-        assert STDLIB_FUNCTIONS["ATAN2"](1.0, 1.0) == pytest.approx(math.pi / 4)
+    def test_ceil(self):
+        assert STDLIB_FUNCTIONS["CEIL"](2.3) == 3
+        assert STDLIB_FUNCTIONS["CEIL"](-2.3) == -2
+        assert STDLIB_FUNCTIONS["CEIL"](5.0) == 5
+
+    def test_floor(self):
+        assert STDLIB_FUNCTIONS["FLOOR"](2.7) == 2
+        assert STDLIB_FUNCTIONS["FLOOR"](-2.7) == -3
+        assert STDLIB_FUNCTIONS["FLOOR"](5.0) == 5
+
+    # --- String functions ---
+
+    def test_len(self):
+        assert STDLIB_FUNCTIONS["LEN"]("hello") == 5
+
+    def test_len_empty(self):
+        assert STDLIB_FUNCTIONS["LEN"]("") == 0
+
+    def test_left(self):
+        assert STDLIB_FUNCTIONS["LEFT"]("hello", 3) == "hel"
+
+    def test_right(self):
+        assert STDLIB_FUNCTIONS["RIGHT"]("hello", 3) == "llo"
+
+    def test_mid(self):
+        assert STDLIB_FUNCTIONS["MID"]("hello world", 7, 5) == "world"
+
+    def test_mid_1_based(self):
+        assert STDLIB_FUNCTIONS["MID"]("ABCDE", 1, 3) == "ABC"
+
+    def test_concat(self):
+        assert STDLIB_FUNCTIONS["CONCAT"]("foo", "bar") == "foobar"
+
+    def test_concat_multiple(self):
+        assert STDLIB_FUNCTIONS["CONCAT"]("a", "b", "c") == "abc"
+
+    def test_find_found(self):
+        assert STDLIB_FUNCTIONS["FIND"]("hello world", "world") == 7
+
+    def test_find_not_found(self):
+        assert STDLIB_FUNCTIONS["FIND"]("hello", "xyz") == 0
+
+    def test_replace(self):
+        # IEC order: REPLACE(source, replacement, num_chars, position)
+        assert STDLIB_FUNCTIONS["REPLACE"]("hello world", "earth", 5, 7) == "hello earth"
+
+    def test_insert(self):
+        assert STDLIB_FUNCTIONS["INSERT"]("helo", "l", 4) == "hello"
+
+    def test_delete(self):
+        assert STDLIB_FUNCTIONS["DELETE"]("hello", 1, 4) == "helo"
+
+    # --- Bitwise function-call forms ---
+
+    def test_rol(self):
+        assert STDLIB_FUNCTIONS["ROL"](0x80000001, 1) == 0x00000003
+
+    def test_ror(self):
+        assert STDLIB_FUNCTIONS["ROR"](0x00000003, 1) == 0x80000001
+
+    def test_and_bool(self):
+        assert STDLIB_FUNCTIONS["AND"](True, False) is False
+        assert STDLIB_FUNCTIONS["AND"](True, True) is True
+
+    def test_and_int(self):
+        assert STDLIB_FUNCTIONS["AND"](0xFF, 0x0F) == 0x0F
+
+    def test_or_bool(self):
+        assert STDLIB_FUNCTIONS["OR"](False, True) is True
+
+    def test_or_int(self):
+        assert STDLIB_FUNCTIONS["OR"](0xF0, 0x0F) == 0xFF
+
+    def test_xor_bool(self):
+        assert STDLIB_FUNCTIONS["XOR"](True, True) is False
+        assert STDLIB_FUNCTIONS["XOR"](True, False) is True
+
+    def test_not_bool(self):
+        assert STDLIB_FUNCTIONS["NOT"](True) is False
+        assert STDLIB_FUNCTIONS["NOT"](False) is True
+
+
+# ---------------------------------------------------------------------------
+# CTU
+# ---------------------------------------------------------------------------
+
+class TestCTU:
+    def test_counts_on_rising_edge(self):
+        s = CTU.initial_state()
+        s["PV"] = 3
+        s["CU"] = True
+        CTU.execute(s, 0)
+        assert s["CV"] == 1
+        assert s["Q"] is False
+
+    def test_q_true_when_cv_reaches_pv(self):
+        s = CTU.initial_state()
+        s["PV"] = 2
+        # Edge 1
+        s["CU"] = True
+        CTU.execute(s, 0)
+        assert s["CV"] == 1
+        # Reset edge detection
+        s["CU"] = False
+        CTU.execute(s, 10)
+        # Edge 2
+        s["CU"] = True
+        CTU.execute(s, 20)
+        assert s["CV"] == 2
+        assert s["Q"] is True
+
+    def test_no_count_without_edge(self):
+        s = CTU.initial_state()
+        s["PV"] = 5
+        s["CU"] = True
+        CTU.execute(s, 0)
+        CTU.execute(s, 10)  # held high, no new edge
+        assert s["CV"] == 1
+
+    def test_reset_clears_cv(self):
+        s = CTU.initial_state()
+        s["PV"] = 5
+        s["CU"] = True
+        CTU.execute(s, 0)
+        assert s["CV"] == 1
+        s["RESET"] = True
+        CTU.execute(s, 10)
+        assert s["CV"] == 0
+        assert s["Q"] is False
+
+    def test_registered(self):
+        assert "CTU" in BUILTIN_FBS
+
+
+# ---------------------------------------------------------------------------
+# CTD
+# ---------------------------------------------------------------------------
+
+class TestCTD:
+    def test_counts_down_on_rising_edge(self):
+        s = CTD.initial_state()
+        s["PV"] = 5
+        s["CV"] = 3
+        s["CD"] = True
+        CTD.execute(s, 0)
+        assert s["CV"] == 2
+
+    def test_q_true_when_cv_le_zero(self):
+        s = CTD.initial_state()
+        s["PV"] = 1
+        s["CV"] = 1
+        s["CD"] = True
+        CTD.execute(s, 0)
+        assert s["CV"] == 0
+        assert s["Q"] is True
+
+    def test_load_sets_cv_to_pv(self):
+        s = CTD.initial_state()
+        s["PV"] = 10
+        s["LOAD"] = True
+        CTD.execute(s, 0)
+        assert s["CV"] == 10
+
+    def test_no_count_without_edge(self):
+        s = CTD.initial_state()
+        s["CV"] = 5
+        s["CD"] = True
+        CTD.execute(s, 0)
+        CTD.execute(s, 10)  # held high
+        assert s["CV"] == 4
+
+    def test_registered(self):
+        assert "CTD" in BUILTIN_FBS
+
+
+# ---------------------------------------------------------------------------
+# SR
+# ---------------------------------------------------------------------------
+
+class TestSR:
+    def test_set_dominant(self):
+        s = SR.initial_state()
+        s["SET1"] = True
+        s["RESET"] = True
+        SR.execute(s, 0)
+        assert s["Q1"] is True  # set-dominant
+
+    def test_reset_when_no_set(self):
+        s = SR.initial_state()
+        s["Q1"] = True
+        s["SET1"] = False
+        s["RESET"] = True
+        SR.execute(s, 0)
+        assert s["Q1"] is False
+
+    def test_latch(self):
+        s = SR.initial_state()
+        s["SET1"] = True
+        SR.execute(s, 0)
+        assert s["Q1"] is True
+        s["SET1"] = False
+        SR.execute(s, 10)
+        assert s["Q1"] is True  # latched
+
+    def test_registered(self):
+        assert "SR" in BUILTIN_FBS
+
+
+# ---------------------------------------------------------------------------
+# RS
+# ---------------------------------------------------------------------------
+
+class TestRS:
+    def test_reset_dominant(self):
+        s = RS.initial_state()
+        s["SET"] = True
+        s["RESET1"] = True
+        RS.execute(s, 0)
+        assert s["Q1"] is False  # reset-dominant
+
+    def test_set_when_no_reset(self):
+        s = RS.initial_state()
+        s["SET"] = True
+        s["RESET1"] = False
+        RS.execute(s, 0)
+        assert s["Q1"] is True
+
+    def test_latch(self):
+        s = RS.initial_state()
+        s["SET"] = True
+        RS.execute(s, 0)
+        assert s["Q1"] is True
+        s["SET"] = False
+        RS.execute(s, 10)
+        assert s["Q1"] is True  # latched
+
+    def test_registered(self):
+        assert "RS" in BUILTIN_FBS

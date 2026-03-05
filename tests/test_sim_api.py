@@ -68,6 +68,7 @@ class TestSimulateAPI:
         assert "MyStruct" in ctx._data_type_registry
 
     def test_enum_registry(self):
+        from enum import IntEnum
         enum_def = EnumType(
             name="Color",
             members=[
@@ -77,7 +78,10 @@ class TestSimulateAPI:
         )
         pou = _simple_pou()
         ctx = simulate(pou, data_types=[enum_def])
-        assert ctx._enum_registry["Color"]["RED"] == 0
+        enum_cls = ctx._enum_registry["Color"]
+        assert issubclass(enum_cls, IntEnum)
+        assert enum_cls["RED"] == 0
+        assert enum_cls["GREEN"] == 1
 
     def test_scan_period(self):
         pou = _simple_pou()

@@ -23,8 +23,10 @@ from plx.model.variables import Variable
 
 from plx.model.types import NamedTypeRef
 
+from datetime import timedelta
+
 from ._errors import DeclarationError
-from ._types import TimeLiteral, LTimeLiteral, _resolve_type_ref
+from ._types import timedelta_to_iec, _resolve_type_ref
 
 
 _T = TypeVar("_T")
@@ -183,10 +185,8 @@ def _format_initial(value: object) -> str | None:
         return "TRUE" if value else "FALSE"
     if isinstance(value, (int, float)):
         return str(value)
-    if isinstance(value, TimeLiteral):
-        return value.to_iec()
-    if isinstance(value, LTimeLiteral):
-        return value.to_iec()
+    if isinstance(value, timedelta):
+        return timedelta_to_iec(value)
     if isinstance(value, str):
         return value
     raise DeclarationError(
@@ -279,7 +279,7 @@ def _field_to_variable(
     the default supplies the initial value.
     """
     if field.initial_value is None and default is not None and not isinstance(default, FieldDescriptor):
-        if isinstance(default, (bool, int, float, str, TimeLiteral, LTimeLiteral)):
+        if isinstance(default, (bool, int, float, str, timedelta)):
             field = FieldDescriptor(
                 initial_value=_format_initial(default),
                 description=field.description,
@@ -474,7 +474,7 @@ def _collect_descriptors(cls: type, *, own_only: bool = False) -> dict[str, list
                 continue
 
             # Skip if default is a non-value object (step, transition, etc.)
-            if default is not None and not isinstance(default, (bool, int, float, str, TimeLiteral, LTimeLiteral)):
+            if default is not None and not isinstance(default, (bool, int, float, str, timedelta)):
                 continue
 
             initial_value = _format_initial(default)

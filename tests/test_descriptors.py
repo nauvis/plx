@@ -16,7 +16,8 @@ from plx.framework._descriptors import (
     _format_initial,
 )
 from plx.framework._errors import DeclarationError
-from plx.framework._types import T, LT, TimeLiteral, REAL, BOOL, INT, DINT
+from datetime import timedelta
+from plx.framework._types import REAL, BOOL, INT, DINT, timedelta_to_iec
 from plx.model.types import (
     NamedTypeRef,
     PrimitiveType,
@@ -46,11 +47,11 @@ class TestFormatInitial:
     def test_float(self):
         assert _format_initial(3.14) == "3.14"
 
-    def test_time_literal(self):
-        assert _format_initial(T(5)) == "T#5s"
+    def test_timedelta(self):
+        assert _format_initial(timedelta(seconds=5)) == "T#5s"
 
-    def test_ltime_literal(self):
-        assert _format_initial(LT(ms=100)) == "LTIME#100ms"
+    def test_timedelta_ms(self):
+        assert _format_initial(timedelta(milliseconds=100)) == "T#100ms"
 
     def test_string_passthrough(self):
         assert _format_initial("T#10s") == "T#10s"
@@ -84,7 +85,7 @@ class TestField:
         assert f.initial_value == "TRUE"
 
     def test_with_initial_time(self):
-        f = Field(initial=T(5))
+        f = Field(initial=timedelta(seconds=5))
         assert f.initial_value == "T#5s"
 
     def test_with_description(self):

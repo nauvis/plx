@@ -7,12 +7,13 @@ delayed() for fail-to-start, and 4-level alarm with hysteresis.
 
 import pytest
 
+from datetime import timedelta
+
 from plx.framework import (
     BOOL,
     DINT,
     INT,
     REAL,
-    T,
     delayed,
     fb,
     function,
@@ -205,7 +206,7 @@ class PumpController:
 
         # Fail-to-start: commanded on but no feedback within 5 seconds
         waiting: BOOL = self.run_output and not self.run_feedback
-        fail_detected: BOOL = delayed(waiting, seconds=5)
+        fail_detected: BOOL = delayed(waiting, timedelta(seconds=5))
         if fail_detected:
             self.fault_latched = True
 
@@ -809,13 +810,13 @@ class TestPumpingProjectCompilation:
             tasks=[
                 task(
                     "FastControl",
-                    periodic=T(ms=10),
+                    periodic=timedelta(milliseconds=10),
                     pous=[PumpStation],
                     priority=1,
                 ),
                 task(
                     "AlarmScan",
-                    periodic=T(ms=500),
+                    periodic=timedelta(milliseconds=500),
                     pous=[AlarmProgram],
                     priority=5,
                 ),

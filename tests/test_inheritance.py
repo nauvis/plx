@@ -5,7 +5,8 @@ import pytest
 from plx.framework._compiler import CompileError
 from plx.framework._decorators import fb
 from plx.framework._descriptors import Input, Field, Output
-from plx.framework._types import BOOL, DINT, REAL, TIME, T
+from datetime import timedelta
+from plx.framework._types import BOOL, DINT, REAL, TIME
 from plx.model.pou import POU, POUType
 from plx.model.statements import Assignment, FBInvocation, IfStatement
 from plx.model.types import NamedTypeRef
@@ -72,7 +73,7 @@ class TestVariableOverride:
     def test_child_overrides_parent_default(self):
         @fb
         class Parent:
-            timeout: Input[TIME] = T(3)
+            timeout: Input[TIME] = timedelta(seconds=3)
             out: Output[BOOL]
 
             def logic(self):
@@ -80,7 +81,7 @@ class TestVariableOverride:
 
         @fb
         class Child(Parent):
-            timeout: Input[TIME] = T(10)
+            timeout: Input[TIME] = timedelta(seconds=10)
 
             def logic(self):
                 super().logic()
@@ -168,7 +169,7 @@ class TestSuperLogic:
             out: Output[BOOL]
 
             def logic(self):
-                self.out = delayed(self.sig, seconds=5)
+                self.out = delayed(self.sig, timedelta(seconds=5))
 
         @fb
         class TimedChild(TimedBase):
@@ -176,7 +177,7 @@ class TestSuperLogic:
 
             def logic(self):
                 super().logic()
-                self.extra = delayed(self.sig, seconds=10)
+                self.extra = delayed(self.sig, timedelta(seconds=10))
 
         pou = TimedChild.compile()
         # Should have 2 TON static vars with unique names

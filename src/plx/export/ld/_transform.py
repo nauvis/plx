@@ -185,9 +185,10 @@ class _LDTransformer:
             Pin(name=name, expression=format_expression(expr))
             for name, expr in stmt.outputs.items()
         ]
+        instance_label = stmt.instance_name if isinstance(stmt.instance_name, str) else format_expression(stmt.instance_name)
         box = Box(
-            name=stmt.instance_name,
-            type_name=stmt.fb_type or stmt.instance_name,
+            name=instance_label,
+            type_name=stmt.fb_type or instance_label,
             input_pins=input_pins,
             output_pins=output_pins,
         )
@@ -318,9 +319,10 @@ class _LDTransformer:
             for name, expr in body_stmt.outputs.items()
         ]
         en_circuit = self._make_condition_circuit(condition)
+        instance_label = body_stmt.instance_name if isinstance(body_stmt.instance_name, str) else format_expression(body_stmt.instance_name)
         box = Box(
-            name=body_stmt.instance_name,
-            type_name=body_stmt.fb_type or body_stmt.instance_name,
+            name=instance_label,
+            type_name=body_stmt.fb_type or instance_label,
             input_pins=input_pins,
             output_pins=output_pins,
             en_input=en_circuit,

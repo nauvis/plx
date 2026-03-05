@@ -366,6 +366,19 @@ class _StatementMixin:
         """Try to compile a call expression as a statement."""
         func = call_node.func
 
+        # self.fb_array[i](...) → FBInvocation with Expression instance_name
+        if isinstance(func, ast.Subscript):
+            attr = func.value
+            if isinstance(attr, ast.Attribute) and isinstance(attr.value, ast.Name) and attr.value.id == "self":
+                array_name = attr.attr
+                if isinstance(func.slice, ast.Tuple):
+                    index_exprs = [self.compile_expression(elt) for elt in func.slice.elts]
+                else:
+                    index_exprs = [self.compile_expression(func.slice)]
+                inv = self._build_fb_array_invocation(array_name, index_exprs, call_node)
+                if inv is not None:
+                    return inv
+
         # self.fb_instance(...) → FBInvocation
         if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id == "self":
             inv = self._build_fb_invocation(func.attr, call_node)

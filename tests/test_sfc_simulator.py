@@ -2,12 +2,13 @@
 
 import pytest
 
+from datetime import timedelta
+
 from plx.framework import (
     BOOL,
     DINT,
     INT,
     REAL,
-    T,
     delayed,
     Input,
     Output,
@@ -372,7 +373,7 @@ class TestTimeQualifiers:
             IDLE = step(initial=True)
             RUN = step()
 
-            @RUN.action(qualifier="L", duration=T(ms=100))
+            @RUN.action(qualifier="L", duration=timedelta(milliseconds=100))
             def limited(self):
                 self.out = True
 
@@ -413,7 +414,7 @@ class TestTimeQualifiers:
             IDLE = step(initial=True)
             RUN = step()
 
-            @RUN.action(qualifier="D", duration=T(ms=50))
+            @RUN.action(qualifier="D", duration=timedelta(milliseconds=50))
             def delayed_act(self):
                 self.out = True
 
@@ -507,7 +508,7 @@ class TestTimeQualifiers:
             IDLE = step(initial=True)
             ACTIVE = step()
 
-            @ACTIVE.action(qualifier="SD", duration=T(ms=50))
+            @ACTIVE.action(qualifier="SD", duration=timedelta(milliseconds=50))
             def sd_act(self):
                 self.out = True
 
@@ -549,7 +550,7 @@ class TestTimeQualifiers:
             IDLE = step(initial=True)
             ACTIVE = step()
 
-            @ACTIVE.action(qualifier="DS", duration=T(ms=50))
+            @ACTIVE.action(qualifier="DS", duration=timedelta(milliseconds=50))
             def ds_act(self):
                 self.out = True
 
@@ -585,7 +586,7 @@ class TestTimeQualifiers:
             IDLE = step(initial=True)
             ACTIVE = step()
 
-            @ACTIVE.action(qualifier="DS", duration=T(ms=50))
+            @ACTIVE.action(qualifier="DS", duration=timedelta(milliseconds=50))
             def ds_act(self):
                 self.out = True
 
@@ -623,7 +624,7 @@ class TestTimeQualifiers:
             IDLE = step(initial=True)
             ACTIVE = step()
 
-            @ACTIVE.action(qualifier="SL", duration=T(ms=50))
+            @ACTIVE.action(qualifier="SL", duration=timedelta(milliseconds=50))
             def sl_act(self):
                 self.out = True
 
@@ -669,7 +670,7 @@ class TestTimeQualifiers:
             IDLE = step(initial=True)
             ACTIVE = step()
 
-            @ACTIVE.action(qualifier="SL", duration=T(ms=30))
+            @ACTIVE.action(qualifier="SL", duration=timedelta(milliseconds=30))
             def sl_act(self):
                 self.count = self.count + 1
 
@@ -710,7 +711,7 @@ class TestSentinelsInActions:
 
             @S0.action
             def act(self):
-                self.out = delayed(self.cmd, seconds=1)
+                self.out = delayed(self.cmd, timedelta(seconds=1))
 
         ctx = simulate(SentinelSfc, scan_period_ms=10)
         ctx.cmd = True

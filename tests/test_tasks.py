@@ -2,10 +2,11 @@
 
 import pytest
 
+from datetime import timedelta
+
 from plx.framework import (
     BOOL,
     REAL,
-    T,
     fb,
     program,
     Input,
@@ -51,7 +52,7 @@ class _StartupProg:
 
 class TestTaskConstructor:
     def test_periodic_with_time_literal(self):
-        t = task("Main", periodic=T(ms=10), pous=[_FastLoop])
+        t = task("Main", periodic=timedelta(milliseconds=10), pous=[_FastLoop])
         assert isinstance(t, PlxTask)
         assert t.task_type == TaskType.PERIODIC
         assert t.interval == "T#10ms"
@@ -75,19 +76,19 @@ class TestTaskConstructor:
         assert t.task_type == TaskType.STARTUP
 
     def test_priority(self):
-        t = task("Main", periodic=T(ms=10), priority=3)
+        t = task("Main", periodic=timedelta(milliseconds=10), priority=3)
         assert t.priority == 3
 
     def test_default_priority(self):
-        t = task("Main", periodic=T(ms=10))
+        t = task("Main", periodic=timedelta(milliseconds=10))
         assert t.priority == 0
 
     def test_watchdog(self):
-        t = task("Main", periodic=T(ms=10), watchdog=T(ms=500))
+        t = task("Main", periodic=timedelta(milliseconds=10), watchdog=timedelta(milliseconds=500))
         assert t.watchdog == "T#500ms"
 
     def test_watchdog_string(self):
-        t = task("Main", periodic=T(ms=10), watchdog="T#1s")
+        t = task("Main", periodic=timedelta(milliseconds=10), watchdog="T#1s")
         assert t.watchdog == "T#1s"
 
     def test_no_mode_raises(self):
@@ -96,11 +97,11 @@ class TestTaskConstructor:
 
     def test_multiple_modes_raises(self):
         with pytest.raises(ProjectAssemblyError, match="only one scheduling mode"):
-            task("Bad", periodic=T(ms=10), continuous=True)
+            task("Bad", periodic=timedelta(milliseconds=10), continuous=True)
 
     def test_periodic_and_startup_raises(self):
         with pytest.raises(ProjectAssemblyError, match="only one scheduling mode"):
-            task("Bad", periodic=T(ms=10), startup=True)
+            task("Bad", periodic=timedelta(milliseconds=10), startup=True)
 
     def test_invalid_interval_type_raises(self):
         with pytest.raises(ProjectAssemblyError, match="Expected a duration"):
@@ -113,7 +114,7 @@ class TestTaskConstructor:
 
 class TestTaskCompile:
     def test_compiles_to_ir(self):
-        t = task("Main", periodic=T(ms=10), pous=[_FastLoop])
+        t = task("Main", periodic=timedelta(milliseconds=10), pous=[_FastLoop])
         ir = t.compile()
         assert isinstance(ir, Task)
         assert ir.name == "Main"
@@ -121,7 +122,7 @@ class TestTaskCompile:
         assert ir.interval == "T#10ms"
 
     def test_assigned_pous(self):
-        t = task("Main", periodic=T(ms=10), pous=[_FastLoop, _SlowLoop])
+        t = task("Main", periodic=timedelta(milliseconds=10), pous=[_FastLoop, _SlowLoop])
         ir = t.compile()
         assert ir.assigned_pous == ["_FastLoop", "_SlowLoop"]
 
@@ -134,7 +135,7 @@ class TestTaskCompile:
         class NotAPOU:
             pass
 
-        t = task("Bad", periodic=T(ms=10), pous=[NotAPOU])
+        t = task("Bad", periodic=timedelta(milliseconds=10), pous=[NotAPOU])
         with pytest.raises(ProjectAssemblyError, match="not a compiled POU"):
             t.compile()
 
@@ -145,7 +146,7 @@ class TestTaskCompile:
             def logic(self):
                 pass
 
-        t = task("Bad", periodic=T(ms=10), pous=[SomeFB])
+        t = task("Bad", periodic=timedelta(milliseconds=10), pous=[SomeFB])
         with pytest.raises(ProjectAssemblyError, match="Only programs can be assigned"):
             t.compile()
 
@@ -158,7 +159,7 @@ class TestTaskCompile:
             def logic(self) -> REAL:
                 return self.x + 1.0
 
-        t = task("Bad", periodic=T(ms=10), pous=[SomeFunc])
+        t = task("Bad", periodic=timedelta(milliseconds=10), pous=[SomeFunc])
         with pytest.raises(ProjectAssemblyError, match="Only programs can be assigned"):
             t.compile()
 
@@ -183,8 +184,8 @@ class TestProjectWithTasks:
     def test_project_with_tasks(self):
         proj = project("MyProject",
             tasks=[
-                task("MainTask", periodic=T(ms=10), pous=[_FastLoop], priority=1),
-                task("SlowTask", periodic=T(ms=100), pous=[_SlowLoop], priority=5),
+                task("MainTask", periodic=timedelta(milliseconds=10), pous=[_FastLoop], priority=1),
+                task("SlowTask", periodic=timedelta(milliseconds=100), pous=[_SlowLoop], priority=5),
             ]
         )
         ir = proj.compile()
@@ -200,7 +201,7 @@ class TestProjectWithTasks:
         """POUs referenced in tasks are auto-included in project.pous."""
         proj = project("AutoInclude",
             tasks=[
-                task("Main", periodic=T(ms=10), pous=[_FastLoop]),
+                task("Main", periodic=timedelta(milliseconds=10), pous=[_FastLoop]),
             ]
         )
         ir = proj.compile()
@@ -212,7 +213,7 @@ class TestProjectWithTasks:
         proj = project("NoDup",
             pous=[_FastLoop],
             tasks=[
-                task("Main", periodic=T(ms=10), pous=[_FastLoop]),
+                task("Main", periodic=timedelta(milliseconds=10), pous=[_FastLoop]),
             ]
         )
         ir = proj.compile()
@@ -224,8 +225,8 @@ class TestProjectWithTasks:
         proj = project("Mixed",
             pous=[_StartupProg],
             tasks=[
-                task("Main", periodic=T(ms=10), pous=[_FastLoop]),
-                task("Slow", periodic=T(ms=100), pous=[_SlowLoop]),
+                task("Main", periodic=timedelta(milliseconds=10), pous=[_FastLoop]),
+                task("Slow", periodic=timedelta(milliseconds=100), pous=[_SlowLoop]),
             ]
         )
         ir = proj.compile()
@@ -240,7 +241,7 @@ class TestProjectWithTasks:
     def test_serializes_with_tasks(self):
         proj = project("SerProject",
             tasks=[
-                task("Main", periodic=T(ms=10), pous=[_FastLoop], priority=1),
+                task("Main", periodic=timedelta(milliseconds=10), pous=[_FastLoop], priority=1),
             ]
         )
         ir = proj.compile()
@@ -255,7 +256,7 @@ class TestProjectWithTasks:
     def test_roundtrips_with_tasks(self):
         proj = project("RoundTrip",
             tasks=[
-                task("Main", periodic=T(ms=10), pous=[_FastLoop]),
+                task("Main", periodic=timedelta(milliseconds=10), pous=[_FastLoop]),
                 task("Init", startup=True, pous=[_StartupProg]),
             ]
         )

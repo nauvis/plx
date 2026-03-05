@@ -3,11 +3,13 @@
 Provides:
 - Primitive type constants (BOOL, INT, REAL, TIME, etc.) for use in
   variable annotations: ``sensor: Input[BOOL]``, ``speed: Output[REAL]``.
-- TIME/LTIME literal constructors: ``T(5)`` → ``T#5s``,
-  ``LT(ms=100)`` → ``LTIME#100ms``.
+- ``timedelta_to_iec()`` / ``timedelta_to_ir()``: convert Python ``timedelta``
+  to IEC 61131-3 duration literals (``T#5s``, ``LTIME#100ms``).
 """
 
 from __future__ import annotations
+
+from datetime import timedelta
 
 from plx.model.expressions import LiteralExpr
 from plx.model.types import (
@@ -64,216 +66,50 @@ WCHAR = PrimitiveType.WCHAR
 
 
 # ---------------------------------------------------------------------------
-# Duration literals
+# timedelta → IEC 61131-3 conversion
 # ---------------------------------------------------------------------------
 
-class _DurationLiteral:
-    """Base class for IEC 61131-3 duration literals.
+def timedelta_to_iec(td: timedelta, *, ltime: bool = False) -> str:
+    """Convert a ``timedelta`` to an IEC 61131-3 time literal string.
 
-    Subclasses override class variables to specialize for TIME vs LTIME.
+    Examples::
+
+        timedelta_to_iec(timedelta(seconds=5))         # "T#5s"
+        timedelta_to_iec(timedelta(milliseconds=500))   # "T#500ms"
+        timedelta_to_iec(timedelta(hours=1, minutes=30)) # "T#1h30m"
+        timedelta_to_iec(timedelta(milliseconds=100), ltime=True)  # "LTIME#100ms"
     """
+    total_us = int(td.total_seconds() * 1_000_000)
+    prefix = "LTIME#" if ltime else "T#"
 
-    __slots__ = ("_total_sub",)
+    if total_us == 0:
+        return f"{prefix}0s"
 
-    # -- Subclass overrides --------------------------------------------------
-    _prefix: str  # "T#" or "LTIME#"
-    _primitive: PrimitiveType  # TIME or LTIME
-    _unit_table: tuple[tuple[int, str], ...]  # decomposition table
-    _class_name: str  # for __hash__ and __eq__ identity
+    negative = total_us < 0
+    remaining = abs(total_us)
+    parts: list[str] = []
 
-    def __init__(self, total_sub: int) -> None:
-        self._total_sub = total_sub
-
-    # -- Conversion ----------------------------------------------------------
-
-    def to_iec(self) -> str:
-        """IEC 61131-3 duration literal string."""
-        if self._total_sub == 0:
-            return f"{self._prefix}0s"
-
-        negative = self._total_sub < 0
-        remaining = abs(self._total_sub)
-        parts: list[str] = []
-
-        for divisor, suffix in self._unit_table:
-            value, remaining = divmod(remaining, divisor)
-            if value:
-                parts.append(f"{value}{suffix}")
-
-        sign = "-" if negative else ""
-        return f"{self._prefix}{sign}{''.join(parts)}"
-
-    def to_ir(self) -> LiteralExpr:
-        """Convert to an IR ``LiteralExpr`` node."""
-        return LiteralExpr(
-            value=self.to_iec(),
-            data_type=PrimitiveTypeRef(type=self._primitive),
-        )
-
-    # -- Dunder --------------------------------------------------------------
-
-    def __repr__(self) -> str:
-        return self.to_iec()
-
-    def __str__(self) -> str:
-        return self.to_iec()
-
-    def __eq__(self, other: object) -> bool:
-        if type(other) is type(self):
-            return self._total_sub == other._total_sub
-        return NotImplemented
-
-    def __hash__(self) -> int:
-        return hash((self._class_name, self._total_sub))
-
-
-class TimeLiteral(_DurationLiteral):
-    """IEC 61131-3 TIME literal value.
-
-    Represents a duration that can be used as:
-    - An initial value on variable descriptors (descriptor calls ``to_iec()``)
-    - A value in ``logic()`` that the AST compiler recognises and emits
-      as a ``LiteralExpr``
-
-    Internal resolution: microseconds (TIME is typically millisecond-resolution
-    on PLCs, but storing in microseconds avoids rounding during construction).
-    """
-
-    __slots__ = ()
-
-    _prefix = "T#"
-    _primitive = PrimitiveType.TIME
-    _unit_table = (
+    for divisor, suffix in (
         (3_600_000_000, "h"),
         (60_000_000, "m"),
         (1_000_000, "s"),
         (1_000, "ms"),
         (1, "us"),
-    )
-    _class_name = "TimeLiteral"
+    ):
+        value, remaining = divmod(remaining, divisor)
+        if value:
+            parts.append(f"{value}{suffix}")
 
-    def __init__(
-        self,
-        *,
-        hours: int | float = 0,
-        minutes: int | float = 0,
-        seconds: int | float = 0,
-        ms: int | float = 0,
-        us: int | float = 0,
-    ) -> None:
-        total = round(
-            hours * 3_600_000_000
-            + minutes * 60_000_000
-            + seconds * 1_000_000
-            + ms * 1_000
-            + us
-        )
-        super().__init__(total)
-
-    @property
-    def total_us(self) -> int:
-        """Total duration in microseconds."""
-        return self._total_sub
-
-    @property
-    def total_ms(self) -> float:
-        """Total duration in milliseconds."""
-        return self._total_sub / 1_000
-
-    @property
-    def total_seconds(self) -> float:
-        """Total duration in seconds."""
-        return self._total_sub / 1_000_000
+    sign = "-" if negative else ""
+    return f"{prefix}{sign}{''.join(parts)}"
 
 
-class LTimeLiteral(_DurationLiteral):
-    """IEC 61131-3 LTIME literal value (nanosecond resolution).
-
-    Same interface as ``TimeLiteral`` but with ``LTIME#`` prefix and
-    nanosecond support.
-    """
-
-    __slots__ = ()
-
-    _prefix = "LTIME#"
-    _primitive = PrimitiveType.LTIME
-    _unit_table = (
-        (3_600_000_000_000, "h"),
-        (60_000_000_000, "m"),
-        (1_000_000_000, "s"),
-        (1_000_000, "ms"),
-        (1_000, "us"),
-        (1, "ns"),
-    )
-    _class_name = "LTimeLiteral"
-
-    def __init__(
-        self,
-        *,
-        hours: int | float = 0,
-        minutes: int | float = 0,
-        seconds: int | float = 0,
-        ms: int | float = 0,
-        us: int | float = 0,
-        ns: int | float = 0,
-    ) -> None:
-        total = round(
-            hours * 3_600_000_000_000
-            + minutes * 60_000_000_000
-            + seconds * 1_000_000_000
-            + ms * 1_000_000
-            + us * 1_000
-            + ns
-        )
-        super().__init__(total)
-
-    @property
-    def total_ns(self) -> int:
-        """Total duration in nanoseconds."""
-        return self._total_sub
-
-    @property
-    def total_us(self) -> float:
-        """Total duration in microseconds."""
-        return self._total_sub / 1_000
-
-    @property
-    def total_ms(self) -> float:
-        """Total duration in milliseconds."""
-        return self._total_sub / 1_000_000
-
-    @property
-    def total_seconds(self) -> float:
-        """Total duration in seconds."""
-        return self._total_sub / 1_000_000_000
-
-
-# ---------------------------------------------------------------------------
-# Public constructors
-# ---------------------------------------------------------------------------
-
-def T(
-    seconds: int | float = 0,
-    *,
-    hours: int | float = 0,
-    minutes: int | float = 0,
-    ms: int | float = 0,
-    us: int | float = 0,
-) -> TimeLiteral:
-    """Create a TIME literal.
-
-    The first positional argument is seconds (the most common unit).
-
-    Examples::
-
-        T(5)                        # T#5s
-        T(ms=500)                   # T#500ms
-        T(minutes=1, seconds=30)    # T#1m30s
-        T(hours=2)                  # T#2h
-        T(0.5)                      # T#500ms  (fractional seconds)
-    """
-    return TimeLiteral(
-        hours=hours, minutes=minutes, seconds=seconds, ms=ms, us=us,
+def timedelta_to_ir(td: timedelta, *, ltime: bool = False) -> LiteralExpr:
+    """Convert a ``timedelta`` to an IR ``LiteralExpr`` node."""
+    prim = PrimitiveType.LTIME if ltime else PrimitiveType.TIME
+    return LiteralExpr(
+        value=timedelta_to_iec(td, ltime=ltime),
+        data_type=PrimitiveTypeRef(type=prim),
     )
 
 
@@ -328,26 +164,6 @@ def _resolve_type_ref(type_arg: PrimitiveType | TypeRef | type | str) -> TypeRef
         f"Expected a type (PrimitiveType, TypeRef, or str), got {type(type_arg).__name__}"
     )
 
-
-def LT(
-    seconds: int | float = 0,
-    *,
-    hours: int | float = 0,
-    minutes: int | float = 0,
-    ms: int | float = 0,
-    us: int | float = 0,
-    ns: int | float = 0,
-) -> LTimeLiteral:
-    """Create an LTIME literal (nanosecond resolution).
-
-    Examples::
-
-        LT(5)                       # LTIME#5s
-        LT(us=100, ns=500)          # LTIME#100us500ns
-    """
-    return LTimeLiteral(
-        hours=hours, minutes=minutes, seconds=seconds, ms=ms, us=us, ns=ns,
-    )
 
 
 # ---------------------------------------------------------------------------

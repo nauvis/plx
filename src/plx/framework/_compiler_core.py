@@ -84,6 +84,9 @@ class CompileContext:
     known_enums: dict[str, dict[str, int]] = field(default_factory=dict)
     """enum_name -> {member_name: int_value} for enum literal resolution"""
 
+    known_methods: set[str] = field(default_factory=set)
+    """Names of @method-decorated functions on the POU being compiled"""
+
     source_line_offset: int = 0
     source_file: str = "<unknown>"
     _auto_counter: int = 0
@@ -144,7 +147,8 @@ _BIT_ACCESS_RE = re.compile(r"^bit(\d+)$")
 
 _BUILTIN_FUNCS = frozenset({
     "ABS", "SQRT", "LN", "LOG", "EXP", "SIN", "COS", "TAN",
-    "ASIN", "ACOS", "ATAN", "ATAN2",
+    "ASIN", "ACOS", "ATAN",
+    "CEIL", "FLOOR",
     "MIN", "MAX", "LIMIT", "SEL", "MUX",
     "SHL", "SHR", "ROL", "ROR",
     "TRUNC", "ROUND",
@@ -157,6 +161,32 @@ _PYTHON_BUILTIN_MAP: dict[str, str] = {
     "min": "MIN",
     "max": "MAX",
     "len": "LEN",
+}
+
+# math module function mapping: math.func() → IEC function
+_MATH_FUNC_MAP: dict[str, str] = {
+    "sqrt": "SQRT",
+    "log": "LN",
+    "log10": "LOG",
+    "exp": "EXP",
+    "sin": "SIN",
+    "cos": "COS",
+    "tan": "TAN",
+    "asin": "ASIN",
+    "acos": "ACOS",
+    "atan": "ATAN",
+    "fabs": "ABS",
+    "trunc": "TRUNC",
+    "ceil": "CEIL",
+    "floor": "FLOOR",
+}
+
+# math module constants: math.pi, math.e → IEC LREAL literals
+_MATH_CONSTANTS: dict[str, str] = {
+    "pi": "3.141592653589793",
+    "e": "2.718281828459045",
+    "tau": "6.283185307179586",
+    "inf": "1.0E+308",
 }
 
 _PYTHON_ANNOTATION_MAP: dict[str, TypeRef] = {

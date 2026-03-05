@@ -7,6 +7,7 @@ foundation for all runtime value handling.
 from __future__ import annotations
 
 import re
+from datetime import datetime, timezone
 
 from plx.model.types import (
     ArrayTypeRef,
@@ -65,6 +66,68 @@ def _parse_time_literal(value: str) -> int:
 
 
 # ---------------------------------------------------------------------------
+# DATE / TOD / DT literal regexes
+# ---------------------------------------------------------------------------
+
+_DATE_RE = re.compile(
+    r"^(?:L?DATE#|D#)(\d{4})-(\d{1,2})-(\d{1,2})$",
+    re.IGNORECASE,
+)
+
+_TOD_RE = re.compile(
+    r"^(?:L?TOD#|L?TIME_OF_DAY#)(\d{1,2}):(\d{2}):(\d{2})(?:\.(\d+))?$",
+    re.IGNORECASE,
+)
+
+_DT_RE = re.compile(
+    r"^(?:L?DT#|L?DATE_AND_TIME#)(\d{4})-(\d{1,2})-(\d{1,2})-(\d{1,2}):(\d{2}):(\d{2})(?:\.(\d+))?$",
+    re.IGNORECASE,
+)
+
+
+def _parse_date_literal(value: str) -> int:
+    """Parse DATE#YYYY-MM-DD → ms from epoch (UTC)."""
+    m = _DATE_RE.match(value)
+    if m is None:
+        raise SimulationError(f"Invalid DATE literal: {value!r}")
+    dt = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), tzinfo=timezone.utc)
+    return int(dt.timestamp() * 1000)
+
+
+def _parse_tod_literal(value: str) -> int:
+    """Parse TOD#HH:MM:SS.fff → ms from midnight."""
+    m = _TOD_RE.match(value)
+    if m is None:
+        raise SimulationError(f"Invalid TOD literal: {value!r}")
+    h, mi, s = int(m.group(1)), int(m.group(2)), int(m.group(3))
+    frac_str = m.group(4) or "0"
+    frac_ms = int(frac_str.ljust(3, "0")[:3])
+    return h * 3_600_000 + mi * 60_000 + s * 1_000 + frac_ms
+
+
+def _parse_dt_literal(value: str) -> int:
+    """Parse DT#YYYY-MM-DD-HH:MM:SS.fff → ms from epoch (UTC)."""
+    m = _DT_RE.match(value)
+    if m is None:
+        raise SimulationError(f"Invalid DT literal: {value!r}")
+    dt = datetime(
+        int(m.group(1)), int(m.group(2)), int(m.group(3)),
+        int(m.group(4)), int(m.group(5)), int(m.group(6)),
+        tzinfo=timezone.utc,
+    )
+    frac_str = m.group(7) or "0"
+    frac_ms = int(frac_str.ljust(3, "0")[:3])
+    return int(dt.timestamp() * 1000) + frac_ms
+
+
+_DATE_TYPES = frozenset({
+    PrimitiveType.DATE, PrimitiveType.LDATE,
+    PrimitiveType.TOD, PrimitiveType.LTOD,
+    PrimitiveType.DT, PrimitiveType.LDT,
+})
+
+
+# ---------------------------------------------------------------------------
 # Literal parsing
 # ---------------------------------------------------------------------------
 
@@ -86,7 +149,7 @@ _TIME_TYPES = frozenset({
 def parse_literal(
     value: str,
     data_type: TypeRef | None = None,
-    enum_registry: dict[str, dict[str, int]] | None = None,
+    enum_registry: dict | None = None,
 ) -> object:
     """Parse an IR literal string into a Python value.
 
@@ -95,7 +158,7 @@ def parse_literal(
     - Float strings -> float
     - "T#..."/"TIME#..."/"LTIME#..." -> int (milliseconds)
     - "'text'" -> str
-    - "EnumName#MEMBER" -> int (via enum_registry)
+    - "EnumName#MEMBER" -> IntEnum member (via enum_registry)
     """
     upper = value.upper()
 
@@ -109,6 +172,18 @@ def parse_literal(
     if upper.startswith(("T#", "TIME#", "LTIME#", "LT#")):
         return _parse_time_literal(value)
 
+    # DATE literals
+    if upper.startswith(("DATE#", "D#", "LDATE#")):
+        return _parse_date_literal(value)
+
+    # TOD literals
+    if upper.startswith(("TOD#", "TIME_OF_DAY#", "LTOD#", "LTIME_OF_DAY#")):
+        return _parse_tod_literal(value)
+
+    # DT literals
+    if upper.startswith(("DT#", "DATE_AND_TIME#", "LDT#", "LDATE_AND_TIME#")):
+        return _parse_dt_literal(value)
+
     # Quoted string
     if value.startswith("'") and value.endswith("'"):
         return value[1:-1]
@@ -117,9 +192,16 @@ def parse_literal(
     if "#" in value:
         enum_name, _, member_name = value.partition("#")
         if enum_registry and enum_name in enum_registry:
-            members = enum_registry[enum_name]
-            if member_name in members:
-                return members[member_name]
+            enum_cls = enum_registry[enum_name]
+            # Support IntEnum classes (new) and plain dicts (legacy)
+            if isinstance(enum_cls, type):
+                try:
+                    return enum_cls[member_name]
+                except KeyError:
+                    pass
+            elif isinstance(enum_cls, dict):
+                if member_name in enum_cls:
+                    return enum_cls[member_name]
         raise SimulationError(f"Cannot resolve enum literal: {value!r}")
 
     # Use data_type hint if available
@@ -174,7 +256,8 @@ def type_default(data_type: TypeRef) -> object:
             return 0
         if ptype in (PrimitiveType.CHAR, PrimitiveType.WCHAR):
             return ""
-        # DATE/TOD/DT/LDT — return 0 for now
+        if ptype in _DATE_TYPES:
+            return 0
         return 0
 
     if isinstance(data_type, StringTypeRef):

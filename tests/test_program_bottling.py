@@ -6,12 +6,13 @@ falling() edge detection, match/case state machines, and multiple @struct types.
 
 import pytest
 
+from datetime import timedelta
+
 from plx.framework import (
     BOOL,
     DINT,
     INT,
     REAL,
-    T,
     delayed,
     falling,
     fb,
@@ -82,7 +83,7 @@ class ConveyorStation:
 
     def logic(self):
         # Jam detection: product stuck for 5 seconds
-        self.jam_alarm = delayed(self.product_sensor, seconds=5)
+        self.jam_alarm = delayed(self.product_sensor, timedelta(seconds=5))
 
         # Motor control
         self.motor = self.run_cmd and self.e_stop and not self.jam_alarm
@@ -292,7 +293,7 @@ class RejectStation:
 
     def logic(self):
         # Pulse diverter for 500ms on trigger
-        self.diverter = pulse(self.trigger, ms=500)
+        self.diverter = pulse(self.trigger, timedelta(milliseconds=500))
 
         # Count rejects on falling edge of diverter (after pulse completes)
         if falling(self.diverter):
@@ -954,13 +955,13 @@ class TestBottlingProjectCompilation:
             tasks=[
                 task(
                     "MotorControl",
-                    periodic=T(ms=10),
+                    periodic=timedelta(milliseconds=10),
                     pous=[BottlingLine],
                     priority=1,
                 ),
                 task(
                     "Counters",
-                    periodic=T(ms=100),
+                    periodic=timedelta(milliseconds=100),
                     pous=[CounterProgram],
                     priority=5,
                 ),

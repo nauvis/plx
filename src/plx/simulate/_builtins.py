@@ -221,6 +221,91 @@ class F_TRIG:
         state["_prev_clk"] = clk
 
 
+class CTU:
+    """Up counter. Rising edge of CU increments CV. Q = CV >= PV."""
+
+    @staticmethod
+    def initial_state() -> dict:
+        return {
+            "CU": False,
+            "PV": 0,
+            "RESET": False,
+            "Q": False,
+            "CV": 0,
+            "_prev_cu": False,
+        }
+
+    @staticmethod
+    def execute(state: dict, clock_ms: int) -> None:
+        if state["RESET"]:
+            state["CV"] = 0
+            state["Q"] = False
+        else:
+            cu = state["CU"]
+            if cu and not state["_prev_cu"]:
+                state["CV"] = state["CV"] + 1
+            state["Q"] = state["CV"] >= state["PV"]
+        state["_prev_cu"] = state["CU"]
+
+
+class CTD:
+    """Down counter. Rising edge of CD decrements CV. Q = CV <= 0."""
+
+    @staticmethod
+    def initial_state() -> dict:
+        return {
+            "CD": False,
+            "PV": 0,
+            "LOAD": False,
+            "Q": False,
+            "CV": 0,
+            "_prev_cd": False,
+        }
+
+    @staticmethod
+    def execute(state: dict, clock_ms: int) -> None:
+        if state["LOAD"]:
+            state["CV"] = state["PV"]
+        else:
+            cd = state["CD"]
+            if cd and not state["_prev_cd"]:
+                state["CV"] = state["CV"] - 1
+        state["Q"] = state["CV"] <= 0
+        state["_prev_cd"] = state["CD"]
+
+
+class SR:
+    """Set-dominant bistable. Q1 = SET1 OR (NOT RESET AND Q1_prev)."""
+
+    @staticmethod
+    def initial_state() -> dict:
+        return {
+            "SET1": False,
+            "RESET": False,
+            "Q1": False,
+        }
+
+    @staticmethod
+    def execute(state: dict, clock_ms: int) -> None:
+        state["Q1"] = state["SET1"] or (not state["RESET"] and state["Q1"])
+
+
+class RS:
+    """Reset-dominant bistable. Q1 = NOT RESET1 AND (SET OR Q1_prev)."""
+
+    @staticmethod
+    def initial_state() -> dict:
+        return {
+            "SET": False,
+            "RESET1": False,
+            "Q1": False,
+        }
+
+    @staticmethod
+    def execute(state: dict, clock_ms: int) -> None:
+        state["Q1"] = not state["RESET1"] and (state["SET"] or state["Q1"])
+
+
 BUILTIN_FBS: dict[str, type] = {
     "TON": TON,
     "TOF": TOF,
@@ -228,6 +313,10 @@ BUILTIN_FBS: dict[str, type] = {
     "RTO": RTO,
     "R_TRIG": R_TRIG,
     "F_TRIG": F_TRIG,
+    "CTU": CTU,
+    "CTD": CTD,
+    "SR": SR,
+    "RS": RS,
 }
 
 
@@ -261,21 +350,97 @@ def _shr(value: int, n: int) -> int:
     return value >> n
 
 
+def _rol(value: int, n: int) -> int:
+    value, n = int(value) & 0xFFFFFFFF, int(n) % 32
+    return ((value << n) | (value >> (32 - n))) & 0xFFFFFFFF
+
+
+def _ror(value: int, n: int) -> int:
+    value, n = int(value) & 0xFFFFFFFF, int(n) % 32
+    return ((value >> n) | (value << (32 - n))) & 0xFFFFFFFF
+
+
+# ---------------------------------------------------------------------------
+# String functions (IEC 61131-3, 1-based indexing)
+# ---------------------------------------------------------------------------
+
+def _len(s: str) -> int:
+    return len(s)
+
+
+def _left(s: str, n: int) -> str:
+    return s[:int(n)]
+
+
+def _right(s: str, n: int) -> str:
+    n = int(n)
+    if n >= len(s):
+        return s
+    return s[len(s) - n:]
+
+
+def _mid(s: str, pos: int, n: int) -> str:
+    pos, n = int(pos), int(n)
+    return s[pos - 1:pos - 1 + n]
+
+
+def _concat(*args: object) -> str:
+    return "".join(str(a) for a in args)
+
+
+def _find(s1: str, s2: str) -> int:
+    return s1.find(s2) + 1  # 0 = not found
+
+
+def _replace(s: str, s2: str, n: int, pos: int) -> str:
+    pos, n = int(pos), int(n)
+    return s[:pos - 1] + s2 + s[pos - 1 + n:]
+
+
+def _insert(s: str, s2: str, pos: int) -> str:
+    pos = int(pos)
+    return s[:pos - 1] + s2 + s[pos - 1:]
+
+
+def _delete(s: str, n: int, pos: int) -> str:
+    pos, n = int(pos), int(n)
+    return s[:pos - 1] + s[pos - 1 + n:]
+
+
+# ---------------------------------------------------------------------------
+# Bitwise function-call forms
+# ---------------------------------------------------------------------------
+
+def _and_func(a: object, b: object) -> object:
+    if isinstance(a, bool) and isinstance(b, bool):
+        return a and b
+    return int(a) & int(b)
+
+
+def _or_func(a: object, b: object) -> object:
+    if isinstance(a, bool) and isinstance(b, bool):
+        return a or b
+    return int(a) | int(b)
+
+
+def _xor_func(a: object, b: object) -> object:
+    if isinstance(a, bool) and isinstance(b, bool):
+        return a ^ b
+    return int(a) ^ int(b)
+
+
+def _not_func(a: object) -> object:
+    if isinstance(a, bool):
+        return not a
+    return ~int(a)
+
+
 def _trunc(value: object) -> int:
     return int(value)
 
 
 def _round_val(value: object) -> int:
     return round(value)
-
-
-def _time_constructor(
-    seconds: float = 0, *, hours: float = 0, minutes: float = 0,
-    ms: float = 0, us: float = 0,
-) -> int:
-    """Runtime T() — returns milliseconds (int)."""
-    total_ms = hours * 3_600_000 + minutes * 60_000 + seconds * 1_000 + ms + us / 1_000
-    return int(round(total_ms))
 
 
 STDLIB_FUNCTIONS: dict[str, object] = {
@@ -294,13 +459,29 @@ STDLIB_FUNCTIONS: dict[str, object] = {
     "ASIN": math.asin,
     "ACOS": math.acos,
     "ATAN": math.atan,
-    "ATAN2": math.atan2,
     "LN": math.log,
     "LOG": math.log10,
     "EXP": math.exp,
+    "CEIL": math.ceil,
+    "FLOOR": math.floor,
     "EXPT": pow,
     "SHL": _shl,
     "SHR": _shr,
-    "T": _time_constructor,
-    "LT": _time_constructor,
+    "ROL": _rol,
+    "ROR": _ror,
+    # String functions
+    "LEN": _len,
+    "LEFT": _left,
+    "RIGHT": _right,
+    "MID": _mid,
+    "CONCAT": _concat,
+    "FIND": _find,
+    "REPLACE": _replace,
+    "INSERT": _insert,
+    "DELETE": _delete,
+    # Bitwise function-call forms
+    "AND": _and_func,
+    "OR": _or_func,
+    "XOR": _xor_func,
+    "NOT": _not_func,
 }

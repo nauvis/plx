@@ -31,13 +31,26 @@ from enum import Enum
 from typing import Any
 
 from plx.model.project import Project
+from plx.model.expressions import (
+    Expression,
+    FunctionCallExpr,
+    BinaryExpr,
+    UnaryExpr,
+    ArrayAccessExpr,
+    MemberAccessExpr,
+    BitAccessExpr,
+    TypeConversionExpr,
+)
 from plx.model.statements import (
+    Assignment,
     CaseBranch,
     CaseStatement,
     FBInvocation,
     ForStatement,
+    FunctionCallStatement,
     IfStatement,
     RepeatStatement,
+    ReturnStatement,
     Statement,
     WhileStatement,
 )
@@ -437,6 +450,141 @@ def _check_fb_translation(
                 ))
 
 
+# ---------------------------------------------------------------------------
+# Math function translation warnings — data-driven
+# ---------------------------------------------------------------------------
+
+_MATH_TRANSLATION_WARNINGS: dict[str, dict[Vendor, str]] = {
+    "EXP": {
+        Vendor.AB: (
+            "EXP() has no native AB equivalent. "
+            "The raise pass will rewrite to EXPT(2.718..., x)."
+        ),
+    },
+    "CEIL": {
+        Vendor.AB: (
+            "CEIL() has no native AB equivalent. "
+            "The raise pass will synthesize from TRN + conditional."
+        ),
+    },
+    "FLOOR": {
+        Vendor.AB: (
+            "FLOOR() has no native AB equivalent. "
+            "The raise pass will synthesize from TRN + conditional."
+        ),
+    },
+}
+
+
+def _walk_expressions(expr: Expression) -> list[FunctionCallExpr]:
+    """Recursively collect all FunctionCallExpr nodes in an expression tree."""
+    result: list[FunctionCallExpr] = []
+    if isinstance(expr, FunctionCallExpr):
+        result.append(expr)
+        for arg in expr.args:
+            result.extend(_walk_expressions(arg.value))
+    elif isinstance(expr, BinaryExpr):
+        result.extend(_walk_expressions(expr.left))
+        result.extend(_walk_expressions(expr.right))
+    elif isinstance(expr, UnaryExpr):
+        result.extend(_walk_expressions(expr.operand))
+    elif isinstance(expr, ArrayAccessExpr):
+        result.extend(_walk_expressions(expr.array))
+        for idx in expr.indices:
+            result.extend(_walk_expressions(idx))
+    elif isinstance(expr, MemberAccessExpr):
+        result.extend(_walk_expressions(expr.struct))
+    elif isinstance(expr, BitAccessExpr):
+        result.extend(_walk_expressions(expr.target))
+    elif isinstance(expr, TypeConversionExpr):
+        result.extend(_walk_expressions(expr.expression))
+    return result
+
+
+def _collect_function_calls(project: Project) -> dict[str, set[str]]:
+    """Walk all expressions in *project* and collect function call names.
+
+    Returns ``{function_name: {pou_name, ...}}``.
+    """
+    result: dict[str, set[str]] = {}
+
+    def _extract_from_expr(expr: Expression, pou_name: str) -> None:
+        for call in _walk_expressions(expr):
+            result.setdefault(call.function_name, set()).add(pou_name)
+
+    def _extract_from_stmts(stmts: list[Statement], pou_name: str) -> None:
+        for stmt in stmts:
+            if isinstance(stmt, Assignment):
+                _extract_from_expr(stmt.value, pou_name)
+                _extract_from_expr(stmt.target, pou_name)
+            elif isinstance(stmt, FunctionCallStatement):
+                _extract_from_expr(
+                    FunctionCallExpr(function_name=stmt.function_name, args=stmt.args),
+                    pou_name,
+                )
+            elif isinstance(stmt, ReturnStatement) and stmt.value is not None:
+                _extract_from_expr(stmt.value, pou_name)
+            elif isinstance(stmt, FBInvocation):
+                for expr in stmt.inputs.values():
+                    _extract_from_expr(expr, pou_name)
+            elif isinstance(stmt, IfStatement):
+                _extract_from_expr(stmt.if_branch.condition, pou_name)
+                _extract_from_stmts(stmt.if_branch.body, pou_name)
+                for branch in stmt.elsif_branches:
+                    _extract_from_expr(branch.condition, pou_name)
+                    _extract_from_stmts(branch.body, pou_name)
+                _extract_from_stmts(stmt.else_body, pou_name)
+            elif isinstance(stmt, CaseStatement):
+                _extract_from_expr(stmt.expression, pou_name)
+                for branch in stmt.branches:
+                    _extract_from_stmts(branch.body, pou_name)
+                _extract_from_stmts(stmt.else_body, pou_name)
+            elif isinstance(stmt, ForStatement):
+                _extract_from_expr(stmt.start, pou_name)
+                _extract_from_expr(stmt.stop, pou_name)
+                if stmt.step is not None:
+                    _extract_from_expr(stmt.step, pou_name)
+                _extract_from_stmts(stmt.body, pou_name)
+            elif isinstance(stmt, WhileStatement):
+                _extract_from_expr(stmt.condition, pou_name)
+                _extract_from_stmts(stmt.body, pou_name)
+            elif isinstance(stmt, RepeatStatement):
+                _extract_from_expr(stmt.condition, pou_name)
+                _extract_from_stmts(stmt.body, pou_name)
+
+    for pou in project.pous:
+        for net in pou.networks:
+            _extract_from_stmts(net.statements, pou.name)
+        if pou.sfc_body:
+            for step in pou.sfc_body.steps:
+                for action in step.actions + step.entry_actions + step.exit_actions:
+                    _extract_from_stmts(action.body, pou.name)
+        for m in pou.methods:
+            for net in m.networks:
+                _extract_from_stmts(net.statements, pou.name)
+
+    return result
+
+
+def _check_math_function_portability(
+    project: Project,
+    target: Vendor,
+    warnings: list[PortabilityWarning],
+) -> None:
+    """Warn about math functions that require translation on the target."""
+    func_calls = _collect_function_calls(project)
+    for func_name, pou_names in sorted(func_calls.items()):
+        vendor_msgs = _MATH_TRANSLATION_WARNINGS.get(func_name)
+        if vendor_msgs and target in vendor_msgs:
+            for pou_name in sorted(pou_names):
+                warnings.append(PortabilityWarning(
+                    category="math_translation",
+                    pou_name=pou_name,
+                    message=vendor_msgs[target],
+                    details={"function": func_name, "target": target.value},
+                ))
+
+
 def _check_oop_flattening(
     project: Project,
     target: Vendor,
@@ -469,6 +617,7 @@ def _check_oop_flattening(
 
 _WARNINGS = [
     _check_fb_translation,
+    _check_math_function_portability,
     _check_oop_flattening,
 ]
 

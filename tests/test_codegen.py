@@ -92,29 +92,29 @@ def _make_writer(self_vars: set[str] | None = None) -> PyWriter:
 
 class TestParseIecTime:
     def test_milliseconds(self):
-        assert _parse_iec_time("T#100ms") == "T(ms=100)"
+        assert _parse_iec_time("T#100ms") == "timedelta(milliseconds=100)"
 
     def test_seconds(self):
-        assert _parse_iec_time("T#5s") == "T(seconds=5)"
+        assert _parse_iec_time("T#5s") == "timedelta(seconds=5)"
 
     def test_minutes(self):
-        assert _parse_iec_time("T#2m") == "T(minutes=2)"
+        assert _parse_iec_time("T#2m") == "timedelta(minutes=2)"
 
     def test_hours(self):
-        assert _parse_iec_time("T#1h") == "T(hours=1)"
+        assert _parse_iec_time("T#1h") == "timedelta(hours=1)"
 
     def test_composite(self):
         result = _parse_iec_time("T#1h30m")
-        assert result == "T(hours=1, minutes=30)"
+        assert result == "timedelta(hours=1, minutes=30)"
 
     def test_ltime(self):
-        assert _parse_iec_time("LTIME#500ms") == "LT(ms=500)"
+        assert _parse_iec_time("LTIME#500ms") == "timedelta(milliseconds=500)"
 
     def test_not_time(self):
         assert _parse_iec_time("42") is None
 
     def test_time_prefix_variation(self):
-        assert _parse_iec_time("TIME#100ms") == "T(ms=100)"
+        assert _parse_iec_time("TIME#100ms") == "timedelta(milliseconds=100)"
 
 
 # ===========================================================================
@@ -135,7 +135,7 @@ class TestFormatInitialValue:
         assert _format_initial_value("3.14") == "3.14"
 
     def test_time(self):
-        assert _format_initial_value("T#100ms") == "T(ms=100)"
+        assert _format_initial_value("T#100ms") == "timedelta(milliseconds=100)"
 
     def test_enum(self):
         assert _format_initial_value("MachineState#RUNNING") == "MachineState.RUNNING"
@@ -255,7 +255,7 @@ class TestExpressions:
 
     def test_literal_time(self):
         w = _make_writer()
-        assert w._expr(LiteralExpr(value="T#100ms")) == "T(ms=100)"
+        assert w._expr(LiteralExpr(value="T#100ms")) == "timedelta(milliseconds=100)"
 
     def test_literal_enum(self):
         w = _make_writer()
@@ -538,7 +538,7 @@ class TestStatements:
         )
         w._write_stmt(stmt)
         out = w.getvalue().strip()
-        assert "self.my_ton(IN=self.output, PT=T(ms=100))" in out
+        assert "self.my_ton(IN=self.output, PT=timedelta(milliseconds=100))" in out
 
     def test_fb_invocation_with_outputs(self):
         w = _make_writer(self_vars={"timer", "done"})
@@ -1131,7 +1131,7 @@ class TestFullProject:
         )
         out = generate(proj)
         assert 'MainTask = task("MainTask"' in out
-        assert "periodic=T(ms=10)" in out
+        assert "periodic=timedelta(milliseconds=10)" in out
         assert "pous=[Main]" in out
         assert "priority=1" in out
 
@@ -1376,7 +1376,8 @@ class TestRoundTrip:
         from plx.framework._decorators import fb, program
         from plx.framework._descriptors import Input, Output
         from plx.framework._project import project, task
-        from plx.framework._types import BOOL, T
+        from datetime import timedelta
+        from plx.framework._types import BOOL
 
         @fb
         class MotorCtrl:
@@ -1391,7 +1392,7 @@ class TestRoundTrip:
             def logic(self):
                 pass
 
-        t = task("Main", periodic=T(ms=10), pous=[MainProg], priority=1)
+        t = task("Main", periodic=timedelta(milliseconds=10), pous=[MainProg], priority=1)
         p = project("TestApp", pous=[MotorCtrl, MainProg], tasks=[t])
         ir = p.compile()
 
@@ -1399,7 +1400,7 @@ class TestRoundTrip:
         compile(code, "<generated>", "exec")
 
         assert 'project("TestApp"' in code
-        assert "periodic=T(ms=10)" in code
+        assert "periodic=timedelta(milliseconds=10)" in code
 
 
 # ===========================================================================
