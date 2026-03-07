@@ -497,7 +497,7 @@ def _walk_expressions(expr: Expression) -> list[FunctionCallExpr]:
     elif isinstance(expr, BitAccessExpr):
         result.extend(_walk_expressions(expr.target))
     elif isinstance(expr, TypeConversionExpr):
-        result.extend(_walk_expressions(expr.expression))
+        result.extend(_walk_expressions(expr.source))
     return result
 
 
@@ -535,21 +535,21 @@ def _collect_function_calls(project: Project) -> dict[str, set[str]]:
                     _extract_from_stmts(branch.body, pou_name)
                 _extract_from_stmts(stmt.else_body, pou_name)
             elif isinstance(stmt, CaseStatement):
-                _extract_from_expr(stmt.expression, pou_name)
+                _extract_from_expr(stmt.selector, pou_name)
                 for branch in stmt.branches:
                     _extract_from_stmts(branch.body, pou_name)
                 _extract_from_stmts(stmt.else_body, pou_name)
             elif isinstance(stmt, ForStatement):
-                _extract_from_expr(stmt.start, pou_name)
-                _extract_from_expr(stmt.stop, pou_name)
-                if stmt.step is not None:
-                    _extract_from_expr(stmt.step, pou_name)
+                _extract_from_expr(stmt.from_expr, pou_name)
+                _extract_from_expr(stmt.to_expr, pou_name)
+                if stmt.by_expr is not None:
+                    _extract_from_expr(stmt.by_expr, pou_name)
                 _extract_from_stmts(stmt.body, pou_name)
             elif isinstance(stmt, WhileStatement):
                 _extract_from_expr(stmt.condition, pou_name)
                 _extract_from_stmts(stmt.body, pou_name)
             elif isinstance(stmt, RepeatStatement):
-                _extract_from_expr(stmt.condition, pou_name)
+                _extract_from_expr(stmt.until, pou_name)
                 _extract_from_stmts(stmt.body, pou_name)
 
     for pou in project.pous:

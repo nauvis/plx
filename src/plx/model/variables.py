@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from pydantic import Field
+
 from ._base import IRModel
 
 from .types import TypeRef
@@ -17,7 +19,7 @@ from .types import TypeRef
 class Variable(IRModel):
     """A named, typed data element."""
 
-    name: str
+    name: str = Field(min_length=1)
     data_type: TypeRef
     initial_value: str | None = None
     address: str | None = None

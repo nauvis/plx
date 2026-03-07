@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
+from pydantic import Field
+
 from ._base import IRModel
 
 from .hardware import Controller
@@ -25,7 +27,7 @@ class GlobalVariableList(IRModel):
     AB program containers.  Vendor raise passes map to their native model.
     """
 
-    name: str
+    name: str = Field(min_length=1)
     folder: str = ""
     scope: Literal["", "controller", "program"] = ""
     description: str = ""
@@ -37,13 +39,13 @@ class GlobalVariableList(IRModel):
 class LibraryReference(IRModel):
     """A reference to an external library dependency."""
 
-    name: str
+    name: str = Field(min_length=1)
     version: str | None = None
     vendor: str | None = None
 
 
 class Project(IRModel):
-    name: str
+    name: str = Field(min_length=1)
     description: str = ""
     controller: Controller | None = None
     data_types: list[TypeDefinition] = []

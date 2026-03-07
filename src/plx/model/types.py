@@ -92,7 +92,7 @@ class NamedTypeRef(IRModel):
     """Reference to a named type (UDT, FB type, system type, etc.)."""
 
     kind: Literal["named"] = "named"
-    name: str
+    name: str = Field(min_length=1)
 
 
 class DimensionRange(IRModel):
@@ -152,7 +152,7 @@ TypeRef = Annotated[
 class StructMember(IRModel):
     """Member of a struct or union."""
 
-    name: str
+    name: str = Field(min_length=1)
     data_type: TypeRef
     initial_value: str | None = None
     description: str = ""
@@ -168,7 +168,7 @@ class StructType(IRModel):
     """
 
     kind: Literal["struct"] = "struct"
-    name: str
+    name: str = Field(min_length=1)
     folder: str = ""
     extends: str | None = None
     members: list[StructMember]
@@ -177,7 +177,7 @@ class StructType(IRModel):
 class EnumMember(IRModel):
     """Member of an enum type."""
 
-    name: str
+    name: str = Field(min_length=1)
     value: int | None = None
 
 
@@ -188,7 +188,7 @@ class EnumType(IRModel):
     """
 
     kind: Literal["enum"] = "enum"
-    name: str
+    name: str = Field(min_length=1)
     folder: str = ""
     members: list[EnumMember]
     base_type: PrimitiveType | None = None
@@ -201,7 +201,7 @@ class UnionType(IRModel):
     """
 
     kind: Literal["union"] = "union"
-    name: str
+    name: str = Field(min_length=1)
     folder: str = ""
     members: list[StructMember]
 
@@ -213,7 +213,7 @@ class AliasType(IRModel):
     """
 
     kind: Literal["alias"] = "alias"
-    name: str
+    name: str = Field(min_length=1)
     folder: str = ""
     base_type: TypeRef
 
@@ -225,7 +225,7 @@ class SubrangeType(IRModel):
     """
 
     kind: Literal["subrange"] = "subrange"
-    name: str
+    name: str = Field(min_length=1)
     folder: str = ""
     base_type: PrimitiveType
     lower_bound: int

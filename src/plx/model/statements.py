@@ -55,6 +55,14 @@ class CaseBranch(IRModel):
     ranges: list[CaseRange] = []
     body: list[Statement] = []
 
+    @model_validator(mode="after")
+    def _check_non_empty(self):
+        if not self.values and not self.ranges:
+            raise ValueError(
+                "CaseBranch must have at least one value or range"
+            )
+        return self
+
 
 class CaseStatement(IRModel):
     kind: Literal["case"] = "case"
@@ -65,7 +73,7 @@ class CaseStatement(IRModel):
 
 class ForStatement(IRModel):
     kind: Literal["for"] = "for"
-    loop_var: str
+    loop_var: str = Field(min_length=1)
     from_expr: Expression
     to_expr: Expression
     by_expr: Expression | None = None
@@ -101,7 +109,7 @@ class FunctionCallStatement(IRModel):
     """Call a function as a statement (discarding return value)."""
 
     kind: Literal["function_call_stmt"] = "function_call_stmt"
-    function_name: str
+    function_name: str = Field(min_length=1)
     args: list[CallArg] = []
 
 

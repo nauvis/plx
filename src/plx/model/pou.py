@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, Self
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 
 from ._base import IRModel
 
@@ -81,7 +81,7 @@ class PropertyAccessor(IRModel):
 class Property(IRModel):
     """A property on a FUNCTION_BLOCK (OOP extension)."""
 
-    name: str
+    name: str = Field(min_length=1)
     data_type: TypeRef
     access: AccessSpecifier = AccessSpecifier.PUBLIC
     abstract: bool = False
@@ -93,7 +93,7 @@ class Property(IRModel):
 class Method(IRModel):
     """A method on a FUNCTION_BLOCK (OOP extension)."""
 
-    name: str
+    name: str = Field(min_length=1)
     language: Language | None = None
     return_type: TypeRef | None = None
     access: AccessSpecifier = AccessSpecifier.PUBLIC
@@ -118,7 +118,7 @@ class POUAction(IRModel):
     Used standalone or referenced by SFC steps via action qualifiers.
     """
 
-    name: str
+    name: str = Field(min_length=1)
     body: list[Network] = []
 
 
@@ -135,7 +135,7 @@ class POU(IRModel):
     """
 
     pou_type: POUType
-    name: str
+    name: str = Field(min_length=1)
     folder: str = ""
     abstract: bool = False
     description: str = ""
@@ -155,4 +155,26 @@ class POU(IRModel):
     @model_validator(mode="after")
     def _body_exclusivity(self) -> Self:
         _check_body_exclusivity(self.networks, self.sfc_body, "POU")
+        return self
+
+    @model_validator(mode="after")
+    def _validate_return_type(self) -> Self:
+        if self.return_type is not None and self.pou_type != POUType.FUNCTION:
+            raise ValueError(
+                f"return_type is only valid for FUNCTION POUs, "
+                f"not {self.pou_type.value}"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _validate_interface_pou(self) -> Self:
+        if self.pou_type == POUType.INTERFACE:
+            if self.networks:
+                raise ValueError(
+                    "INTERFACE POUs must not have networks"
+                )
+            if self.sfc_body is not None:
+                raise ValueError(
+                    "INTERFACE POUs must not have sfc_body"
+                )
         return self

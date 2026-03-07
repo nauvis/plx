@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from enum import Enum
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 
 from ._base import IRModel
 
@@ -17,7 +17,7 @@ class TaskType(str, Enum):
 
 
 class Task(IRModel):
-    name: str
+    name: str = Field(min_length=1)
     task_type: TaskType
     priority: int = 0
     interval: str | None = None

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from enum import Enum
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 
 from ._base import IRModel
 
@@ -29,7 +29,7 @@ class ActionQualifier(str, Enum):
 
 
 class Action(IRModel):
-    name: str
+    name: str = Field(min_length=1)
     qualifier: ActionQualifier = ActionQualifier.N
     duration: str | None = None
     body: list[Statement] = []
@@ -47,7 +47,7 @@ class Action(IRModel):
 
 
 class Step(IRModel):
-    name: str
+    name: str = Field(min_length=1)
     is_initial: bool = False
     actions: list[Action] = []
     entry_actions: list[Action] = []

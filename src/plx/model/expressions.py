@@ -32,6 +32,8 @@ class BinaryOp(str, Enum):
     AND = "AND"
     OR = "OR"
     XOR = "XOR"
+    BAND = "BAND"  # Bitwise AND (from Python &)
+    BOR = "BOR"    # Bitwise OR (from Python |)
     EQ = "EQ"
     NE = "NE"
     GT = "GT"
@@ -48,6 +50,7 @@ class BinaryOp(str, Enum):
 class UnaryOp(str, Enum):
     NEG = "NEG"
     NOT = "NOT"
+    BNOT = "BNOT"  # Bitwise NOT / complement (from Python ~)
 
 
 class LiteralExpr(IRModel):
@@ -62,7 +65,7 @@ class VariableRef(IRModel):
     """Reference to a variable by name."""
 
     kind: Literal["variable_ref"] = "variable_ref"
-    name: str
+    name: str = Field(min_length=1)
 
 
 class BinaryExpr(IRModel):
@@ -92,7 +95,7 @@ class FunctionCallExpr(IRModel):
     """Inline function call that returns a value."""
 
     kind: Literal["function_call"] = "function_call"
-    function_name: str
+    function_name: str = Field(min_length=1)
     args: list[CallArg] = []
 
 
@@ -109,7 +112,7 @@ class MemberAccessExpr(IRModel):
 
     kind: Literal["member_access"] = "member_access"
     struct: Expression
-    member: str
+    member: str = Field(min_length=1)
 
 
 class BitAccessExpr(IRModel):
