@@ -12,8 +12,11 @@ from plx.framework._descriptors import (
     External,
     Field,
     FieldDescriptor,
+    VarDirection,
     _collect_descriptors,
+    _determine_direction,
     _format_initial,
+    _resolve_declaration,
 )
 from plx.framework._errors import DeclarationError
 from datetime import timedelta
@@ -636,3 +639,124 @@ class TestStructArrayAnnotations:
         groups = _collect_descriptors(MyFB)
         assert len(groups["input"]) == 1
         assert groups["input"][0].data_type.kind == "array"
+
+
+# ---------------------------------------------------------------------------
+# _determine_direction
+# ---------------------------------------------------------------------------
+
+class TestDetermineDirection:
+    def test_input(self):
+        d, inner = _determine_direction(Input[int])
+        assert d == VarDirection.INPUT
+        assert inner is int
+
+    def test_output(self):
+        d, inner = _determine_direction(Output[float])
+        assert d == VarDirection.OUTPUT
+        assert inner is float
+
+    def test_inout(self):
+        d, inner = _determine_direction(InOut[bool])
+        assert d == VarDirection.INOUT
+        assert inner is bool
+
+    def test_static(self):
+        d, inner = _determine_direction(Static[int])
+        assert d == VarDirection.STATIC
+        assert inner is int
+
+    def test_temp(self):
+        d, inner = _determine_direction(Temp[int])
+        assert d == VarDirection.TEMP
+        assert inner is int
+
+    def test_constant(self):
+        d, inner = _determine_direction(Constant[float])
+        assert d == VarDirection.CONSTANT
+        assert inner is float
+
+    def test_external(self):
+        d, inner = _determine_direction(External[int])
+        assert d == VarDirection.EXTERNAL
+        assert inner is int
+
+    def test_bare_type_returns_static(self):
+        d, inner = _determine_direction(int)
+        assert d == VarDirection.STATIC
+        assert inner is int
+
+
+# ---------------------------------------------------------------------------
+# _resolve_declaration
+# ---------------------------------------------------------------------------
+
+class TestResolveDeclaration:
+    def test_each_wrapper_direction(self):
+        for wrapper, expected in [
+            (Input[int], VarDirection.INPUT),
+            (Output[float], VarDirection.OUTPUT),
+            (InOut[bool], VarDirection.INOUT),
+            (Static[int], VarDirection.STATIC),
+            (Temp[int], VarDirection.TEMP),
+            (External[int], VarDirection.EXTERNAL),
+        ]:
+            desc = _resolve_declaration("x", wrapper, None, type("Dummy", (), {}))
+            assert desc is not None
+            assert desc.direction == expected
+
+    def test_constant_wrapper_with_initial(self):
+        desc = _resolve_declaration("PI", Constant[float], 3.14, type("D", (), {}))
+        assert desc is not None
+        assert desc.direction == VarDirection.CONSTANT
+        assert desc.constant is True
+        assert desc.initial_value == "3.14"
+
+    def test_bare_annotation(self):
+        desc = _resolve_declaration("count", int, 0, type("D", (), {}))
+        assert desc is not None
+        assert desc.direction == VarDirection.STATIC
+        assert desc.initial_value == "0"
+
+    def test_field_descriptor_default(self):
+        field = Field(initial=42, description="The answer")
+        desc = _resolve_declaration("x", Input[int], field, type("D", (), {}))
+        assert desc is not None
+        assert desc.direction == VarDirection.INPUT
+        assert desc.initial_value == "42"
+        assert desc.description == "The answer"
+
+    def test_annotated_field(self):
+        from typing import Annotated
+        hint = Annotated[Input[int], Field(description="Sensor")]
+        desc = _resolve_declaration("x", hint, None, type("D", (), {}))
+        assert desc is not None
+        assert desc.direction == VarDirection.INPUT
+        assert desc.description == "Sensor"
+
+    def test_non_value_default_returns_none(self):
+        desc = _resolve_declaration("x", int, object(), type("D", (), {}))
+        assert desc is None
+
+    def test_unresolvable_type_returns_none(self):
+        desc = _resolve_declaration("x", Input[object()], None, type("D", (), {}))
+        assert desc is None
+
+
+# ---------------------------------------------------------------------------
+# Bug fix: Constant + Field() without initial raises DeclarationError
+# ---------------------------------------------------------------------------
+
+class TestConstantFieldBugFix:
+    def test_constant_with_field_no_initial_raises_declaration_error(self):
+        with pytest.raises(DeclarationError, match="requires an initial"):
+            class MyFB:
+                x: Constant[int] = Field()
+            _collect_descriptors(MyFB)
+
+    def test_constant_with_annotated_field_no_initial_raises_declaration_error(self):
+        from typing import Annotated
+        with pytest.raises(DeclarationError, match="requires an initial"):
+            class MyFB:
+                x: Annotated[Constant[int], Field()] = None
+            _collect_descriptors(MyFB)

@@ -79,6 +79,17 @@ class VarDirection(str, Enum):
     EXTERNAL = "external"
 
 
+_WRAPPER_DIRECTIONS: dict[type, VarDirection] = {
+    Input: VarDirection.INPUT,
+    Output: VarDirection.OUTPUT,
+    InOut: VarDirection.INOUT,
+    Static: VarDirection.STATIC,
+    Temp: VarDirection.TEMP,
+    Constant: VarDirection.CONSTANT,
+    External: VarDirection.EXTERNAL,
+}
+
+
 class VarDescriptor:
     """Marker object that records variable metadata.
 
@@ -322,6 +333,98 @@ def _mro_upsert(
 
 
 # ---------------------------------------------------------------------------
+# Per-attribute resolution helpers
+# ---------------------------------------------------------------------------
+
+def _unwrap_forward_ref(inner_type: object, declaring_cls: type) -> object:
+    """Resolve a ForwardRef using the declaring class's module globals."""
+    if not isinstance(inner_type, ForwardRef):
+        return inner_type
+    mod = sys.modules.get(declaring_cls.__module__)
+    globalns = getattr(mod, '__dict__', {}) if mod else {}
+    try:
+        return eval(inner_type.__forward_arg__, globalns)
+    except Exception:
+        return inner_type.__forward_arg__
+
+
+def _determine_direction(type_hint: object) -> tuple[VarDirection, object]:
+    """Determine variable direction from annotation wrapper.
+
+    Returns (direction, inner_type). Bare annotations return (STATIC, type_hint).
+    """
+    origin = get_origin(type_hint)
+    direction = _WRAPPER_DIRECTIONS.get(origin)
+    if direction is not None:
+        return direction, get_args(type_hint)[0]
+    return VarDirection.STATIC, type_hint
+
+
+def _resolve_declaration(
+    attr_name: str,
+    type_hint: object,
+    default: object,
+    declaring_cls: type,
+) -> VarDescriptor | None:
+    """Resolve a single attribute's annotation + default into a VarDescriptor.
+
+    Returns None if the attribute should be skipped (unresolvable type,
+    non-value default, etc.).
+    """
+    type_hint, annotated_field = _unwrap_annotated(type_hint, attr_name)
+    direction, inner_type = _determine_direction(type_hint)
+    inner_type = _unwrap_forward_ref(inner_type, declaring_cls)
+
+    try:
+        data_type = _resolve_type_ref(inner_type)
+    except TypeError:
+        return None
+
+    # Resolve field descriptor from Annotated[T, Field()] or = Field() default
+    field = annotated_field
+    if field is None and isinstance(default, FieldDescriptor):
+        field = default
+        default = None  # FieldDescriptor IS the default, not a value
+
+    if field is not None:
+        _validate_field_for_direction(field, direction, attr_name)
+        is_constant = direction == VarDirection.CONSTANT or field.constant
+        var = _field_to_variable(attr_name, data_type, field, default, is_constant=is_constant)
+        if direction == VarDirection.CONSTANT and var.initial_value is None:
+            raise DeclarationError(
+                f"Constant variable '{attr_name}' requires an initial value"
+            )
+        return VarDescriptor(
+            direction=direction,
+            data_type=var.data_type,
+            initial_value=var.initial_value,
+            description=var.description,
+            retain=var.retain,
+            persistent=var.persistent,
+            constant=var.constant,
+            address=var.address,
+        )
+
+    # No field — skip non-value defaults (step objects, etc.)
+    if default is not None and not isinstance(default, (bool, int, float, str, timedelta)):
+        return None
+
+    initial_value = _format_initial(default)
+    is_constant = direction == VarDirection.CONSTANT
+    if is_constant and initial_value is None:
+        raise DeclarationError(
+            f"Constant variable '{attr_name}' requires an initial value"
+        )
+
+    return VarDescriptor(
+        direction=direction,
+        data_type=data_type,
+        initial_value=initial_value,
+        constant=is_constant,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Collection helper
 # ---------------------------------------------------------------------------
 
@@ -377,121 +480,19 @@ def _collect_descriptors(cls: type, *, own_only: bool = False) -> dict[str, list
                 _mro_upsert(collected, seen, attr_name, (attr_name, desc))
 
     # Track names from first pass
-    descriptor_names = set(seen)
+    fb_names = set(seen)
 
-    # Direction dispatch table for annotation wrappers
-    _WRAPPER_DIRECTIONS = {
-        Input: VarDirection.INPUT,
-        Output: VarDirection.OUTPUT,
-        InOut: VarDirection.INOUT,
-        Static: VarDirection.STATIC,
-        Temp: VarDirection.TEMP,
-        Constant: VarDirection.CONSTANT,
-        External: VarDirection.EXTERNAL,
-    }
-
-    # Second pass: annotation-based vars
+    # Second pass: annotation-based declarations
     for base in reversed(cls.__mro__):
         if base is object:
             continue
-        base_annotations = base.__dict__.get("__annotations__", {})
-        for attr_name, type_hint in base_annotations.items():
-            if attr_name in descriptor_names:
-                continue  # first-pass assignment takes precedence
-
-            type_hint, annotated_field = _unwrap_annotated(type_hint, attr_name)
-
-            # Determine direction from annotation wrapper
-            origin = get_origin(type_hint)
-            direction = _WRAPPER_DIRECTIONS.get(origin)
-            if direction is not None:
-                inner_type = get_args(type_hint)[0]
-                # Unwrap ForwardRef (happens when Generic is subscripted
-                # with non-type values like PrimitiveType.BOOL)
-                if isinstance(inner_type, ForwardRef):
-                    mod = sys.modules.get(cls.__module__)
-                    globalns = getattr(mod, '__dict__', {}) if mod else {}
-                    try:
-                        inner_type = eval(inner_type.__forward_arg__, globalns)
-                    except Exception:
-                        inner_type = inner_type.__forward_arg__
-            else:
-                # Bare annotation = static var
-                direction = VarDirection.STATIC
-                inner_type = type_hint
-
-            # Skip non-resolvable annotations (e.g., step() objects)
-            try:
-                data_type = _resolve_type_ref(inner_type)
-            except TypeError:
+        for attr_name, type_hint in base.__dict__.get("__annotations__", {}).items():
+            if attr_name in fb_names:
                 continue
-
             default = base.__dict__.get(attr_name)
-
-            # Merge Annotated Field with class default:
-            # If Annotated provides a Field, use it as the field descriptor.
-            # A plain class default (not FieldDescriptor) supplies the initial
-            # value when Field(initial=...) is not set.
-            if annotated_field is not None:
-                _validate_field_for_direction(annotated_field, direction, attr_name)
-                is_constant = direction == VarDirection.CONSTANT or annotated_field.constant
-                var = _field_to_variable(attr_name, data_type, annotated_field, default, is_constant=is_constant)
-                if direction == VarDirection.CONSTANT and var.initial_value is None:
-                    raise TypeError(
-                        f"Constant variable '{attr_name}' requires an initial value"
-                    )
-                _mro_upsert(collected, seen, attr_name, (attr_name, VarDescriptor(
-                    direction=direction,
-                    data_type=var.data_type,
-                    initial_value=var.initial_value,
-                    description=var.description,
-                    retain=var.retain,
-                    persistent=var.persistent,
-                    constant=var.constant,
-                    address=var.address,
-                )))
-                continue
-
-            # Handle FieldDescriptor defaults (= Field(...) syntax)
-            if isinstance(default, FieldDescriptor):
-                _validate_field_for_direction(default, direction, attr_name)
-                is_constant = direction == VarDirection.CONSTANT or default.constant
-                var = _field_to_variable(attr_name, data_type, default, is_constant=is_constant)
-                if direction == VarDirection.CONSTANT and var.initial_value is None:
-                    raise TypeError(
-                        f"Constant variable '{attr_name}' requires an initial value"
-                    )
-                _mro_upsert(collected, seen, attr_name, (attr_name, VarDescriptor(
-                    direction=direction,
-                    data_type=var.data_type,
-                    initial_value=var.initial_value,
-                    description=var.description,
-                    retain=var.retain,
-                    persistent=var.persistent,
-                    constant=var.constant,
-                    address=var.address,
-                )))
-                continue
-
-            # Skip if default is a non-value object (step, transition, etc.)
-            if default is not None and not isinstance(default, (bool, int, float, str, timedelta)):
-                continue
-
-            initial_value = _format_initial(default)
-
-            # For Constant wrapper, auto-set constant=True and require initial
-            is_constant = direction == VarDirection.CONSTANT
-            if is_constant and initial_value is None:
-                raise DeclarationError(
-                    f"Constant variable '{attr_name}' requires an initial value"
-                )
-
-            _mro_upsert(collected, seen, attr_name, (attr_name, VarDescriptor(
-                direction=direction,
-                data_type=data_type,
-                initial_value=initial_value,
-                constant=is_constant,
-            )))
+            desc = _resolve_declaration(attr_name, type_hint, default, base)
+            if desc is not None:
+                _mro_upsert(collected, seen, attr_name, (attr_name, desc))
 
     for attr_name, desc in collected:
         var = Variable(
