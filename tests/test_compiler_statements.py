@@ -51,11 +51,24 @@ class TestAssignment:
         assert len(stmts) == 1
         assert stmts[0].target.name == "x"
 
-    def test_bare_name_undeclared_raises(self):
+    def test_bare_name_inferred_dint(self):
+        """Bare assignment with int literal infers DINT temp."""
+        ctx = CompileContext()
+        stmts = compile_stmts("x = 10", ctx)
+        assert len(stmts) == 1
+        assert stmts[0].target.name == "x"
+        assert ctx.declared_vars["x"] == VarDirection.TEMP
+        assert len(ctx.generated_temp_vars) == 1
+        assert ctx.generated_temp_vars[0].name == "x"
+        assert ctx.generated_temp_vars[0].data_type.type.value == "DINT"
+
+    def test_bare_name_undeclared_no_inference_raises(self):
+        """Bare assignment where type cannot be inferred still raises."""
         import pytest
         from plx.framework._compiler import CompileError
+        # fn_call() return type is unknown — cannot infer
         with pytest.raises(CompileError, match="Undeclared variable"):
-            compile_stmts("x = 10")
+            compile_stmts("x = self.unknown_fb.call()")
 
 
 # ---------------------------------------------------------------------------
