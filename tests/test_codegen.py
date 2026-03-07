@@ -345,6 +345,59 @@ class TestExpressions:
         expr = UnaryExpr(op=UnaryOp.NEG, operand=VariableRef(name="x"))
         assert w._expr(expr) == "-x"
 
+    def test_unary_bnot(self):
+        w = _make_writer()
+        expr = UnaryExpr(op=UnaryOp.BNOT, operand=VariableRef(name="mask"))
+        assert w._expr(expr) == "~mask"
+
+    def test_band(self):
+        w = _make_writer()
+        expr = BinaryExpr(
+            op=BinaryOp.BAND,
+            left=VariableRef(name="status"),
+            right=LiteralExpr(value="16#00FF"),
+        )
+        assert w._expr(expr) == "status & 16#00FF"
+
+    def test_bor(self):
+        w = _make_writer()
+        expr = BinaryExpr(
+            op=BinaryOp.BOR,
+            left=VariableRef(name="a"),
+            right=VariableRef(name="b"),
+        )
+        assert w._expr(expr) == "a | b"
+
+    def test_band_bor_precedence(self):
+        """a | b & c → a | (b & c) — BAND binds tighter than BOR."""
+        w = _make_writer()
+        band = BinaryExpr(
+            op=BinaryOp.BAND,
+            left=VariableRef(name="b"),
+            right=VariableRef(name="c"),
+        )
+        bor = BinaryExpr(
+            op=BinaryOp.BOR,
+            left=VariableRef(name="a"),
+            right=band,
+        )
+        assert w._expr(bor) == "a | b & c"
+
+    def test_bor_needs_parens_in_band(self):
+        """(a | b) & c → needs parens."""
+        w = _make_writer()
+        bor = BinaryExpr(
+            op=BinaryOp.BOR,
+            left=VariableRef(name="a"),
+            right=VariableRef(name="b"),
+        )
+        band = BinaryExpr(
+            op=BinaryOp.BAND,
+            left=bor,
+            right=VariableRef(name="c"),
+        )
+        assert w._expr(band) == "(a | b) & c"
+
     def test_function_call(self):
         w = _make_writer()
         expr = FunctionCallExpr(
@@ -352,6 +405,14 @@ class TestExpressions:
             args=[CallArg(value=VariableRef(name="x"))],
         )
         assert w._expr(expr) == "abs(x)"
+
+    def test_function_call_round(self):
+        w = _make_writer()
+        expr = FunctionCallExpr(
+            function_name="ROUND",
+            args=[CallArg(value=VariableRef(name="x"))],
+        )
+        assert w._expr(expr) == "round(x)"
 
     def test_function_call_min(self):
         w = _make_writer()
@@ -1888,3 +1949,108 @@ class TestTypeConversionExport:
                 source=VariableRef(name="x"),
             )
             assert w._expr(expr) == expected
+
+
+# ===========================================================================
+# Round-trip fidelity fixes
+# ===========================================================================
+
+class TestRoundTripFixes:
+    def test_access_specifier_in_method_export(self):
+        """AccessSpecifier.PRIVATE in method export produces importable code."""
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
+            interface=POUInterface(),
+            methods=[
+                Method(
+                    name="Internal",
+                    access=AccessSpecifier.PRIVATE,
+                    interface=POUInterface(),
+                    networks=[Network(statements=[EmptyStatement()])],
+                ),
+            ],
+            networks=[Network(statements=[EmptyStatement()])],
+        )
+        w = _make_writer()
+        w._write_pou(pou)
+        out = w.getvalue()
+        assert "@method(access=AccessSpecifier.PRIVATE)" in out
+        # Verify AccessSpecifier is importable from framework
+        from plx.framework import AccessSpecifier as AS
+        assert AS.PRIVATE is not None
+
+    def test_enum_auto_values(self):
+        """EnumMember with value=None emits integer, not auto()."""
+        td = EnumType(
+            name="Color",
+            members=[
+                EnumMember(name="RED"),
+                EnumMember(name="GREEN"),
+                EnumMember(name="BLUE"),
+            ],
+        )
+        w = _make_writer()
+        w._write_enum(td)
+        out = w.getvalue()
+        assert "auto()" not in out
+        assert "RED = 0" in out
+        assert "GREEN = 1" in out
+        assert "BLUE = 2" in out
+
+    def test_enum_auto_values_with_gaps(self):
+        """EnumMember with mixed explicit/None values auto-increments correctly."""
+        td = EnumType(
+            name="Status",
+            members=[
+                EnumMember(name="OFF", value=0),
+                EnumMember(name="STARTING"),
+                EnumMember(name="RUNNING", value=10),
+                EnumMember(name="STOPPING"),
+            ],
+        )
+        w = _make_writer()
+        w._write_enum(td)
+        out = w.getvalue()
+        assert "OFF = 0" in out
+        assert "STARTING = 1" in out
+        assert "RUNNING = 10" in out
+        assert "STOPPING = 11" in out
+
+    def test_fb_invocation_expression_instance_no_double_self(self):
+        """Expression instance_name doesn't get double self. prefix."""
+        w = _make_writer(self_vars={"arr"})
+        stmt = FBInvocation(
+            instance_name=ArrayAccessExpr(
+                array=VariableRef(name="arr"),
+                indices=[LiteralExpr(value="0")],
+            ),
+            fb_type="TON",
+            inputs={"IN": LiteralExpr(value="TRUE")},
+        )
+        w._write_stmt(stmt)
+        out = w.getvalue().strip()
+        assert "self.arr[0](IN=True)" in out
+        assert "self.self." not in out
+
+    def test_external_var_gets_self_prefix(self):
+        """External vars get self. prefix in generated logic."""
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
+            interface=POUInterface(
+                external_vars=[
+                    Variable(name="gCounter", data_type=PrimitiveTypeRef(type=PrimitiveType.DINT)),
+                ],
+            ),
+            networks=[Network(statements=[
+                Assignment(
+                    target=VariableRef(name="gCounter"),
+                    value=LiteralExpr(value="42"),
+                ),
+            ])],
+        )
+        w = _make_writer()
+        w._write_pou(pou)
+        out = w.getvalue()
+        assert "self.gCounter" in out

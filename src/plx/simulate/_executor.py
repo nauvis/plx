@@ -675,6 +675,10 @@ class ExecutionEngine:
             if isinstance(left, bool) and isinstance(right, bool):
                 return left ^ right
             return left ^ right
+        if op == BinaryOp.BAND:
+            return left & right
+        if op == BinaryOp.BOR:
+            return left | right
 
         # Comparison
         if op == BinaryOp.EQ:
@@ -711,6 +715,8 @@ class ExecutionEngine:
         if expr.op == UnaryOp.NOT:
             if isinstance(operand, bool):
                 return not operand
+            return ~operand
+        if expr.op == UnaryOp.BNOT:
             return ~operand
         raise SimulationError(f"Unsupported unary op: {expr.op}")
 

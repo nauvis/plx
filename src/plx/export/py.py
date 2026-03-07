@@ -171,6 +171,8 @@ _BINOP_PYTHON: dict[BinaryOp, str] = {
     BinaryOp.AND: "and",
     BinaryOp.OR: "or",
     BinaryOp.XOR: "^",
+    BinaryOp.BAND: "&",
+    BinaryOp.BOR: "|",
     BinaryOp.EQ: "==",
     BinaryOp.NE: "!=",
     BinaryOp.GT: ">",
@@ -182,8 +184,10 @@ _BINOP_PYTHON: dict[BinaryOp, str] = {
 
 # Python precedence (higher = binds tighter)
 _BINOP_PRECEDENCE: dict[BinaryOp, int] = {
+    BinaryOp.BOR: 7,
     BinaryOp.OR: 1,
-    BinaryOp.XOR: 2,
+    BinaryOp.XOR: 8,
+    BinaryOp.BAND: 9,
     BinaryOp.AND: 3,
     BinaryOp.EQ: 4,
     BinaryOp.NE: 4,
@@ -211,6 +215,7 @@ _FUNC_REMAP: dict[str, str] = {
     "ABS": "abs",
     "MIN": "min",
     "MAX": "max",
+    "ROUND": "round",
     "SQRT": "math.sqrt",
     "LN": "math.log",
     "LOG": "math.log10",
@@ -222,8 +227,6 @@ _FUNC_REMAP: dict[str, str] = {
     "ACOS": "math.acos",
     "ATAN": "math.atan",
     "TRUNC": "math.trunc",
-    "CEIL": "math.ceil",
-    "FLOOR": "math.floor",
     "CEIL": "math.ceil",
     "FLOOR": "math.floor",
 }
@@ -458,11 +461,14 @@ class PyWriter:
         self._indent_inc()
         if not td.members:
             self._line("pass")
+        next_val = 0
         for m in td.members:
             if m.value is not None:
                 self._line(f"{m.name} = {m.value}")
+                next_val = m.value + 1
             else:
-                self._line(f"{m.name} = auto()")
+                self._line(f"{m.name} = {next_val}")
+                next_val += 1
         self._indent_dec()
 
     # ======================================================================
@@ -1148,7 +1154,7 @@ class PyWriter:
         if isinstance(stmt.instance_name, str):
             instance = f"self.{stmt.instance_name}" if stmt.instance_name in self._self_vars else stmt.instance_name
         else:
-            instance = f"self.{self._expr(stmt.instance_name)}"
+            instance = self._expr(stmt.instance_name)
         parts: list[str] = []
         for name, expr in stmt.inputs.items():
             parts.append(f"{name}={self._expr(expr)}")
@@ -1237,6 +1243,8 @@ class PyWriter:
             return f"-{operand}"
         if expr.op == UnaryOp.NOT:
             return f"not {operand}"
+        if expr.op == UnaryOp.BNOT:
+            return f"~{operand}"
         return f"{expr.op.value}({operand})"
 
     def _expr_function_call(self, expr: FunctionCallExpr, _prec: int) -> str:
@@ -1409,6 +1417,8 @@ def _build_self_vars(iface: POUInterface) -> set[str]:
         names.add(v.name)
     for v in iface.constant_vars:
         names.add(v.name)
+    for v in iface.external_vars:
+        names.add(v.name)
     return names
 
 
@@ -1497,6 +1507,7 @@ def _collect_pou_deps(pou: POU, project: Project) -> dict[str, list[str]]:
         pou.interface.input_vars, pou.interface.output_vars,
         pou.interface.inout_vars, pou.interface.static_vars,
         pou.interface.temp_vars, pou.interface.constant_vars,
+        pou.interface.external_vars,
     ):
         for v in var_list:
             referenced |= _collect_named_refs(v.data_type)

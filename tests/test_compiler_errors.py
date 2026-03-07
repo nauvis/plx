@@ -244,13 +244,21 @@ class TestTupleUnpacking:
 # ---------------------------------------------------------------------------
 
 class TestComparisonOperators:
-    def test_in_rejected(self):
-        with pytest.raises(CompileError, match="'in' is not supported"):
+    def test_in_requires_tuple(self):
+        with pytest.raises(CompileError, match="requires a tuple, list, or set of values"):
             compile_expr("x in items")
 
-    def test_not_in_rejected(self):
-        with pytest.raises(CompileError, match="'not in' is not supported"):
+    def test_not_in_requires_tuple(self):
+        with pytest.raises(CompileError, match="requires a tuple, list, or set of values"):
             compile_expr("x not in items")
+
+    def test_in_chaining_after_rejected(self):
+        with pytest.raises(CompileError, match="must be the last operator"):
+            compile_expr("x in (1, 2) < y")
+
+    def test_not_in_chaining_after_rejected(self):
+        with pytest.raises(CompileError, match="must be the last operator"):
+            compile_expr("x not in (1, 2) < y")
 
     def test_is_rejected(self):
         with pytest.raises(CompileError, match="'is' is not supported"):
@@ -286,10 +294,6 @@ class TestRejectedBuiltins:
         with pytest.raises(CompileError, match="type.*statically typed"):
             compile_expr("type(x)")
 
-    def test_round_rejected(self):
-        with pytest.raises(CompileError, match="round.*ROUND"):
-            compile_expr("round(3.14)")
-
     def test_sum_rejected(self):
         with pytest.raises(CompileError, match="sum.*for loop"):
             compile_expr("sum(values)")
@@ -324,16 +328,6 @@ class TestAugAssignErrors:
         ctx = CompileContext(declared_vars={"x": VarDirection.STATIC})
         with pytest.raises(CompileError, match="//="):
             compile_stmts("self.x //= 2", ctx)
-
-    def test_bitand_augassign(self):
-        ctx = CompileContext(declared_vars={"x": VarDirection.STATIC})
-        with pytest.raises(CompileError, match="&="):
-            compile_stmts("self.x &= 0xFF", ctx)
-
-    def test_bitor_augassign(self):
-        ctx = CompileContext(declared_vars={"x": VarDirection.STATIC})
-        with pytest.raises(CompileError, match=r"\|="):
-            compile_stmts("self.x |= 0x01", ctx)
 
 
 # ---------------------------------------------------------------------------

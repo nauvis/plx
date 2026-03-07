@@ -4,7 +4,7 @@ import pytest
 
 from conftest import compile_expr, compile_stmts
 
-from plx.framework._compiler import CompileError
+from plx.framework._compiler import CompileContext, CompileError
 from plx.model.expressions import (
     ArrayAccessExpr,
     BinaryExpr,
@@ -128,12 +128,14 @@ class TestBinaryOp:
         assert result.op == BinaryOp.MOD
 
     def test_bitand(self):
-        with pytest.raises(CompileError, match="Bitwise &"):
-            compile_expr("a & b")
+        result = compile_expr("a & b")
+        assert isinstance(result, BinaryExpr)
+        assert result.op == BinaryOp.BAND
 
     def test_bitor(self):
-        with pytest.raises(CompileError, match="Bitwise \\|"):
-            compile_expr("a | b")
+        result = compile_expr("a | b")
+        assert isinstance(result, BinaryExpr)
+        assert result.op == BinaryOp.BOR
 
     def test_bitxor(self):
         result = compile_expr("a ^ b")
@@ -167,12 +169,26 @@ class TestBinaryOp:
             compile_stmts("a //= b")
 
     def test_bitand_augassign(self):
-        with pytest.raises(CompileError, match="Bitwise &"):
-            compile_stmts("a &= b")
+        from plx.model.statements import Assignment
+        from plx.framework._descriptors import VarDirection
+        ctx = CompileContext(declared_vars={"x": VarDirection.STATIC})
+        stmts = compile_stmts("self.x &= b", ctx)
+        assert len(stmts) == 1
+        stmt = stmts[0]
+        assert isinstance(stmt, Assignment)
+        assert isinstance(stmt.value, BinaryExpr)
+        assert stmt.value.op == BinaryOp.BAND
 
     def test_bitor_augassign(self):
-        with pytest.raises(CompileError, match="Bitwise \\|"):
-            compile_stmts("a |= b")
+        from plx.model.statements import Assignment
+        from plx.framework._descriptors import VarDirection
+        ctx = CompileContext(declared_vars={"x": VarDirection.STATIC})
+        stmts = compile_stmts("self.x |= b", ctx)
+        assert len(stmts) == 1
+        stmt = stmts[0]
+        assert isinstance(stmt, Assignment)
+        assert isinstance(stmt.value, BinaryExpr)
+        assert stmt.value.op == BinaryOp.BOR
 
 
 # ---------------------------------------------------------------------------
@@ -260,8 +276,9 @@ class TestUnaryOp:
         assert result.op == UnaryOp.NEG
 
     def test_invert(self):
-        with pytest.raises(CompileError, match="Bitwise ~"):
-            compile_expr("~a")
+        result = compile_expr("~a")
+        assert isinstance(result, UnaryExpr)
+        assert result.op == UnaryOp.BNOT
 
     def test_uadd(self):
         result = compile_expr("+a")
@@ -301,6 +318,11 @@ class TestFunctionCall:
         result = compile_expr("max(a, b)")
         assert isinstance(result, FunctionCallExpr)
         assert result.function_name == "MAX"
+
+    def test_round_builtin(self):
+        result = compile_expr("round(x)")
+        assert isinstance(result, FunctionCallExpr)
+        assert result.function_name == "ROUND"
 
     def test_generic_function(self):
         result = compile_expr("MyFunc(a, b)")
@@ -438,3 +460,100 @@ class TestIECTypeNameConversion:
         result = compile_expr("INT(x, y)")
         assert isinstance(result, FunctionCallExpr)
         assert result.function_name == "INT"
+
+
+# ---------------------------------------------------------------------------
+# Membership operators (in / not in)
+# ---------------------------------------------------------------------------
+
+class TestMembershipOperators:
+    def test_in_basic(self):
+        """x in (1, 2, 3) → (x == 1) OR (x == 2) OR (x == 3)."""
+        result = compile_expr("x in (1, 2, 3)")
+        # Structure: OR(OR(EQ(x, 1), EQ(x, 2)), EQ(x, 3))
+        assert isinstance(result, BinaryExpr)
+        assert result.op == BinaryOp.OR
+        assert isinstance(result.right, BinaryExpr)
+        assert result.right.op == BinaryOp.EQ
+        assert result.right.right == LiteralExpr(value="3")
+        assert isinstance(result.left, BinaryExpr)
+        assert result.left.op == BinaryOp.OR
+        assert result.left.left == BinaryExpr(op=BinaryOp.EQ, left=VariableRef(name="x"), right=LiteralExpr(value="1"))
+        assert result.left.right == BinaryExpr(op=BinaryOp.EQ, left=VariableRef(name="x"), right=LiteralExpr(value="2"))
+
+    def test_not_in_basic(self):
+        """x not in (1, 2) → (x != 1) AND (x != 2)."""
+        result = compile_expr("x not in (1, 2)")
+        assert isinstance(result, BinaryExpr)
+        assert result.op == BinaryOp.AND
+        assert result.left == BinaryExpr(op=BinaryOp.NE, left=VariableRef(name="x"), right=LiteralExpr(value="1"))
+        assert result.right == BinaryExpr(op=BinaryOp.NE, left=VariableRef(name="x"), right=LiteralExpr(value="2"))
+
+    def test_in_single_element(self):
+        """x in (5,) → x == 5."""
+        result = compile_expr("x in (5,)")
+        assert result == BinaryExpr(op=BinaryOp.EQ, left=VariableRef(name="x"), right=LiteralExpr(value="5"))
+
+    def test_not_in_single_element(self):
+        """x not in (5,) → x != 5."""
+        result = compile_expr("x not in (5,)")
+        assert result == BinaryExpr(op=BinaryOp.NE, left=VariableRef(name="x"), right=LiteralExpr(value="5"))
+
+    def test_in_empty_tuple(self):
+        """x in () → FALSE."""
+        result = compile_expr("x in ()")
+        assert result == LiteralExpr(value="FALSE", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL))
+
+    def test_not_in_empty_tuple(self):
+        """x not in () → TRUE."""
+        result = compile_expr("x not in ()")
+        assert result == LiteralExpr(value="TRUE", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL))
+
+    def test_in_with_variables(self):
+        """x in (a, b) → (x == a) OR (x == b)."""
+        result = compile_expr("x in (a, b)")
+        assert isinstance(result, BinaryExpr)
+        assert result.op == BinaryOp.OR
+        assert result.left == BinaryExpr(op=BinaryOp.EQ, left=VariableRef(name="x"), right=VariableRef(name="a"))
+        assert result.right == BinaryExpr(op=BinaryOp.EQ, left=VariableRef(name="x"), right=VariableRef(name="b"))
+
+    def test_in_with_self_attribute(self):
+        """self.state in (1, 2) → (state == 1) OR (state == 2)."""
+        result = compile_expr("self.state in (1, 2)")
+        assert isinstance(result, BinaryExpr)
+        assert result.op == BinaryOp.OR
+        assert result.left.left == VariableRef(name="state")
+        assert result.right.left == VariableRef(name="state")
+
+    def test_in_with_enum_members(self):
+        """self.state in (Mode.IDLE, Mode.RUN) → enum literal comparisons."""
+        ctx = CompileContext(known_enums={"Mode": {"IDLE": 0, "RUN": 1, "FAULT": 99}})
+        result = compile_expr("self.state in (Mode.IDLE, Mode.RUN)", ctx=ctx)
+        assert isinstance(result, BinaryExpr)
+        assert result.op == BinaryOp.OR
+        assert result.left.right == LiteralExpr(value="Mode#IDLE", data_type=NamedTypeRef(name="Mode"))
+        assert result.right.right == LiteralExpr(value="Mode#RUN", data_type=NamedTypeRef(name="Mode"))
+
+    def test_in_list_literal(self):
+        """x in [1, 2] → same as tuple."""
+        result = compile_expr("x in [1, 2]")
+        assert isinstance(result, BinaryExpr)
+        assert result.op == BinaryOp.OR
+
+    def test_in_set_literal(self):
+        """x in {1, 2} → same as tuple."""
+        result = compile_expr("x in {1, 2}")
+        assert isinstance(result, BinaryExpr)
+        assert result.op == BinaryOp.OR
+
+    def test_chained_comparison_before_in(self):
+        """a < x in (1, 2) → (a < x) AND ((x == 1) OR (x == 2))."""
+        result = compile_expr("a < x in (1, 2)")
+        assert isinstance(result, BinaryExpr)
+        assert result.op == BinaryOp.AND
+        # Left part: a < x
+        assert result.left == BinaryExpr(op=BinaryOp.LT, left=VariableRef(name="a"), right=VariableRef(name="x"))
+        # Right part: (x == 1) OR (x == 2)
+        membership = result.right
+        assert isinstance(membership, BinaryExpr)
+        assert membership.op == BinaryOp.OR

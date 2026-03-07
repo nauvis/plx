@@ -283,6 +283,36 @@ class TestExpressions:
         st = to_structured_text(pou)
         assert "y := REAL(x);" in st
 
+    def test_band(self):
+        expr = BinaryExpr(op=BinaryOp.BAND, left=_ref("status"), right=_lit("16#00FF"))
+        stmt = Assignment(target=_ref("y"), value=expr)
+        pou = POU(
+            pou_type=POUType.PROGRAM, name="T",
+            networks=[Network(statements=[stmt])],
+        )
+        st = to_structured_text(pou)
+        assert "y := status AND 16#00FF;" in st
+
+    def test_bor(self):
+        expr = BinaryExpr(op=BinaryOp.BOR, left=_ref("a"), right=_ref("b"))
+        stmt = Assignment(target=_ref("y"), value=expr)
+        pou = POU(
+            pou_type=POUType.PROGRAM, name="T",
+            networks=[Network(statements=[stmt])],
+        )
+        st = to_structured_text(pou)
+        assert "y := a OR b;" in st
+
+    def test_bnot(self):
+        expr = UnaryExpr(op=UnaryOp.BNOT, operand=_ref("mask"))
+        stmt = Assignment(target=_ref("y"), value=expr)
+        pou = POU(
+            pou_type=POUType.PROGRAM, name="T",
+            networks=[Network(statements=[stmt])],
+        )
+        st = to_structured_text(pou)
+        assert "y := NOT mask;" in st
+
     def test_shift_as_function(self):
         expr = BinaryExpr(op=BinaryOp.SHL, left=_ref("x"), right=_lit("2"))
         stmt = Assignment(target=_ref("y"), value=expr)

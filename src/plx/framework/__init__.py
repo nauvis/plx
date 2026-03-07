@@ -76,6 +76,8 @@ from ._decorators import (
     interface,
 )
 
+from ..model.pou import AccessSpecifier
+
 from ._properties import (
     fb_property,
 )
@@ -216,6 +218,7 @@ __all__ = [
     "method",
     "interface",
     "fb_property",
+    "AccessSpecifier",
     # SFC
     "sfc",
     "step",

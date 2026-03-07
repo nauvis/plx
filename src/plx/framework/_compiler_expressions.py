@@ -149,7 +149,18 @@ class _ExpressionMixin:
         parts: list[Expression] = []
         left = self.compile_expression(node.left)
 
-        for cmp_op, comparator in zip(node.ops, node.comparators):
+        for i, (cmp_op, comparator) in enumerate(zip(node.ops, node.comparators)):
+            # in / not in → membership test expansion
+            if isinstance(cmp_op, (ast.In, ast.NotIn)):
+                if i != len(node.ops) - 1:
+                    raise CompileError(
+                        "'in' / 'not in' must be the last operator in a chained comparison",
+                        node, self.ctx,
+                    )
+                negate = isinstance(cmp_op, ast.NotIn)
+                parts.append(self._compile_membership_test(left, comparator, node, negate))
+                break
+
             op = _CMPOP_MAP.get(type(cmp_op))
             if op is None:
                 rejected = _REJECTED_CMPOP_MESSAGES.get(type(cmp_op))
@@ -171,6 +182,47 @@ class _ExpressionMixin:
             result = BinaryExpr(op=BinaryOp.AND, left=result, right=p)
         return result
 
+    def _compile_membership_test(
+        self,
+        left: Expression,
+        comparator: ast.expr,
+        node: ast.Compare,
+        negate: bool,
+    ) -> Expression:
+        """Compile ``x in (a, b, c)`` → OR chain of EQ, ``x not in (...)`` → AND chain of NE."""
+        if not isinstance(comparator, (ast.Tuple, ast.List, ast.Set)):
+            raise CompileError(
+                "'in' / 'not in' requires a tuple, list, or set of values "
+                "(e.g. x in (1, 2, 3)), not a variable or expression",
+                node, self.ctx,
+            )
+
+        elements = comparator.elts
+
+        # Empty collection → constant
+        if not elements:
+            value = "TRUE" if negate else "FALSE"
+            return LiteralExpr(value=value, data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL))
+
+        eq_op = BinaryOp.NE if negate else BinaryOp.EQ
+        chain_op = BinaryOp.AND if negate else BinaryOp.OR
+
+        compiled_elts = [self.compile_expression(elt) for elt in elements]
+
+        # Single element → simple comparison
+        if len(compiled_elts) == 1:
+            return BinaryExpr(op=eq_op, left=left, right=compiled_elts[0])
+
+        # Multiple → left-folded chain
+        result = BinaryExpr(op=eq_op, left=left, right=compiled_elts[0])
+        for elt in compiled_elts[1:]:
+            result = BinaryExpr(
+                op=chain_op,
+                left=result,
+                right=BinaryExpr(op=eq_op, left=left, right=elt),
+            )
+        return result
+
     def _compile_unaryop(self, node: ast.UnaryOp) -> Expression:
         operand = self.compile_expression(node.operand)
         if isinstance(node.op, ast.Not):
@@ -178,10 +230,7 @@ class _ExpressionMixin:
         if isinstance(node.op, ast.USub):
             return UnaryExpr(op=UnaryOp.NEG, operand=operand)
         if isinstance(node.op, ast.Invert):
-            raise CompileError(
-                "Bitwise ~ is not supported in logic(). Use 'not' for logical NOT.",
-                node, self.ctx,
-            )
+            return UnaryExpr(op=UnaryOp.BNOT, operand=operand)
         if isinstance(node.op, ast.UAdd):
             return operand  # +x → x
         raise CompileError(

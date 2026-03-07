@@ -109,6 +109,8 @@ _BINOP_MAP: dict[type, BinaryOp] = {
     ast.Div: BinaryOp.DIV,
     ast.Mod: BinaryOp.MOD,
     ast.BitXor: BinaryOp.XOR,
+    ast.BitAnd: BinaryOp.BAND,
+    ast.BitOr: BinaryOp.BOR,
     ast.LShift: BinaryOp.SHL,
     ast.RShift: BinaryOp.SHR,
     ast.Pow: BinaryOp.EXPT,
@@ -116,14 +118,10 @@ _BINOP_MAP: dict[type, BinaryOp] = {
 
 _REJECTED_BINOP_MESSAGES: dict[type, str] = {
     ast.FloorDiv: "Floor division (//) is not supported — PLC division has no floor variant. Use / instead.",
-    ast.BitAnd: "Bitwise & is not supported in logic(). Use 'and' for logical AND.",
-    ast.BitOr: "Bitwise | is not supported in logic(). Use 'or' for logical OR.",
 }
 
 _REJECTED_AUGOP_MESSAGES: dict[type, str] = {
     ast.FloorDiv: "Floor division (//=) is not supported — PLC division has no floor variant. Use /= instead.",
-    ast.BitAnd: "Bitwise &= is not supported in logic(). Use 'and' for logical AND.",
-    ast.BitOr: "Bitwise |= is not supported in logic(). Use 'or' for logical OR.",
 }
 
 _CMPOP_MAP: dict[type, BinaryOp] = {
@@ -136,8 +134,6 @@ _CMPOP_MAP: dict[type, BinaryOp] = {
 }
 
 _REJECTED_CMPOP_MESSAGES: dict[type, str] = {
-    ast.In: "'in' is not supported in PLC logic. Use: if x == 1 or x == 2 or x == 3",
-    ast.NotIn: "'not in' is not supported in PLC logic. Use: if x != 1 and x != 2 and x != 3",
     ast.Is: "'is' is not supported in PLC logic. Use == for equality.",
     ast.IsNot: "'is not' is not supported in PLC logic. Use != for inequality.",
 }
@@ -161,6 +157,7 @@ _PYTHON_BUILTIN_MAP: dict[str, str] = {
     "min": "MIN",
     "max": "MAX",
     "len": "LEN",
+    "round": "ROUND",
 }
 
 # math module function mapping: math.func() → IEC function
@@ -222,7 +219,6 @@ _REJECTED_BUILTINS: dict[str, str] = {
     "sum": "sum() is not supported. Use a for loop with range().",
     "any": "any() is not supported. Use a for loop with range().",
     "all": "all() is not supported. Use a for loop with range().",
-    "round": "round() is not supported. Use IEC ROUND() (uppercase).",
     "repr": "repr() does not exist in PLC logic.",
     "format": "format() does not exist in PLC logic.",
 }

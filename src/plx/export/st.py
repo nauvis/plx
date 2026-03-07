@@ -134,6 +134,8 @@ _BINOP_SYMBOL: dict[BinaryOp, str] = {
     BinaryOp.AND: "AND",
     BinaryOp.OR: "OR",
     BinaryOp.XOR: "XOR",
+    BinaryOp.BAND: "AND",
+    BinaryOp.BOR: "OR",
     BinaryOp.EQ: "=",
     BinaryOp.NE: "<>",
     BinaryOp.GT: ">",
@@ -146,8 +148,10 @@ _BINOP_SYMBOL: dict[BinaryOp, str] = {
 # IEC 61131-3 precedence (higher = binds tighter)
 _BINOP_PRECEDENCE: dict[BinaryOp, int] = {
     BinaryOp.OR: 1,
+    BinaryOp.BOR: 1,
     BinaryOp.XOR: 2,
     BinaryOp.AND: 3,
+    BinaryOp.BAND: 3,
     BinaryOp.EQ: 4,
     BinaryOp.NE: 4,
     BinaryOp.LT: 5,
@@ -625,6 +629,8 @@ class STWriter:
         if expr.op == UnaryOp.NEG:
             return f"-{operand}"
         if expr.op == UnaryOp.NOT:
+            return f"NOT {operand}"
+        if expr.op == UnaryOp.BNOT:
             return f"NOT {operand}"
         return f"{expr.op.value}({operand})"
 
