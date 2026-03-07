@@ -4,9 +4,10 @@ Same process, but the program instantiates ValveCtrl and VolumeDose
 FBs as static vars and calls them properly.
 """
 
+from datetime import timedelta
+
 from plx.framework import (
     TIME,
-    T,
     fb,
     program,
     Input,
@@ -42,7 +43,7 @@ class ValveCtrl:
         self.valve_out = self.cmd_open
         if self.cmd_open:
             self.is_open = self.feedback
-            if delayed(self.cmd_open and not self.feedback, seconds=3):
+            if delayed(self.cmd_open and not self.feedback, timedelta(seconds=3)):
                 self.fault = True
         else:
             self.is_open = False
@@ -148,7 +149,7 @@ class BatchMix:
 
             case 4:
                 self.agitator = True
-                if delayed(self.agitator, seconds=30):
+                if delayed(self.agitator, timedelta(seconds=30)):
                     self.step = DRAIN
 
             case 5:

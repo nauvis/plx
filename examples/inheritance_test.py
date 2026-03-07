@@ -7,6 +7,8 @@ Demonstrates:
   - Variable override
 """
 
+from datetime import timedelta
+
 from plx.framework import (
     fb,
     Input,
@@ -32,7 +34,7 @@ class BaseValve:
     def logic(self):
         self.valve_out = self.cmd
         self.is_open = self.cmd and self.feedback
-        if delayed(self.cmd and not self.feedback, seconds=3):
+        if delayed(self.cmd and not self.feedback, timedelta(seconds=3)):
             self.fault = True
         if not self.cmd:
             self.fault = False
@@ -50,7 +52,7 @@ class DoubleActingValve(BaseValve):
     def logic(self):
         super().logic()
         # Additional close fault detection
-        if delayed(not self.cmd and not self.close_feedback, seconds=3):
+        if delayed(not self.cmd and not self.close_feedback, timedelta(seconds=3)):
             self.close_fault = True
         if self.cmd:
             self.close_fault = False

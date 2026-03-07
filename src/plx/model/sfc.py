@@ -94,3 +94,30 @@ class SFCBody(IRModel):
                     f"found {initial_count}"
                 )
         return self
+
+    @model_validator(mode="after")
+    def _no_duplicate_step_names(self):
+        seen: set[str] = set()
+        for s in self.steps:
+            if s.name in seen:
+                raise ValueError(f"Duplicate step name '{s.name}'")
+            seen.add(s.name)
+        return self
+
+    @model_validator(mode="after")
+    def _transition_refs_valid(self):
+        if not self.steps or not self.transitions:
+            return self
+        step_names = {s.name for s in self.steps}
+        for t in self.transitions:
+            for name in t.source_steps:
+                if name not in step_names:
+                    raise ValueError(
+                        f"Transition references unknown source step '{name}'"
+                    )
+            for name in t.target_steps:
+                if name not in step_names:
+                    raise ValueError(
+                        f"Transition references unknown target step '{name}'"
+                    )
+        return self

@@ -5,9 +5,10 @@ then an agitator mixes for a set time, the batch drains out,
 and a CIP (clean-in-place) cycle flushes the system.
 """
 
+from datetime import timedelta
+
 from plx.framework import (
     TIME,
-    T,
     fb,
     program,
     function,
@@ -42,7 +43,7 @@ FAULT      = 99
 class ValveCtrl:
     cmd_open: Input[bool] = Field(description="Command to open")
     feedback: Input[bool] = Field(description="Open limit switch")
-    fault_time: Input[TIME] = Field(initial=T(3), description="Fault timeout")
+    fault_time: Input[TIME] = Field(initial=timedelta(seconds=3), description="Fault timeout")
 
     valve_out: Output[bool] = Field(description="Solenoid output")
     is_open: Output[bool] = Field(description="Confirmed open")
@@ -53,7 +54,7 @@ class ValveCtrl:
 
         if self.cmd_open:
             self.is_open = self.feedback
-            if delayed(self.cmd_open and not self.feedback, seconds=3):
+            if delayed(self.cmd_open and not self.feedback, timedelta(seconds=3)):
                 self.fault = True
         else:
             self.is_open = False
@@ -176,7 +177,7 @@ class BatchMix:
             # ---- mix for 30 seconds ----------------------------------
             case 4:
                 self.agitator = True
-                if delayed(self.agitator, seconds=30):
+                if delayed(self.agitator, timedelta(seconds=30)):
                     self.step = DRAIN
 
             # ---- drain until low level -------------------------------
@@ -190,7 +191,7 @@ class BatchMix:
             case 6:
                 self.cip_valve = True
                 self.drain_valve = True
-                if delayed(self.cip_valve, seconds=60):
+                if delayed(self.cip_valve, timedelta(seconds=60)):
                     self.step = CIP_WASH
 
             # ---- CIP wash (with agitation) ---------------------------
@@ -198,14 +199,14 @@ class BatchMix:
                 self.cip_valve = True
                 self.drain_valve = True
                 self.agitator = True
-                if delayed(self.agitator, seconds=120):
+                if delayed(self.agitator, timedelta(seconds=120)):
                     self.step = CIP_FINAL
 
             # ---- CIP final rinse -------------------------------------
             case 8:
                 self.cip_valve = True
                 self.drain_valve = True
-                if delayed(self.cip_valve, seconds=60):
+                if delayed(self.cip_valve, timedelta(seconds=60)):
                     self.step = COMPLETE
 
             # ---- complete --------------------------------------------

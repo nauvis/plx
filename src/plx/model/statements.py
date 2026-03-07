@@ -71,6 +71,12 @@ class CaseStatement(IRModel):
     branches: list[CaseBranch]
     else_body: list[Statement] = []
 
+    @model_validator(mode="after")
+    def _non_empty_branches(self):
+        if not self.branches:
+            raise ValueError("CaseStatement must have at least one branch")
+        return self
+
 
 class ForStatement(IRModel):
     kind: Literal["for"] = "for"

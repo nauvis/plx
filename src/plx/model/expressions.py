@@ -122,7 +122,7 @@ class BitAccessExpr(IRModel):
 
     kind: Literal["bit_access"] = "bit_access"
     target: Expression
-    bit_index: int
+    bit_index: int = Field(ge=0)
 
 
 class TypeConversionExpr(IRModel):

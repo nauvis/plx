@@ -87,6 +87,14 @@ class StringTypeRef(IRModel):
     wide: bool = False
     max_length: int | None = None
 
+    @model_validator(mode="after")
+    def _positive_max_length(self):
+        if self.max_length is not None and self.max_length < 1:
+            raise ValueError(
+                f"max_length must be >= 1, got {self.max_length}"
+            )
+        return self
+
 
 class NamedTypeRef(IRModel):
     """Reference to a named type (UDT, FB type, system type, etc.)."""
@@ -116,6 +124,10 @@ class ArrayTypeRef(IRModel):
     kind: Literal["array"] = "array"
     element_type: TypeRef
     dimensions: list[DimensionRange]
+
+    # Note: dimensions may be empty when the parser encounters symbolic
+    # bounds (e.g. Param.START..Param.END) that can't be resolved to
+    # integer literals at parse time.
 
 
 class PointerTypeRef(IRModel):
@@ -173,6 +185,17 @@ class StructType(IRModel):
     extends: str | None = None
     members: list[StructMember]
 
+    @model_validator(mode="after")
+    def _no_duplicate_member_names(self):
+        seen: set[str] = set()
+        for m in self.members:
+            if m.name in seen:
+                raise ValueError(
+                    f"Duplicate member name '{m.name}' in struct '{self.name}'"
+                )
+            seen.add(m.name)
+        return self
+
 
 class EnumMember(IRModel):
     """Member of an enum type."""
@@ -193,6 +216,17 @@ class EnumType(IRModel):
     members: list[EnumMember]
     base_type: PrimitiveType | None = None
 
+    @model_validator(mode="after")
+    def _no_duplicate_member_names(self):
+        seen: set[str] = set()
+        for m in self.members:
+            if m.name in seen:
+                raise ValueError(
+                    f"Duplicate member name '{m.name}' in enum '{self.name}'"
+                )
+            seen.add(m.name)
+        return self
+
 
 class UnionType(IRModel):
     """Named union type definition.
@@ -204,6 +238,17 @@ class UnionType(IRModel):
     name: str = Field(min_length=1)
     folder: str = ""
     members: list[StructMember]
+
+    @model_validator(mode="after")
+    def _no_duplicate_member_names(self):
+        seen: set[str] = set()
+        for m in self.members:
+            if m.name in seen:
+                raise ValueError(
+                    f"Duplicate member name '{m.name}' in union '{self.name}'"
+                )
+            seen.add(m.name)
+        return self
 
 
 class AliasType(IRModel):
