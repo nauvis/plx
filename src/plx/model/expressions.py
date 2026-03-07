@@ -45,6 +45,8 @@ class BinaryOp(str, Enum):
     ROL = "ROL"
     ROR = "ROR"
     EXPT = "EXPT"
+    AND_THEN = "AND_THEN"  # Short-circuit AND (Beckhoff ExST extension)
+    OR_ELSE = "OR_ELSE"    # Short-circuit OR (Beckhoff ExST extension)
 
 
 class UnaryOp(str, Enum):

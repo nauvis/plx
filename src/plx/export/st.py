@@ -49,6 +49,7 @@ from plx.model.statements import (
     ForStatement,
     FunctionCallStatement,
     IfStatement,
+    PragmaStatement,
     RepeatStatement,
     ReturnStatement,
     Statement,
@@ -143,27 +144,31 @@ _BINOP_SYMBOL: dict[BinaryOp, str] = {
     BinaryOp.LT: "<",
     BinaryOp.LE: "<=",
     BinaryOp.EXPT: "**",
+    BinaryOp.AND_THEN: "AND_THEN",
+    BinaryOp.OR_ELSE: "OR_ELSE",
 }
 
 # IEC 61131-3 precedence (higher = binds tighter)
 _BINOP_PRECEDENCE: dict[BinaryOp, int] = {
-    BinaryOp.OR: 1,
-    BinaryOp.BOR: 1,
-    BinaryOp.XOR: 2,
-    BinaryOp.AND: 3,
-    BinaryOp.BAND: 3,
-    BinaryOp.EQ: 4,
-    BinaryOp.NE: 4,
-    BinaryOp.LT: 5,
-    BinaryOp.GT: 5,
-    BinaryOp.LE: 5,
-    BinaryOp.GE: 5,
-    BinaryOp.ADD: 6,
-    BinaryOp.SUB: 6,
-    BinaryOp.MUL: 7,
-    BinaryOp.DIV: 7,
-    BinaryOp.MOD: 7,
-    BinaryOp.EXPT: 8,
+    BinaryOp.OR_ELSE: 1,
+    BinaryOp.AND_THEN: 2,
+    BinaryOp.OR: 3,
+    BinaryOp.BOR: 3,
+    BinaryOp.XOR: 4,
+    BinaryOp.AND: 5,
+    BinaryOp.BAND: 5,
+    BinaryOp.EQ: 6,
+    BinaryOp.NE: 6,
+    BinaryOp.LT: 7,
+    BinaryOp.GT: 7,
+    BinaryOp.LE: 7,
+    BinaryOp.GE: 7,
+    BinaryOp.ADD: 8,
+    BinaryOp.SUB: 8,
+    BinaryOp.MUL: 9,
+    BinaryOp.DIV: 9,
+    BinaryOp.MOD: 9,
+    BinaryOp.EXPT: 10,
     # Shifts emitted as function calls, not infix
     BinaryOp.SHL: 0,
     BinaryOp.SHR: 0,
@@ -480,7 +485,8 @@ class STWriter:
             self._line(f"// Unsupported statement: {kind}")
 
     def _write_assignment(self, stmt: Assignment) -> None:
-        self._line(f"{self._expr(stmt.target)} := {self._expr(stmt.value)};")
+        op = "REF=" if stmt.ref_assign else ":="
+        self._line(f"{self._expr(stmt.target)} {op} {self._expr(stmt.value)};")
 
     def _write_if(self, stmt: IfStatement) -> None:
         self._line(f"IF {self._expr(stmt.if_branch.condition)} THEN")
@@ -592,6 +598,9 @@ class STWriter:
 
     def _write_empty(self, _stmt: EmptyStatement) -> None:
         self._line(";")
+
+    def _write_pragma(self, stmt: PragmaStatement) -> None:
+        self._line(stmt.text)
 
     # ======================================================================
     # Expressions
@@ -880,6 +889,7 @@ _STMT_WRITERS = {
     "function_call_stmt": STWriter._write_function_call_stmt,
     "fb_invocation": STWriter._write_fb_invocation,
     "empty": STWriter._write_empty,
+    "pragma": STWriter._write_pragma,
 }
 
 _EXPR_WRITERS = {

@@ -15,6 +15,7 @@ class Assignment(IRModel):
     kind: Literal["assignment"] = "assignment"
     target: Expression
     value: Expression
+    ref_assign: bool = False  # True for REF= (reference binding)
 
 
 class IfBranch(IRModel):
@@ -131,6 +132,13 @@ class EmptyStatement(IRModel):
     kind: Literal["empty"] = "empty"
 
 
+class PragmaStatement(IRModel):
+    """A pragma directive preserved as opaque text (e.g. conditional compilation)."""
+
+    kind: Literal["pragma"] = "pragma"
+    text: str
+
+
 Statement = Annotated[
     Union[
         Assignment,
@@ -145,6 +153,7 @@ Statement = Annotated[
         FunctionCallStatement,
         FBInvocation,
         EmptyStatement,
+        PragmaStatement,
     ],
     Field(discriminator="kind"),
 ]
@@ -160,3 +169,4 @@ RepeatStatement.model_rebuild()
 ReturnStatement.model_rebuild()
 FunctionCallStatement.model_rebuild()
 FBInvocation.model_rebuild()
+PragmaStatement.model_rebuild()

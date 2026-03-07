@@ -61,6 +61,7 @@ from .statements import (
     FunctionCallStatement,
     IfBranch,
     IfStatement,
+    PragmaStatement,
     RepeatStatement,
     ReturnStatement,
     Statement,
@@ -144,6 +145,7 @@ __all__ = [
     "FunctionCallStatement",
     "FBInvocation",
     "EmptyStatement",
+    "PragmaStatement",
     "Statement",
     # sfc
     "ActionQualifier",

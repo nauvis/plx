@@ -7,7 +7,7 @@ POUInterface.input_vars vs .static_vars, or GlobalVariableList.variables).
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field
 
@@ -27,4 +27,5 @@ class Variable(IRModel):
     constant: bool = False
     retain: bool = False
     persistent: bool = False
+    edge: Literal["", "rising", "falling"] = ""
     metadata: dict[str, Any] = {}

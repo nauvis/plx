@@ -180,15 +180,19 @@ _BINOP_PYTHON: dict[BinaryOp, str] = {
     BinaryOp.LT: "<",
     BinaryOp.LE: "<=",
     BinaryOp.EXPT: "**",
+    BinaryOp.AND_THEN: "and",   # Python and/or are already short-circuit
+    BinaryOp.OR_ELSE: "or",
 }
 
 # Python precedence (higher = binds tighter)
 _BINOP_PRECEDENCE: dict[BinaryOp, int] = {
     BinaryOp.BOR: 7,
     BinaryOp.OR: 1,
+    BinaryOp.OR_ELSE: 1,
     BinaryOp.XOR: 8,
     BinaryOp.BAND: 9,
     BinaryOp.AND: 3,
+    BinaryOp.AND_THEN: 3,
     BinaryOp.EQ: 4,
     BinaryOp.NE: 4,
     BinaryOp.LT: 5,
