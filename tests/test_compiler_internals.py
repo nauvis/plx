@@ -137,7 +137,7 @@ class TestResolveAnnotation:
         ann = ast.Name(id="int")
         result = resolve_annotation(ann)
         assert isinstance(result, PrimitiveTypeRef)
-        assert result.type == PrimitiveType.DINT
+        assert result.type == PrimitiveType.INT
 
     def test_python_builtin_float(self):
         ann = ast.Name(id="float")

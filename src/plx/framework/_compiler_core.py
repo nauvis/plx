@@ -117,11 +117,9 @@ _BINOP_MAP: dict[type, BinaryOp] = {
 }
 
 _REJECTED_BINOP_MESSAGES: dict[type, str] = {
-    ast.FloorDiv: "Floor division (//) is not supported — PLC division has no floor variant. Use / instead.",
 }
 
 _REJECTED_AUGOP_MESSAGES: dict[type, str] = {
-    ast.FloorDiv: "Floor division (//=) is not supported — PLC division has no floor variant. Use /= instead.",
 }
 
 _CMPOP_MAP: dict[type, BinaryOp] = {
@@ -148,7 +146,7 @@ _BUILTIN_FUNCS = frozenset({
     "MIN", "MAX", "LIMIT", "SEL", "MUX",
     "SHL", "SHR", "ROL", "ROR",
     "TRUNC", "ROUND",
-    "LEN", "LEFT", "RIGHT", "MID", "CONCAT", "FIND", "REPLACE", "INSERT", "DELETE",
+    "LEN", "LEFT", "RIGHT", "MID", "FIND", "REPLACE", "INSERT", "DELETE",
     "AND", "OR", "XOR", "NOT",
 })
 
@@ -188,13 +186,27 @@ _MATH_CONSTANTS: dict[str, str] = {
 
 _PYTHON_ANNOTATION_MAP: dict[str, TypeRef] = {
     "bool": PrimitiveTypeRef(type=PrimitiveType.BOOL),
-    "int": PrimitiveTypeRef(type=PrimitiveType.DINT),
+    "int": PrimitiveTypeRef(type=PrimitiveType.INT),
     "float": PrimitiveTypeRef(type=PrimitiveType.REAL),
     "str": StringTypeRef(wide=False, max_length=255),
+    # Lowercase PLC types
+    "sint": PrimitiveTypeRef(type=PrimitiveType.SINT),
+    "dint": PrimitiveTypeRef(type=PrimitiveType.DINT),
+    "lint": PrimitiveTypeRef(type=PrimitiveType.LINT),
+    "usint": PrimitiveTypeRef(type=PrimitiveType.USINT),
+    "uint": PrimitiveTypeRef(type=PrimitiveType.UINT),
+    "udint": PrimitiveTypeRef(type=PrimitiveType.UDINT),
+    "ulint": PrimitiveTypeRef(type=PrimitiveType.ULINT),
+    "real": PrimitiveTypeRef(type=PrimitiveType.REAL),
+    "lreal": PrimitiveTypeRef(type=PrimitiveType.LREAL),
+    "byte": PrimitiveTypeRef(type=PrimitiveType.BYTE),
+    "word": PrimitiveTypeRef(type=PrimitiveType.WORD),
+    "dword": PrimitiveTypeRef(type=PrimitiveType.DWORD),
+    "lword": PrimitiveTypeRef(type=PrimitiveType.LWORD),
 }
 
 _PYTHON_TYPE_CONV_MAP: dict[str, TypeRef] = {
-    "int": PrimitiveTypeRef(type=PrimitiveType.DINT),
+    "int": PrimitiveTypeRef(type=PrimitiveType.INT),
     "float": PrimitiveTypeRef(type=PrimitiveType.REAL),
     "bool": PrimitiveTypeRef(type=PrimitiveType.BOOL),
 }
@@ -221,6 +233,7 @@ _REJECTED_BUILTINS: dict[str, str] = {
     "all": "all() is not supported. Use a for loop with range().",
     "repr": "repr() does not exist in PLC logic.",
     "format": "format() does not exist in PLC logic.",
+    "CONCAT": "CONCAT() is not available directly. Use an f-string instead: f\"prefix {self.var}\"",
 }
 
 # Sentinel function names
@@ -332,8 +345,6 @@ _REJECTED_NODES: dict[type, str] = {
     ast.Await: "await expressions are not allowed in PLC logic. PLCs execute synchronously in scan cycles.",
     ast.Yield: "yield expressions are not allowed in PLC logic. PLCs execute synchronously in scan cycles.",
     ast.YieldFrom: "yield from expressions are not allowed in PLC logic. PLCs execute synchronously in scan cycles.",
-    ast.FormattedValue: "f-string expressions are not allowed in PLC logic. Use CONCAT() for string assembly.",
-    ast.JoinedStr: "f-strings are not allowed in PLC logic. Use CONCAT() for string assembly.",
     ast.Starred: "Star unpacking is not allowed in PLC logic. Assign each variable on a separate line.",
     ast.Slice: "Slice operations are not allowed in PLC logic. Access array elements individually with a single index: arr[i].",
 }
@@ -363,7 +374,7 @@ def resolve_annotation(
         if ann.id in _PYTHON_ANNOTATION_MAP:
             return _PYTHON_ANNOTATION_MAP[ann.id]
         try:
-            return PrimitiveTypeRef(type=PrimitiveType(ann.id))
+            return PrimitiveTypeRef(type=PrimitiveType(ann.id.upper()))
         except ValueError:
             return NamedTypeRef(name=ann.id)
     if isinstance(ann, ast.Attribute):

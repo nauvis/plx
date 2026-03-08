@@ -414,3 +414,109 @@ class TestMathErrors:
 
                 def logic(self):
                     self.result = math.nan
+
+    def test_clamp_wrong_arg_count(self):
+        with pytest.raises(CompileError, match="exactly 3"):
+            @fb
+            class BadClamp:
+                x: Input[REAL]
+                result: Output[REAL]
+
+                def logic(self):
+                    self.result = math.clamp(self.x, 0.0)
+
+    def test_clamp_in_error_message(self):
+        """math.clamp should appear in the supported functions list."""
+        with pytest.raises(CompileError, match="clamp"):
+            @fb
+            class BadMathFB:
+                x: Input[REAL]
+                result: Output[REAL]
+
+                def logic(self):
+                    self.result = math.factorial(self.x)
+
+
+# ---------------------------------------------------------------------------
+# math.clamp → LIMIT
+# ---------------------------------------------------------------------------
+
+class TestMathClamp:
+    """math.clamp(value, min, max) → LIMIT(min, value, max)."""
+
+    def _get_assignment(self, cls):
+        pou = cls.compile()
+        return pou.networks[0].statements[0]
+
+    def test_clamp_basic(self):
+        @fb
+        class ClampFB:
+            x: Input[REAL]
+            result: Output[REAL]
+
+            def logic(self):
+                self.result = math.clamp(self.x, 0.0, 100.0)
+
+        stmt = self._get_assignment(ClampFB)
+        call = stmt.value
+        assert isinstance(call, FunctionCallExpr)
+        assert call.function_name == "LIMIT"
+        assert len(call.args) == 3
+        # Arg order: LIMIT(mn, value, mx)
+        assert isinstance(call.args[0].value, LiteralExpr)
+        assert call.args[0].value.value == "0.0"
+        assert isinstance(call.args[1].value, VariableRef)
+        assert call.args[1].value.name == "x"
+        assert isinstance(call.args[2].value, LiteralExpr)
+        assert call.args[2].value.value == "100.0"
+
+    def test_clamp_with_variables(self):
+        @fb
+        class ClampVarFB:
+            x: Input[REAL]
+            lo: Input[REAL]
+            hi: Input[REAL]
+            result: Output[REAL]
+
+            def logic(self):
+                self.result = math.clamp(self.x, self.lo, self.hi)
+
+        stmt = self._get_assignment(ClampVarFB)
+        call = stmt.value
+        assert call.function_name == "LIMIT"
+        # LIMIT(lo, x, hi)
+        assert call.args[0].value.name == "lo"
+        assert call.args[1].value.name == "x"
+        assert call.args[2].value.name == "hi"
+
+    def test_clamp_in_expression(self):
+        @fb
+        class ClampExprFB:
+            x: Input[REAL]
+            result: Output[REAL]
+
+            def logic(self):
+                self.result = math.clamp(self.x, 0.0, 100.0) * 2.0
+
+        stmt = self._get_assignment(ClampExprFB)
+        assert isinstance(stmt.value, BinaryExpr)
+        assert stmt.value.op == BinaryOp.MUL
+        assert isinstance(stmt.value.left, FunctionCallExpr)
+        assert stmt.value.left.function_name == "LIMIT"
+
+    def test_clamp_round_trip(self):
+        """LIMIT(mn, val, mx) → math.clamp(val, mn, mx) in Python export."""
+        from plx.export.py import generate
+        from plx.model.project import Project
+
+        @fb
+        class ClampRT:
+            x: Input[REAL]
+            result: Output[REAL]
+
+            def logic(self):
+                self.result = math.clamp(self.x, 0.0, 100.0)
+
+        pou = ClampRT.compile()
+        code = generate(Project(name="test", pous=[pou]))
+        assert "math.clamp(self.x, 0.0, 100.0)" in code

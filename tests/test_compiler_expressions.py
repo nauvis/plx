@@ -154,8 +154,14 @@ class TestBinaryOp:
         assert result.op == BinaryOp.EXPT
 
     def test_floordiv(self):
-        with pytest.raises(CompileError, match="Floor division"):
-            compile_expr("a // b")
+        """a // b → TRUNC(a / b)"""
+        result = compile_expr("a // b")
+        assert isinstance(result, FunctionCallExpr)
+        assert result.function_name == "TRUNC"
+        assert len(result.args) == 1
+        inner = result.args[0].value
+        assert isinstance(inner, BinaryExpr)
+        assert inner.op == BinaryOp.DIV
 
     def test_nested(self):
         result = compile_expr("a + b * c")
@@ -165,8 +171,16 @@ class TestBinaryOp:
         assert result.right.op == BinaryOp.MUL
 
     def test_floordiv_augassign(self):
-        with pytest.raises(CompileError, match="Floor division"):
-            compile_stmts("a //= b")
+        """a //= b → a := TRUNC(a / b)"""
+        from plx.model.statements import Assignment
+        from plx.framework._descriptors import VarDirection
+        ctx = CompileContext(declared_vars={"a": VarDirection.TEMP})
+        stmts = compile_stmts("a //= b", ctx)
+        assert len(stmts) == 1
+        stmt = stmts[0]
+        assert isinstance(stmt, Assignment)
+        assert isinstance(stmt.value, FunctionCallExpr)
+        assert stmt.value.function_name == "TRUNC"
 
     def test_bitand_augassign(self):
         from plx.model.statements import Assignment
@@ -323,6 +337,19 @@ class TestFunctionCall:
         result = compile_expr("round(x)")
         assert isinstance(result, FunctionCallExpr)
         assert result.function_name == "ROUND"
+
+    def test_pow_builtin(self):
+        result = compile_expr("pow(a, b)")
+        assert isinstance(result, BinaryExpr)
+        assert result.op == BinaryOp.EXPT
+
+    def test_pow_wrong_arg_count(self):
+        with pytest.raises(CompileError, match="exactly 2 arguments"):
+            compile_expr("pow(a, b, c)")
+
+    def test_pow_single_arg_rejected(self):
+        with pytest.raises(CompileError, match="exactly 2 arguments"):
+            compile_expr("pow(a)")
 
     def test_generic_function(self):
         result = compile_expr("MyFunc(a, b)")

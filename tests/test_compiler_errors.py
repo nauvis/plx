@@ -324,10 +324,15 @@ class TestNoneConstant:
 # ---------------------------------------------------------------------------
 
 class TestAugAssignErrors:
-    def test_floordiv_augassign(self):
-        ctx = CompileContext(declared_vars={"x": VarDirection.STATIC})
-        with pytest.raises(CompileError, match="//="):
-            compile_stmts("self.x //= 2", ctx)
+    def test_floordiv_augassign_compiles(self):
+        """//= now compiles to TRUNC(x / y) — no longer rejected."""
+        from plx.model.types import PrimitiveType, PrimitiveTypeRef
+        ctx = CompileContext(
+            declared_vars={"x": VarDirection.STATIC},
+            static_var_types={"x": PrimitiveTypeRef(type=PrimitiveType.DINT)},
+        )
+        stmts = compile_stmts("self.x //= 2", ctx)
+        assert len(stmts) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -371,9 +376,9 @@ class TestImprovedGuidance:
         with pytest.raises(CompileError, match="@struct"):
             compile_expr("{'a': 1}")
 
-    def test_fstring_guidance(self):
-        with pytest.raises(CompileError, match="CONCAT"):
-            compile_expr("f'hello {x}'")
+    def test_fstring_unknown_type_guidance(self):
+        with pytest.raises(CompileError, match="Cannot determine the type"):
+            compile_expr("f'val: {UNKNOWN_FUNC()}'")
 
     def test_slice_guidance(self):
         with pytest.raises(CompileError, match="single index"):

@@ -27,7 +27,7 @@ from plx.model.expressions import (
     UnaryOp,
     VariableRef,
 )
-from plx.model.types import ArrayTypeRef, NamedTypeRef, PrimitiveType, PrimitiveTypeRef, TypeRef
+from plx.model.types import ArrayTypeRef, NamedTypeRef, PrimitiveType, PrimitiveTypeRef, StringTypeRef, TypeRef
 
 from ._compiler_core import (
     CompileError,
@@ -125,6 +125,25 @@ class _ExpressionMixin:
         rejected_msg = _REJECTED_BINOP_MESSAGES.get(type(node.op))
         if rejected_msg is not None:
             raise CompileError(rejected_msg, node, self.ctx)
+        # Reject string concatenation via + — use f-strings instead
+        if isinstance(node.op, ast.Add):
+            from ._compiler_statements import _infer_type
+            left_type = _infer_type(node.left, self.ctx)
+            right_type = _infer_type(node.right, self.ctx)
+            if isinstance(left_type, StringTypeRef) or isinstance(right_type, StringTypeRef):
+                raise CompileError(
+                    "String concatenation with + is not supported. "
+                    'Use an f-string instead: f"text {self.var}"',
+                    node, self.ctx,
+                )
+        # Floor division: a // b → TRUNC(a / b)
+        if isinstance(node.op, ast.FloorDiv):
+            left = self.compile_expression(node.left)
+            right = self.compile_expression(node.right)
+            return FunctionCallExpr(
+                function_name="TRUNC",
+                args=[CallArg(value=BinaryExpr(op=BinaryOp.DIV, left=left, right=right))],
+            )
         op = _BINOP_MAP.get(type(node.op))
         if op is None:
             raise CompileError(
@@ -280,6 +299,17 @@ class _ExpressionMixin:
             if name in _REJECTED_BUILTINS:
                 raise CompileError(_REJECTED_BUILTINS[name], node, self.ctx)
 
+            # pow(x, y) → x ** y (BinaryExpr EXPT)
+            if name == "pow":
+                if len(node.args) != 2 or node.keywords:
+                    raise CompileError(
+                        "pow() requires exactly 2 arguments in PLC logic (no modular exponentiation)",
+                        node, self.ctx,
+                    )
+                left = self.compile_expression(node.args[0])
+                right = self.compile_expression(node.args[1])
+                return BinaryExpr(op=BinaryOp.EXPT, left=left, right=right)
+
             # Python builtins → IEC functions
             if name in _PYTHON_BUILTIN_MAP:
                 mapped = _PYTHON_BUILTIN_MAP[name]
@@ -307,10 +337,10 @@ class _ExpressionMixin:
                     source_type = NamedTypeRef(name=source_type_name)
                 return TypeConversionExpr(target_type=target_type, source=source, source_type=source_type)
 
-            # Direct IEC type name as conversion: INT(x), SINT(x), LREAL(x)
+            # Direct IEC type name as conversion: INT(x), dint(x), LREAL(x)
             if len(node.args) == 1 and not node.keywords:
                 try:
-                    prim = PrimitiveType(name)
+                    prim = PrimitiveType(name.upper())
                     source = self.compile_expression(node.args[0])
                     return TypeConversionExpr(
                         target_type=PrimitiveTypeRef(type=prim),
@@ -359,11 +389,26 @@ class _ExpressionMixin:
 
         # math module functions: math.sqrt(x) → SQRT(x)
         if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id == "math":
+            # math.clamp(value, min, max) → LIMIT(min, value, max)
+            if func.attr == "clamp":
+                if len(node.args) != 3 or node.keywords:
+                    raise CompileError(
+                        "math.clamp() requires exactly 3 positional arguments: "
+                        "math.clamp(value, min, max)",
+                        node, self.ctx,
+                    )
+                value = self.compile_expression(node.args[0])
+                mn = self.compile_expression(node.args[1])
+                mx = self.compile_expression(node.args[2])
+                return FunctionCallExpr(
+                    function_name="LIMIT",
+                    args=[CallArg(value=mn), CallArg(value=value), CallArg(value=mx)],
+                )
             iec_name = _MATH_FUNC_MAP.get(func.attr)
             if iec_name is None:
                 raise CompileError(
                     f"math.{func.attr}() is not supported in PLC logic. "
-                    f"Supported: {', '.join(f'math.{k}()' for k in sorted(_MATH_FUNC_MAP))}",
+                    f"Supported: {', '.join(f'math.{k}()' for k in sorted({**_MATH_FUNC_MAP, 'clamp': 'LIMIT'}))}",
                     node, self.ctx,
                 )
             args = self._compile_call_args(node)
@@ -461,6 +506,96 @@ class _ExpressionMixin:
             )
         return inputs
 
+    def _compile_joinedstr(self, node: ast.JoinedStr) -> Expression:
+        """Compile f-string to CONCAT() with automatic type conversions.
+
+        ``f"Fault on axis {self.axis_id}: error {self.error_code}"``
+        →  ``CONCAT('Fault on axis ', DINT_TO_STRING(axis_id), ': error ', DINT_TO_STRING(error_code))``
+        """
+        parts: list[Expression] = []
+        for value in node.values:
+            if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                # String literal segment — skip empty strings
+                if value.value:
+                    parts.append(LiteralExpr(value=f"'{value.value}'"))
+            elif isinstance(value, ast.FormattedValue):
+                parts.append(self._compile_formattedvalue(value))
+            else:
+                raise CompileError(
+                    f"Unsupported f-string element: {type(value).__name__}",
+                    node, self.ctx,
+                )
+
+        # Empty f-string → empty string literal
+        if not parts:
+            return LiteralExpr(value="''")
+
+        # Single part → return directly (no CONCAT wrapper)
+        if len(parts) == 1:
+            return parts[0]
+
+        # Multiple parts → CONCAT(part1, part2, ...)
+        return FunctionCallExpr(
+            function_name="CONCAT",
+            args=[CallArg(value=p) for p in parts],
+        )
+
+    def _compile_formattedvalue(self, node: ast.FormattedValue) -> Expression:
+        """Compile a single f-string interpolation ``{expr}``."""
+        # Reject conversion flags (!r, !s, !a)
+        if node.conversion and node.conversion != -1:
+            flag = chr(node.conversion)
+            raise CompileError(
+                f"Conversion flag !{flag} is not supported in PLC f-strings. "
+                f"Type conversion is applied automatically.",
+                node, self.ctx,
+            )
+
+        # Reject format specs ({x:.2f}, {x:05d}, etc.)
+        if node.format_spec is not None:
+            raise CompileError(
+                "Format specifiers (e.g. :.2f, :05d) are not supported in PLC f-strings. "
+                "Use IEC string functions for custom formatting.",
+                node, self.ctx,
+            )
+
+        expr = self.compile_expression(node.value)
+
+        # If the expression is already a string literal, return as-is
+        if isinstance(expr, LiteralExpr) and expr.value.startswith("'"):
+            return expr
+
+        # Infer the type to determine if conversion is needed
+        from ._compiler_statements import _infer_type
+        inferred = _infer_type(node.value, self.ctx)
+
+        # Already a string → no conversion
+        if isinstance(inferred, StringTypeRef):
+            return expr
+
+        # Known primitive → wrap in TypeConversionExpr
+        if isinstance(inferred, PrimitiveTypeRef):
+            return TypeConversionExpr(
+                target_type=StringTypeRef(),
+                source=expr,
+                source_type=inferred,
+            )
+
+        # Named type (struct, enum, FB) → can't auto-convert
+        if isinstance(inferred, NamedTypeRef):
+            raise CompileError(
+                f"Cannot automatically convert '{inferred.name}' to STRING in f-string. "
+                f"Convert the value to a string explicitly before interpolation.",
+                node, self.ctx,
+            )
+
+        # Type unknown → error with guidance
+        raise CompileError(
+            "Cannot determine the type of this expression in the f-string. "
+            "Use an explicit type conversion (e.g. DINT_TO_STRING(expr)) instead.",
+            node, self.ctx,
+        )
+
     # Expression handler dispatch table
     _EXPRESSION_HANDLERS: dict[type[ast.expr], Callable[[ASTCompiler, ast.expr], Expression]] = {
         ast.Constant: _compile_constant,
@@ -473,4 +608,6 @@ class _ExpressionMixin:
         ast.Call: _compile_call,
         ast.Subscript: _compile_subscript,
         ast.IfExp: _compile_ifexp,
+        ast.JoinedStr: _compile_joinedstr,
+        ast.FormattedValue: _compile_formattedvalue,
     }

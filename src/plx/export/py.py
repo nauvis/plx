@@ -1252,9 +1252,59 @@ class PyWriter:
         return f"{expr.op.value}({operand})"
 
     def _expr_function_call(self, expr: FunctionCallExpr, _prec: int) -> str:
+        if expr.function_name == "CONCAT":
+            fstr = self._try_reconstruct_fstring(expr)
+            if fstr is not None:
+                return fstr
+        # LIMIT(mn, val, mx) → math.clamp(val, mn, mx)
+        if expr.function_name == "LIMIT" and len(expr.args) == 3:
+            mn = self._expr(expr.args[0].value, 0)
+            val = self._expr(expr.args[1].value, 0)
+            mx = self._expr(expr.args[2].value, 0)
+            return f"math.clamp({val}, {mn}, {mx})"
+        # TRUNC(a / b) → a // b
+        if expr.function_name == "TRUNC" and len(expr.args) == 1:
+            inner = expr.args[0].value
+            if isinstance(inner, BinaryExpr) and inner.op == BinaryOp.DIV:
+                left = self._expr(inner.left, 5)
+                right = self._expr(inner.right, 6)
+                return f"{left} // {right}"
         name = _FUNC_REMAP.get(expr.function_name, expr.function_name)
         args = ", ".join(self._call_arg(a) for a in expr.args)
         return f"{name}({args})"
+
+    def _try_reconstruct_fstring(self, expr: FunctionCallExpr) -> str | None:
+        """Try to reconstruct an f-string from a CONCAT(...) call.
+
+        Returns ``f"..."`` string if all args are positional and representable,
+        ``None`` otherwise (caller falls back to raw CONCAT).
+        """
+        if any(a.name is not None for a in expr.args):
+            return None  # named args — not from f-string
+
+        parts: list[str] = []
+        all_literal = True
+        for arg in expr.args:
+            val = arg.value
+            if isinstance(val, LiteralExpr) and val.value.startswith("'") and val.value.endswith("'"):
+                text = val.value[1:-1]
+                if '"' in text:
+                    return None  # can't safely embed in f"..."
+                parts.append(text.replace("{", "{{").replace("}", "}}"))
+            elif isinstance(val, TypeConversionExpr) and isinstance(val.target_type, StringTypeRef):
+                # Strip the *_TO_STRING conversion — f-string handles it
+                all_literal = False
+                parts.append(f"{{{self._expr(val.source)}}}")
+            else:
+                # Already-string expression — embed directly
+                all_literal = False
+                parts.append(f"{{{self._expr(val)}}}")
+
+        if all_literal:
+            # Pure string concatenation with no interpolations — just join
+            return f"'{''.join(parts)}'"
+
+        return f'f"{"".join(parts)}"'
 
     def _expr_array_access(self, expr: ArrayAccessExpr, _prec: int) -> str:
         indices = ", ".join(self._expr(i) for i in expr.indices)

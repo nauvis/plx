@@ -6,7 +6,7 @@ Users import everything from this single flat namespace::
 """
 
 from ._types import (
-    # Primitive type constants
+    # Primitive type constants (ALL_CAPS — backwards compat)
     BOOL,
     BYTE,
     CHAR,
@@ -43,6 +43,24 @@ from ._types import (
     REFERENCE_TO,
     # System flag sentinels
     first_scan,
+)
+
+from ._plc_types import (  # noqa: F811 — int shadows builtin intentionally
+    # PLC data type classes (lowercase, with overflow semantics)
+    sint,
+    int,
+    dint,
+    lint,
+    usint,
+    uint,
+    udint,
+    ulint,
+    real,
+    lreal,
+    byte,
+    word,
+    dword,
+    lword,
 )
 
 from ._descriptors import (
@@ -153,7 +171,22 @@ from enum import IntEnum
 from typing import Annotated
 
 __all__ = [
-    # Primitive type constants
+    # PLC data type classes (lowercase, with overflow semantics)
+    "sint",
+    "int",
+    "dint",
+    "lint",
+    "usint",
+    "uint",
+    "udint",
+    "ulint",
+    "real",
+    "lreal",
+    "byte",
+    "word",
+    "dword",
+    "lword",
+    # Primitive type constants (ALL_CAPS — backwards compat)
     "BOOL",
     "BYTE",
     "CHAR",

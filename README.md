@@ -10,7 +10,7 @@ plx uses AST transformation to compile Python `if`/`for`/`while`/`and`/`or`/`not
 pip install plx
 ```
 
-Requires Python 3.11+.
+Requires Python 3.13+.
 
 ### Your first function block
 
@@ -38,7 +38,7 @@ with simulate(Motor) as ctrl:
 
 The `@fb` decorator compiles the class at decoration time. `logic()` is parsed via `ast.parse()` — it's never called as Python. `delayed()`, `rising()`, `falling()` are compile-time sentinels that expand to TON/R_TRIG/F_TRIG function block invocations in the IR.
 
-Use Python builtins (`bool`, `int`, `float`, `str`) by default. IEC types (`SINT`, `UINT`, `LREAL`, `TIME`, etc.) are available when you need specific bit widths or PLC-specific types.
+Use Python builtins (`bool`, `int`, `float`, `str`) or lowercase PLC types (`sint`, `dint`, `real`, `lreal`) by default. Uppercase IEC names (`SINT`, `UINT`, `LREAL`, `TIME`, etc.) also work when you prefer them.
 
 ## What it looks like
 
@@ -159,6 +159,8 @@ Beckhoff maps this to `EXTENDS` / `SUPER^()`. For AB and Siemens (which lack FB 
 
 ### User-defined types
 
+Standard Python `@dataclass` and `IntEnum` are the primary way to define data types:
+
 ```python
 from dataclasses import dataclass
 from enum import IntEnum
@@ -176,7 +178,30 @@ class MachineState(IntEnum):
     FAULTED  = 99
 ```
 
-`@dataclass` and `IntEnum` work as drop-in replacements for `@struct` and `@enumeration` — both are also re-exported from `plx.framework` for convenience.
+Both are auto-compiled to IEC STRUCT/ENUM on first use — no plx-specific decorator needed. `@struct` and `@enumeration` are available when you need PLC-specific metadata like `Field(description=...)` or `@enumeration(base_type=DINT)`.
+
+### Properties
+
+Use Python's native `@property` decorator for IEC 61131-3 PROPERTY constructs:
+
+```python
+@fb
+class Motor:
+    _speed: float
+
+    @property
+    def speed(self) -> float:
+        return self._speed
+
+    @speed.setter
+    def speed(self, value: float):
+        self._speed = value
+
+    def logic(self):
+        pass
+```
+
+Properties with a `-> TYPE` return annotation compile to IEC PROPERTY with GET/SET accessors. Properties without a return annotation are ignored (treated as plain Python). `@fb_property(REAL)` is also available when you need access specifiers (`access=PRIVATE`) or `abstract`/`final` flags.
 
 ### Sequential Function Charts (SFC)
 
@@ -263,8 +288,14 @@ Everything is imported from a single flat namespace:
 
 ```python
 from plx.framework import (
-    # Python builtins work as types: bool→BOOL, int→DINT, float→REAL, str→STRING
-    # IEC types for specific bit widths:
+    # Python builtins: bool→BOOL, int→INT, float→LREAL, str→STRING
+    # Lowercase PLC types with overflow semantics (subclass int/float):
+    sint, int, dint, lint,            # signed integers (8/16/32/64 bit)
+    usint, uint, udint, ulint,        # unsigned integers
+    real, lreal,                       # floats (32/64 bit)
+    byte, word, dword, lword,         # bit strings
+
+    # Uppercase IEC names (string constants, also work as annotations):
     BOOL, BYTE, SINT, INT, DINT, LINT,
     USINT, UINT, UDINT, ULINT,
     REAL, LREAL, WORD, DWORD, LWORD,
@@ -316,6 +347,186 @@ from plx.framework import (
 )
 ```
 
+## Syntax reference
+
+`logic()` methods accept a strict subset of Python. Everything not listed here is rejected with a clear error message.
+
+### Control flow
+
+| Python | IEC 61131-3 | Notes |
+|--------|-------------|-------|
+| `if`/`elif`/`else` | IF/ELSIF/ELSE | Standard branching |
+| `for i in range(n)` | FOR i := 0 TO n-1 | `range(start, stop)` and `range(start, stop, step)` also supported |
+| `while cond` | WHILE cond DO | Standard loop |
+| `match`/`case` | CASE expr OF | Integer literals and enum members only; `case _:` becomes ELSE |
+| `break` | EXIT | Exits innermost loop |
+| `continue` | CONTINUE | Next iteration |
+| `return` / `return val` | RETURN | Functions require a return value |
+| `pass` | *(empty)* | No-op |
+| `super().logic()` | *(inlined)* | Inlines parent FB's compiled logic at that point |
+
+### Operators
+
+| Python | IEC 61131-3 | Notes |
+|--------|-------------|-------|
+| `+` `-` `*` `/` `%` | ADD, SUB, MUL, DIV, MOD | Arithmetic (`+` on strings is rejected — use f-strings) |
+| `//` | TRUNC(a / b) | Floor division — truncates result to integer |
+| `**` | EXPT | Exponentiation |
+| `==` `!=` `<` `<=` `>` `>=` | EQ, NE, LT, LE, GT, GE | Chained comparisons work: `a < b < c` → `(a < b) AND (b < c)` |
+| `and` `or` `not` | AND, OR, NOT | Boolean operators (left-folded) |
+| `&` `\|` `^` `~` | BAND, BOR, XOR, BNOT | Bitwise operators |
+| `<<` `>>` | SHL, SHR | Bit shift |
+| `x in (1, 2, 3)` | `x=1 OR x=2 OR x=3` | Membership test (tuple/list/set literal required) |
+| `x not in (...)` | `x<>1 AND x<>2 AND ...` | Negated membership |
+
+### Expressions
+
+| Python | IEC 61131-3 | Notes |
+|--------|-------------|-------|
+| `True` / `False` | TRUE / FALSE | Boolean literals |
+| `42`, `3.14`, `'text'` | Integer, float, string literals | |
+| `self.var` | Variable reference | All instance variables accessed via `self` |
+| `self.s.field` | `s.field` | Struct member access |
+| `self.arr[i]` | `arr[i]` | Array subscript (multi-dim: `arr[i, j]`) |
+| `self.val.bit5` | `val.5` | Bit access (`.bit0` through `.bit31`) |
+| `a if cond else b` | `SEL(cond, b, a)` | Ternary conditional |
+| `f"text {self.x}"` | `CONCAT('text ', DINT_TO_STRING(x))` | Auto-converts non-string types |
+| `x: INT = 0` | `VAR_TEMP x : INT := 0;` | Bare assignment in logic declares a temp variable (type inferred from literal or annotation) |
+
+### Built-in functions
+
+| Python | IEC 61131-3 |
+|--------|-------------|
+| `abs(x)` | ABS |
+| `min(a, b)` / `max(a, b)` | MIN / MAX |
+| `len(s)` | LEN |
+| `round(x)` | ROUND |
+| `pow(x, y)` | EXPT | Same as `x ** y` |
+| `int(x)` / `float(x)` / `bool(x)` | Type conversion |
+| `dint(x)` / `real(x)` / etc. | Type conversion | Lowercase PLC types work as conversion functions |
+| `INT_TO_REAL(x)` | INT_TO_REAL | Any `TYPE_TO_TYPE()` pattern works |
+| `DINT(x)` | Type conversion | Any IEC type name as function |
+
+### Math module
+
+| Python | IEC 61131-3 |
+|--------|-------------|
+| `math.sqrt`, `math.sin`, `math.cos`, `math.tan` | SQRT, SIN, COS, TAN |
+| `math.asin`, `math.acos`, `math.atan` | ASIN, ACOS, ATAN |
+| `math.log`, `math.log10`, `math.exp` | LN, LOG, EXP |
+| `math.ceil`, `math.floor`, `math.trunc` | CEIL, FLOOR, TRUNC |
+| `math.fabs` | ABS |
+| `math.clamp(val, mn, mx)` | LIMIT(mn, val, mx) | Argument reordering handled automatically |
+| `math.pi`, `math.e`, `math.tau` | LREAL constants |
+
+### IEC string functions
+
+Called directly by name (uppercase):
+
+`LEFT`, `RIGHT`, `MID`, `LEN`, `FIND`, `REPLACE`, `INSERT`, `DELETE`
+
+String concatenation uses f-strings exclusively — `CONCAT()` and `+` are not available in framework Python.
+
+### IEC selection & logic functions
+
+`LIMIT`, `SEL`, `MUX`, `SHL`, `SHR`, `ROL`, `ROR`
+
+### Sentinel functions
+
+Compile-time sentinels that expand to FB instances. The compiler creates and manages the FB instance variable automatically.
+
+| Sentinel | FB type | Usage | Returns |
+|----------|---------|-------|---------|
+| `delayed(signal, seconds=N)` | TON | On-delay timer | BOOL (.Q) |
+| `sustained(signal, seconds=N)` | TOF | Off-delay timer | BOOL (.Q) |
+| `pulse(signal, seconds=N)` | TP | Pulse timer | BOOL (.Q) |
+| `retentive(signal, seconds=N)` | RTO | Retentive timer | BOOL (.Q) |
+| `rising(signal)` | R_TRIG | Rising edge | BOOL (.Q) |
+| `falling(signal)` | F_TRIG | Falling edge | BOOL (.Q) |
+| `count_up(signal, preset=N)` | CTU | Count up | BOOL (.Q) |
+| `count_down(signal, preset=N)` | CTD | Count down | BOOL (.Q) |
+| `set_dominant(set, reset)` | SR | Set-dominant bistable | BOOL (.Q) |
+| `reset_dominant(set, reset)` | RS | Reset-dominant bistable | BOOL (.Q) |
+| `first_scan()` | *(system flag)* | True on first scan only | BOOL |
+
+Duration can be specified as `seconds=N`, `ms=N`, or `duration=timedelta(...)`.
+
+### Variable declarations
+
+| Annotation | IEC section | Notes |
+|------------|-------------|-------|
+| `x: Input[BOOL]` | VAR_INPUT | Read-only from caller |
+| `x: Output[REAL]` | VAR_OUTPUT | Written by the POU |
+| `x: InOut[INT]` | VAR_IN_OUT | Pass by reference |
+| `x: Static[int]` | VAR_STAT / VAR | Persists across scans |
+| `x: Temp[float]` | VAR_TEMP | Reinitialized each scan |
+| `x: Constant[int] = 42` | VAR CONSTANT | Read-only constant |
+| `x: External[int]` | VAR_EXTERNAL | Reference to global variable |
+| `timer: TON` | VAR (FB instance) | Bare FB type annotation → static FB instance |
+| `speed: float = 0.0` | VAR (inferred) | Bare annotation → static variable |
+
+`Field()` adds metadata: `Field(initial=0.0, description="...", address="%Q0.0", retain=True, persistent=True)`
+
+### Type system
+
+| Python | IEC 61131-3 | Notes |
+|--------|-------------|-------|
+| `bool` | BOOL | Python builtins work as type shorthand |
+| `int` | INT | 16-bit signed (shadows `builtins.int`) |
+| `float` | LREAL | 64-bit float |
+| `str` | STRING[255] | |
+| `sint`, `int`, `dint`, `lint` | Signed integers | 8/16/32/64 bit — lowercase classes with overflow semantics |
+| `usint`, `uint`, `udint`, `ulint` | Unsigned integers | 8/16/32/64 bit |
+| `real`, `lreal` | Floating point | 32/64 bit (`real` truncates to single precision) |
+| `byte`, `word`, `dword`, `lword` | Bit strings | 8/16/32/64 bit |
+| `SINT`, `INT`, `DINT`, `LINT` | Signed integers | Uppercase string constants (also work as annotations) |
+| `USINT`, `UINT`, `UDINT`, `ULINT` | Unsigned integers | |
+| `REAL`, `LREAL` | Floating point | |
+| `BYTE`, `WORD`, `DWORD`, `LWORD` | Bit strings | |
+| `TIME`, `LTIME` | Duration | |
+| `DATE`, `LDATE`, `TOD`, `LTOD`, `DT`, `LDT` | Date/time | |
+| `CHAR`, `WCHAR` | Character | Single-byte / wide |
+| `ARRAY(INT, 10)` | ARRAY[0..9] OF INT | Multi-dim: `ARRAY(REAL, 3, 4)` |
+| `ARRAY(INT, (1, 10))` | ARRAY[1..10] OF INT | Custom bounds |
+| `STRING(80)` | STRING[80] | Max length |
+| `WSTRING(80)` | WSTRING[80] | Wide string |
+| `POINTER_TO(INT)` | POINTER TO INT | Beckhoff only |
+| `REFERENCE_TO(INT)` | REFERENCE TO INT | Beckhoff only |
+
+### POU decorators
+
+| Decorator | IEC type | Notes |
+|-----------|----------|-------|
+| `@fb` | FUNCTION_BLOCK | Has state, instantiated |
+| `@program` | PROGRAM | Top-level, assigned to tasks |
+| `@function` | FUNCTION | Stateless, return type from `def logic(self) -> REAL:` |
+| `@interface` | INTERFACE | Method signatures only (Beckhoff only) |
+| `@method` / `@method(access=PRIVATE)` | METHOD | On FBs, with access specifier |
+| `@property` | PROPERTY | Native Python property with `-> TYPE` return annotation |
+| `@fb_property(REAL)` | PROPERTY | Advanced: access specifiers, abstract/final flags |
+| `@sfc` | SFC body | Sequential Function Chart |
+
+### Data types
+
+| Decorator | IEC type | Notes |
+|-----------|----------|-------|
+| `@dataclass` | STRUCT (DUT) | Primary path — auto-compiled on first use |
+| `@struct` | STRUCT (DUT) | Advanced: `Field(description=...)` metadata |
+| `IntEnum` | ENUM (DUT) | Primary path — auto-compiled on first use |
+| `@enumeration` / `@enumeration(base_type=DINT)` | ENUM (DUT) | Advanced: custom base type |
+| `@global_vars` | GVL | Global variable list; `@global_vars(scope="controller")` |
+
+### Project assembly
+
+```python
+proj = project("Name", pous=[...], data_types=[...], global_var_lists=[...])
+ir = proj.compile()                        # → Project IR
+result = proj.compile(target=Vendor.AB)    # → CompileResult with warnings
+
+main = task("MainTask", periodic=timedelta(ms=10), pous=[Main])
+fast = task("FastIO",   periodic=timedelta(ms=1),  pous=[IOHandler], priority=1)
+```
+
 ## Package structure
 
 ```
@@ -334,11 +545,11 @@ pip install -e ".[dev]"
 pytest
 ```
 
-1531 tests across 32 test files.
+2175 tests across 53 test files.
 
 ## Tech stack
 
-- Python 3.11+
+- Python 3.13+
 - Pydantic v2 (models, validation, serialization)
 - Zero runtime dependencies beyond Pydantic
 

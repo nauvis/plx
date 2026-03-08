@@ -116,6 +116,7 @@ def timedelta_to_ir(td: timedelta, *, ltime: bool = False) -> LiteralExpr:
 def _resolve_type_ref(type_arg: PrimitiveType | TypeRef | type | str) -> TypeRef:
     """Normalize a user-provided type argument into a TypeRef.
 
+    - PLC type classes (dint, real, sint, etc.) → PrimitiveTypeRef
     - Python builtins (bool, int, float, str) → default PLC types
     - PrimitiveType enum → PrimitiveTypeRef
     - Any TypeRef subclass → pass through
@@ -123,6 +124,10 @@ def _resolve_type_ref(type_arg: PrimitiveType | TypeRef | type | str) -> TypeRef
     - @fb / @program decorated class → NamedTypeRef(name=cls.__name__)
     - str → NamedTypeRef(name=...)
     """
+    # PLC type classes (dint, real, sint, etc.) — check before builtins
+    from ._plc_types import _PlcInt, _PlcFloat
+    if isinstance(type_arg, type) and issubclass(type_arg, (_PlcInt, _PlcFloat)):
+        return PrimitiveTypeRef(type=PrimitiveType(type_arg._iec_name))
     # Python builtin type aliases (check bool before int — bool is subclass of int)
     if type_arg is bool:
         return PrimitiveTypeRef(type=PrimitiveType.BOOL)

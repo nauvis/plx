@@ -14,7 +14,9 @@ from typing import TYPE_CHECKING
 from plx.model.expressions import (
     BinaryExpr,
     BinaryOp,
+    CallArg,
     Expression,
+    FunctionCallExpr,
     LiteralExpr,
     VariableRef,
 )
@@ -200,7 +202,28 @@ class _StatementMixin:
         rejected_msg = _REJECTED_AUGOP_MESSAGES.get(type(node.op))
         if rejected_msg is not None:
             raise CompileError(rejected_msg, node, self.ctx)
+        # Reject string += — use f-strings instead
+        if isinstance(node.op, ast.Add):
+            target_type = _infer_type(node.target, self.ctx)
+            rhs_type = _infer_type(node.value, self.ctx)
+            if isinstance(target_type, StringTypeRef) or isinstance(rhs_type, StringTypeRef):
+                raise CompileError(
+                    "String concatenation with += is not supported. "
+                    'Use an f-string instead: self.msg = f"{self.msg} suffix"',
+                    node, self.ctx,
+                )
         target = self._compile_target(node.target, node)
+        # Floor division: x //= y → x := TRUNC(x / y)
+        if isinstance(node.op, ast.FloorDiv):
+            rhs, pending = self._compile_expr_and_flush(node.value)
+            pending.append(Assignment(
+                target=target,
+                value=FunctionCallExpr(
+                    function_name="TRUNC",
+                    args=[CallArg(value=BinaryExpr(op=BinaryOp.DIV, left=target, right=rhs))],
+                ),
+            ))
+            return pending
         op = _BINOP_MAP.get(type(node.op))
         if op is None:
             raise CompileError(

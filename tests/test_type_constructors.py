@@ -233,7 +233,7 @@ class TestPythonAnnotationResolution:
                 return 42
 
         pou = IntFunc.compile()
-        assert pou.return_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
+        assert pou.return_type == PrimitiveTypeRef(type=PrimitiveType.INT)
 
     def test_function_return_bool(self):
         from plx.framework._decorators import function
@@ -260,7 +260,7 @@ class TestPythonAnnotationResolution:
 
         pou = ParamFB.compile()
         m = pou.methods[0]
-        assert m.interface.input_vars[0].data_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
+        assert m.interface.input_vars[0].data_type == PrimitiveTypeRef(type=PrimitiveType.INT)
 
     def test_method_param_float(self):
         from plx.framework._decorators import fb, method
@@ -326,7 +326,7 @@ class TestPythonTypeConversions:
         stmt = pou.networks[0].statements[0]
         assert isinstance(stmt, Assignment)
         assert isinstance(stmt.value, TypeConversionExpr)
-        assert stmt.value.target_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
+        assert stmt.value.target_type == PrimitiveTypeRef(type=PrimitiveType.INT)
 
     def test_bool_conversion(self):
         from plx.framework._decorators import fb
