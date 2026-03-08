@@ -33,6 +33,7 @@ from ._compiler_core import (
     CompileError,
     SENTINEL_REGISTRY,
     _BIT_ACCESS_RE,
+    _BIT_ACCESSIBLE_WIDTHS,
     _BINOP_MAP,
     _BUILTIN_FUNCS,
     _CMPOP_MAP,
@@ -115,8 +116,41 @@ class _ExpressionMixin:
         # Bit access: expr.bit5 → BitAccessExpr(target=expr, bit_index=5)
         m = _BIT_ACCESS_RE.match(node.attr)
         if m:
+            bit_index = int(m.group(1))
             target = self.compile_expression(node.value)
-            return BitAccessExpr(target=target, bit_index=int(m.group(1)))
+            # Validate target type supports bit access when type is known
+            from ._compiler_statements import _infer_type
+            target_type = _infer_type(node.value, self.ctx)
+            if target_type is not None:
+                if isinstance(target_type, PrimitiveTypeRef):
+                    width = _BIT_ACCESSIBLE_WIDTHS.get(target_type.type)
+                    if width is None:
+                        raise CompileError(
+                            f"Bit access is not supported on {target_type.type.value}. "
+                            f"Bit access requires an integer or bit-string type "
+                            f"(BYTE, WORD, DWORD, LWORD, SINT, INT, DINT, LINT, etc.).",
+                            node, self.ctx,
+                        )
+                    if bit_index >= width:
+                        raise CompileError(
+                            f"bit{bit_index} is out of range for {target_type.type.value} "
+                            f"(valid range: bit0..bit{width - 1}).",
+                            node, self.ctx,
+                        )
+                elif isinstance(target_type, StringTypeRef):
+                    kind = "WSTRING" if target_type.wide else "STRING"
+                    raise CompileError(
+                        f"Bit access is not supported on {kind}. "
+                        f"Bit access requires an integer or bit-string type.",
+                        node, self.ctx,
+                    )
+                elif isinstance(target_type, NamedTypeRef):
+                    raise CompileError(
+                        f"Bit access is not supported on '{target_type.name}'. "
+                        f"Bit access requires an integer or bit-string type.",
+                        node, self.ctx,
+                    )
+            return BitAccessExpr(target=target, bit_index=bit_index)
         # self.a.b → MemberAccessExpr
         struct = self.compile_expression(node.value)
         return MemberAccessExpr(struct=struct, member=node.attr)

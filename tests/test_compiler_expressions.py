@@ -466,6 +466,114 @@ class TestBitAccess:
         assert isinstance(result, MemberAccessExpr)
         assert result.member == "bitmap"
 
+    # --- Type validation: valid types ---
+
+    def test_dint_bit5(self):
+        ctx = CompileContext(static_var_types={"status": PrimitiveTypeRef(type=PrimitiveType.DINT)})
+        result = compile_expr("self.status.bit5", ctx)
+        assert isinstance(result, BitAccessExpr)
+        assert result.bit_index == 5
+
+    def test_word_bit15(self):
+        ctx = CompileContext(static_var_types={"flags": PrimitiveTypeRef(type=PrimitiveType.WORD)})
+        result = compile_expr("self.flags.bit15", ctx)
+        assert isinstance(result, BitAccessExpr)
+        assert result.bit_index == 15
+
+    def test_byte_bit7(self):
+        ctx = CompileContext(static_var_types={"b": PrimitiveTypeRef(type=PrimitiveType.BYTE)})
+        result = compile_expr("self.b.bit7", ctx)
+        assert isinstance(result, BitAccessExpr)
+        assert result.bit_index == 7
+
+    def test_lword_bit63(self):
+        ctx = CompileContext(static_var_types={"w": PrimitiveTypeRef(type=PrimitiveType.LWORD)})
+        result = compile_expr("self.w.bit63", ctx)
+        assert isinstance(result, BitAccessExpr)
+        assert result.bit_index == 63
+
+    def test_sint_bit0(self):
+        ctx = CompileContext(static_var_types={"s": PrimitiveTypeRef(type=PrimitiveType.SINT)})
+        result = compile_expr("self.s.bit0", ctx)
+        assert isinstance(result, BitAccessExpr)
+        assert result.bit_index == 0
+
+    def test_uint_bit10(self):
+        ctx = CompileContext(static_var_types={"u": PrimitiveTypeRef(type=PrimitiveType.UINT)})
+        result = compile_expr("self.u.bit10", ctx)
+        assert isinstance(result, BitAccessExpr)
+        assert result.bit_index == 10
+
+    # --- Type validation: invalid types ---
+
+    def test_real_rejects_bit_access(self):
+        ctx = CompileContext(static_var_types={"val": PrimitiveTypeRef(type=PrimitiveType.REAL)})
+        with pytest.raises(CompileError, match="not supported on REAL"):
+            compile_expr("self.val.bit0", ctx)
+
+    def test_lreal_rejects_bit_access(self):
+        ctx = CompileContext(static_var_types={"val": PrimitiveTypeRef(type=PrimitiveType.LREAL)})
+        with pytest.raises(CompileError, match="not supported on LREAL"):
+            compile_expr("self.val.bit0", ctx)
+
+    def test_bool_rejects_bit_access(self):
+        ctx = CompileContext(static_var_types={"flag": PrimitiveTypeRef(type=PrimitiveType.BOOL)})
+        with pytest.raises(CompileError, match="not supported on BOOL"):
+            compile_expr("self.flag.bit0", ctx)
+
+    def test_time_rejects_bit_access(self):
+        ctx = CompileContext(static_var_types={"t": PrimitiveTypeRef(type=PrimitiveType.TIME)})
+        with pytest.raises(CompileError, match="not supported on TIME"):
+            compile_expr("self.t.bit0", ctx)
+
+    def test_string_rejects_bit_access(self):
+        from plx.model.types import StringTypeRef
+        ctx = CompileContext(static_var_types={"s": StringTypeRef()})
+        with pytest.raises(CompileError, match="not supported on STRING"):
+            compile_expr("self.s.bit0", ctx)
+
+    def test_wstring_rejects_bit_access(self):
+        from plx.model.types import StringTypeRef
+        ctx = CompileContext(static_var_types={"s": StringTypeRef(wide=True)})
+        with pytest.raises(CompileError, match="not supported on WSTRING"):
+            compile_expr("self.s.bit0", ctx)
+
+    def test_named_type_rejects_bit_access(self):
+        ctx = CompileContext(static_var_types={"data": NamedTypeRef(name="MyStruct")})
+        with pytest.raises(CompileError, match="not supported on 'MyStruct'"):
+            compile_expr("self.data.bit0", ctx)
+
+    # --- Type validation: out of range ---
+
+    def test_byte_bit8_out_of_range(self):
+        ctx = CompileContext(static_var_types={"b": PrimitiveTypeRef(type=PrimitiveType.BYTE)})
+        with pytest.raises(CompileError, match="bit8 is out of range for BYTE.*bit0..bit7"):
+            compile_expr("self.b.bit8", ctx)
+
+    def test_word_bit16_out_of_range(self):
+        ctx = CompileContext(static_var_types={"w": PrimitiveTypeRef(type=PrimitiveType.WORD)})
+        with pytest.raises(CompileError, match="bit16 is out of range for WORD.*bit0..bit15"):
+            compile_expr("self.w.bit16", ctx)
+
+    def test_dint_bit32_out_of_range(self):
+        ctx = CompileContext(static_var_types={"d": PrimitiveTypeRef(type=PrimitiveType.DINT)})
+        with pytest.raises(CompileError, match="bit32 is out of range for DINT.*bit0..bit31"):
+            compile_expr("self.d.bit32", ctx)
+
+    def test_sint_bit8_out_of_range(self):
+        ctx = CompileContext(static_var_types={"s": PrimitiveTypeRef(type=PrimitiveType.SINT)})
+        with pytest.raises(CompileError, match="bit8 is out of range for SINT.*bit0..bit7"):
+            compile_expr("self.s.bit8", ctx)
+
+    # --- Nested access (unknown type) passes through ---
+
+    def test_nested_member_bit_access_no_type_info(self):
+        """Nested member access can't be type-inferred — passes through without validation."""
+        ctx = CompileContext(static_var_types={"data": NamedTypeRef(name="MyStruct")})
+        result = compile_expr("self.data.status.bit3", ctx)
+        assert isinstance(result, BitAccessExpr)
+        assert result.bit_index == 3
+
 
 # ---------------------------------------------------------------------------
 # IEC type name as type conversion

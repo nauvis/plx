@@ -139,6 +139,27 @@ _REJECTED_CMPOP_MESSAGES: dict[type, str] = {
 _TYPE_CONV_RE = re.compile(r"^([A-Z_][A-Za-z0-9_]*)_TO_([A-Z_][A-Za-z0-9_]*)$")
 _BIT_ACCESS_RE = re.compile(r"^bit(\d+)$")
 
+# Maps PrimitiveType → bit width for types that support bit access.
+# Types not in this map (BOOL, REAL, LREAL, TIME, STRING, etc.) reject bit access.
+_BIT_ACCESSIBLE_WIDTHS: dict[PrimitiveType, int] = {
+    # 8-bit
+    PrimitiveType.BYTE: 8,
+    PrimitiveType.SINT: 8,
+    PrimitiveType.USINT: 8,
+    # 16-bit
+    PrimitiveType.WORD: 16,
+    PrimitiveType.INT: 16,
+    PrimitiveType.UINT: 16,
+    # 32-bit
+    PrimitiveType.DWORD: 32,
+    PrimitiveType.DINT: 32,
+    PrimitiveType.UDINT: 32,
+    # 64-bit
+    PrimitiveType.LWORD: 64,
+    PrimitiveType.LINT: 64,
+    PrimitiveType.ULINT: 64,
+}
+
 _BUILTIN_FUNCS = frozenset({
     "ABS", "SQRT", "LN", "LOG", "EXP", "SIN", "COS", "TAN",
     "ASIN", "ACOS", "ATAN",
