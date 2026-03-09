@@ -1033,7 +1033,28 @@ class PyWriter:
         else:
             self._line(f"# Unsupported statement: {stmt.kind}")
 
+    # BinaryOp → Python augmented-assignment operator for ``x = x + y`` → ``x += y``
+    _AUGOP: dict[BinaryOp, str] = {
+        BinaryOp.ADD: "+=",
+        BinaryOp.SUB: "-=",
+        BinaryOp.MUL: "*=",
+        BinaryOp.DIV: "/=",
+        BinaryOp.MOD: "%=",
+        BinaryOp.XOR: "^=",
+        BinaryOp.BAND: "&=",
+        BinaryOp.BOR: "|=",
+        BinaryOp.SHL: "<<=",
+        BinaryOp.SHR: ">>=",
+        BinaryOp.EXPT: "**=",
+    }
+
     def _write_assignment(self, stmt: Assignment) -> None:
+        # Recover augmented assignment: ``x = x + y`` → ``x += y``
+        if isinstance(stmt.value, BinaryExpr):
+            aug = self._AUGOP.get(stmt.value.op)
+            if aug is not None and stmt.value.left == stmt.target:
+                self._line(f"{self._expr(stmt.target)} {aug} {self._expr(stmt.value.right)}")
+                return
         self._line(f"{self._expr(stmt.target)} = {self._expr(stmt.value)}")
 
     def _write_if(self, stmt: IfStatement) -> None:

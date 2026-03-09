@@ -291,177 +291,229 @@ class _ExpressionMixin:
             node, self.ctx,
         )
 
+    # Sentinel category → compile method, built once at class level
+    _SENTINEL_DISPATCH: dict[str, str] = {
+        "timer": "_compile_timer_sentinel",
+        "edge": "_compile_edge_sentinel",
+        "counter": "_compile_counter_sentinel",
+        "ctud": "_compile_ctud_sentinel",
+        "bistable": "_compile_bistable_sentinel",
+        "system_flag": "_compile_system_flag_sentinel",
+    }
+
     def _compile_call(self, node: ast.Call) -> Expression:
-        """Context-dependent call compilation."""
+        """Route call AST node to the appropriate handler."""
         func = node.func
-
         if isinstance(func, ast.Name):
-            name = func.id
-
-            # Sentinel functions (timers, edges, counters, bistables, system flags)
-            sentinel = SENTINEL_REGISTRY.get(name)
-            if sentinel is not None:
-                _sentinel_dispatch = {
-                    "timer": self._compile_timer_sentinel,
-                    "edge": self._compile_edge_sentinel,
-                    "counter": self._compile_counter_sentinel,
-                    "ctud": self._compile_ctud_sentinel,
-                    "bistable": self._compile_bistable_sentinel,
-                    "system_flag": self._compile_system_flag_sentinel,
-                }
-                handler = _sentinel_dispatch[sentinel.category]
-                return handler(name, node)
-
-            # timedelta(...) → LiteralExpr("T#...")
-            if name == "timedelta":
-                return self._compile_timedelta(node)
-
-            # range() — error (only valid in for)
-            if name == "range":
-                raise CompileError(
-                    "range() can only be used in a for loop",
-                    node, self.ctx,
-                )
-
-            # Python type conversions: int(x), float(x), bool(x)
-            if name in _PYTHON_TYPE_CONV_MAP:
-                if len(node.args) != 1 or node.keywords:
-                    raise CompileError(f"{name}() takes exactly 1 argument", node, self.ctx)
-                source = self.compile_expression(node.args[0])
-                return TypeConversionExpr(target_type=_PYTHON_TYPE_CONV_MAP[name], source=source)
-
-            # Rejected Python builtins
-            if name in _REJECTED_BUILTINS:
-                raise CompileError(_REJECTED_BUILTINS[name], node, self.ctx)
-
-            # pow(x, y) → x ** y (BinaryExpr EXPT)
-            if name == "pow":
-                if len(node.args) != 2 or node.keywords:
-                    raise CompileError(
-                        "pow() requires exactly 2 arguments in PLC logic (no modular exponentiation)",
-                        node, self.ctx,
-                    )
-                left = self.compile_expression(node.args[0])
-                right = self.compile_expression(node.args[1])
-                return BinaryExpr(op=BinaryOp.EXPT, left=left, right=right)
-
-            # Python builtins → IEC functions
-            if name in _PYTHON_BUILTIN_MAP:
-                mapped = _PYTHON_BUILTIN_MAP[name]
-                args = self._compile_call_args(node)
-                return FunctionCallExpr(function_name=mapped, args=args)
-
-            # Type conversion: INT_TO_REAL(x)
-            m = _TYPE_CONV_RE.match(name)
-            if m:
-                source_type_name = m.group(1)
-                target_type_name = m.group(2)
-                if len(node.args) != 1:
-                    raise CompileError(
-                        f"Type conversion {name}() takes exactly 1 argument",
-                        node, self.ctx,
-                    )
-                source = self.compile_expression(node.args[0])
-                try:
-                    target_type: TypeRef = PrimitiveTypeRef(type=PrimitiveType(target_type_name))
-                except ValueError:
-                    target_type = NamedTypeRef(name=target_type_name)
-                try:
-                    source_type: TypeRef = PrimitiveTypeRef(type=PrimitiveType(source_type_name))
-                except ValueError:
-                    source_type = NamedTypeRef(name=source_type_name)
-                return TypeConversionExpr(target_type=target_type, source=source, source_type=source_type)
-
-            # Direct IEC type name as conversion: INT(x), dint(x), LREAL(x)
-            if len(node.args) == 1 and not node.keywords:
-                try:
-                    prim = PrimitiveType(name.upper())
-                    source = self.compile_expression(node.args[0])
-                    return TypeConversionExpr(
-                        target_type=PrimitiveTypeRef(type=prim),
-                        source=source,
-                    )
-                except ValueError:
-                    pass
-
-            # IEC built-in functions (uppercase)
-            if name.upper() in _BUILTIN_FUNCS and name == name.upper():
-                args = self._compile_call_args(node)
-                return FunctionCallExpr(function_name=name, args=args)
-
-            # Default: generic function call
-            args = self._compile_call_args(node)
-            return FunctionCallExpr(function_name=name, args=args)
-
-        # self.fb_array[i](...) → FBInvocation with Expression instance_name
+            return self._compile_call_by_name(func.id, node)
         if isinstance(func, ast.Subscript):
-            attr = func.value
-            if isinstance(attr, ast.Attribute) and isinstance(attr.value, ast.Name) and attr.value.id == "self":
-                array_name = attr.attr
-                if isinstance(func.slice, ast.Tuple):
-                    index_exprs = [self.compile_expression(elt) for elt in func.slice.elts]
-                else:
-                    index_exprs = [self.compile_expression(func.slice)]
-                inv = self._build_fb_array_invocation(array_name, index_exprs, node)
-                if inv is not None:
-                    self.ctx.pending_fb_invocations.append(inv)
-                    return ArrayAccessExpr(array=VariableRef(name=array_name), indices=index_exprs)
-
-        # self.fb_instance(...) → FBInvocation (as expression)
-        if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id == "self":
-            inv = self._build_fb_invocation(func.attr, node)
-            if inv is not None:
-                self.ctx.pending_fb_invocations.append(inv)
-                return VariableRef(name=func.attr)
-            # self.method_name(...) → FunctionCallExpr (method call, no self arg)
-            if func.attr in self.ctx.known_methods:
-                args = self._compile_call_args(node)
-                return FunctionCallExpr(function_name=func.attr, args=args)
-
-        # datetime.timedelta(...) → LiteralExpr("T#...")
-        if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id == "datetime" and func.attr == "timedelta":
-            return self._compile_timedelta(node)
-
-        # math module functions: math.sqrt(x) → SQRT(x)
-        if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id == "math":
-            # math.clamp(value, min, max) → LIMIT(min, value, max)
-            if func.attr == "clamp":
-                if len(node.args) != 3 or node.keywords:
-                    raise CompileError(
-                        "math.clamp() requires exactly 3 positional arguments: "
-                        "math.clamp(value, min, max)",
-                        node, self.ctx,
-                    )
-                value = self.compile_expression(node.args[0])
-                mn = self.compile_expression(node.args[1])
-                mx = self.compile_expression(node.args[2])
-                return FunctionCallExpr(
-                    function_name="LIMIT",
-                    args=[CallArg(value=mn), CallArg(value=value), CallArg(value=mx)],
-                )
-            iec_name = _MATH_FUNC_MAP.get(func.attr)
-            if iec_name is None:
-                raise CompileError(
-                    f"math.{func.attr}() is not supported in PLC logic. "
-                    f"Supported: {', '.join(f'math.{k}()' for k in sorted({**_MATH_FUNC_MAP, 'clamp': 'LIMIT'}))}",
-                    node, self.ctx,
-                )
-            args = self._compile_call_args(node)
-            return FunctionCallExpr(function_name=iec_name, args=args)
-
-        # Other attribute calls
+            result = self._compile_call_subscript(func, node)
+            if result is not None:
+                return result
         if isinstance(func, ast.Attribute):
-            struct = self.compile_expression(func.value)
-            args = self._compile_call_args(node)
-            return FunctionCallExpr(
-                function_name=func.attr,
-                args=[CallArg(value=struct)] + args,
-            )
-
+            return self._compile_call_attribute(func, node)
         raise CompileError(
             f"Unsupported call target: {type(func).__name__}",
             node, self.ctx,
         )
+
+    # ------------------------------------------------------------------
+    # Call by bare name: foo(...)
+    # ------------------------------------------------------------------
+
+    def _compile_call_by_name(self, name: str, node: ast.Call) -> Expression:
+        """Compile a call where the target is a bare name (``foo(...)``).
+
+        Tries each handler in order: sentinels, timedelta, Python builtins,
+        type conversions, IEC built-ins, then falls through to a generic
+        function call.
+        """
+        # Sentinel functions (timers, edges, counters, bistables, system flags)
+        sentinel = SENTINEL_REGISTRY.get(name)
+        if sentinel is not None:
+            handler = getattr(self, self._SENTINEL_DISPATCH[sentinel.category])
+            return handler(name, node)
+
+        # timedelta(...) → LiteralExpr("T#...")
+        if name == "timedelta":
+            return self._compile_timedelta(node)
+
+        # range() — error (only valid in for)
+        if name == "range":
+            raise CompileError(
+                "range() can only be used in a for loop",
+                node, self.ctx,
+            )
+
+        # Python type conversions: int(x), float(x), bool(x)
+        if name in _PYTHON_TYPE_CONV_MAP:
+            if len(node.args) != 1 or node.keywords:
+                raise CompileError(f"{name}() takes exactly 1 argument", node, self.ctx)
+            source = self.compile_expression(node.args[0])
+            return TypeConversionExpr(target_type=_PYTHON_TYPE_CONV_MAP[name], source=source)
+
+        # Rejected Python builtins
+        if name in _REJECTED_BUILTINS:
+            raise CompileError(_REJECTED_BUILTINS[name], node, self.ctx)
+
+        # pow(x, y) → x ** y (BinaryExpr EXPT)
+        if name == "pow":
+            return self._compile_pow(node)
+
+        # Python builtins → IEC functions
+        if name in _PYTHON_BUILTIN_MAP:
+            args = self._compile_call_args(node)
+            return FunctionCallExpr(function_name=_PYTHON_BUILTIN_MAP[name], args=args)
+
+        # Type conversion: INT_TO_REAL(x), DINT_TO_STRING(x)
+        result = self._try_compile_type_conversion(name, node)
+        if result is not None:
+            return result
+
+        # Direct IEC type name as conversion: INT(x), dint(x), LREAL(x)
+        result = self._try_compile_primitive_cast(name, node)
+        if result is not None:
+            return result
+
+        # IEC built-in functions (uppercase)
+        if name.upper() in _BUILTIN_FUNCS and name == name.upper():
+            args = self._compile_call_args(node)
+            return FunctionCallExpr(function_name=name, args=args)
+
+        # Default: generic function call
+        args = self._compile_call_args(node)
+        return FunctionCallExpr(function_name=name, args=args)
+
+    def _compile_pow(self, node: ast.Call) -> Expression:
+        """``pow(x, y)`` → ``BinaryExpr(EXPT, x, y)``."""
+        if len(node.args) != 2 or node.keywords:
+            raise CompileError(
+                "pow() requires exactly 2 arguments in PLC logic (no modular exponentiation)",
+                node, self.ctx,
+            )
+        left = self.compile_expression(node.args[0])
+        right = self.compile_expression(node.args[1])
+        return BinaryExpr(op=BinaryOp.EXPT, left=left, right=right)
+
+    def _try_compile_type_conversion(self, name: str, node: ast.Call) -> Expression | None:
+        """Try ``INT_TO_REAL(x)`` pattern. Returns None if name doesn't match."""
+        m = _TYPE_CONV_RE.match(name)
+        if not m:
+            return None
+        source_type_name = m.group(1)
+        target_type_name = m.group(2)
+        if len(node.args) != 1:
+            raise CompileError(
+                f"Type conversion {name}() takes exactly 1 argument",
+                node, self.ctx,
+            )
+        source = self.compile_expression(node.args[0])
+        try:
+            target_type: TypeRef = PrimitiveTypeRef(type=PrimitiveType(target_type_name))
+        except ValueError:
+            target_type = NamedTypeRef(name=target_type_name)
+        try:
+            source_type: TypeRef = PrimitiveTypeRef(type=PrimitiveType(source_type_name))
+        except ValueError:
+            source_type = NamedTypeRef(name=source_type_name)
+        return TypeConversionExpr(target_type=target_type, source=source, source_type=source_type)
+
+    def _try_compile_primitive_cast(self, name: str, node: ast.Call) -> Expression | None:
+        """Try ``INT(x)`` / ``LREAL(x)`` — direct IEC type name as cast. Returns None if not a primitive."""
+        if len(node.args) != 1 or node.keywords:
+            return None
+        try:
+            prim = PrimitiveType(name.upper())
+        except ValueError:
+            return None
+        source = self.compile_expression(node.args[0])
+        return TypeConversionExpr(target_type=PrimitiveTypeRef(type=prim), source=source)
+
+    # ------------------------------------------------------------------
+    # Call by subscript: self.fb_array[i](...)
+    # ------------------------------------------------------------------
+
+    def _compile_call_subscript(self, func: ast.Subscript, node: ast.Call) -> Expression | None:
+        """``self.fb_array[i](...)`` → FBInvocation with array access. Returns None if not an FB array call."""
+        attr = func.value
+        if not (isinstance(attr, ast.Attribute) and isinstance(attr.value, ast.Name) and attr.value.id == "self"):
+            return None
+        array_name = attr.attr
+        if isinstance(func.slice, ast.Tuple):
+            index_exprs = [self.compile_expression(elt) for elt in func.slice.elts]
+        else:
+            index_exprs = [self.compile_expression(func.slice)]
+        inv = self._build_fb_array_invocation(array_name, index_exprs, node)
+        if inv is not None:
+            self.ctx.pending_fb_invocations.append(inv)
+            return ArrayAccessExpr(array=VariableRef(name=array_name), indices=index_exprs)
+        return None
+
+    # ------------------------------------------------------------------
+    # Call by attribute: self.fb(...), self.method(...), math.sqrt(...)
+    # ------------------------------------------------------------------
+
+    def _compile_call_attribute(self, func: ast.Attribute, node: ast.Call) -> Expression:
+        """Compile attribute-based calls: ``self.fb()``, ``math.sqrt()``, ``obj.method()``."""
+        # self.fb_instance(...) or self.method_name(...)
+        if isinstance(func.value, ast.Name) and func.value.id == "self":
+            return self._compile_call_self_attr(func.attr, node)
+
+        # Module-qualified calls: datetime.timedelta(...), math.sqrt(...)
+        if isinstance(func.value, ast.Name):
+            module = func.value.id
+            if module == "datetime" and func.attr == "timedelta":
+                return self._compile_timedelta(node)
+            if module == "math":
+                return self._compile_call_math(func.attr, node)
+
+        # Other attribute calls: expr.method(...)
+        struct = self.compile_expression(func.value)
+        args = self._compile_call_args(node)
+        return FunctionCallExpr(
+            function_name=func.attr,
+            args=[CallArg(value=struct)] + args,
+        )
+
+    def _compile_call_self_attr(self, attr_name: str, node: ast.Call) -> Expression:
+        """``self.fb(...)`` → FBInvocation or ``self.method(...)`` → FunctionCallExpr."""
+        inv = self._build_fb_invocation(attr_name, node)
+        if inv is not None:
+            self.ctx.pending_fb_invocations.append(inv)
+            return VariableRef(name=attr_name)
+        if attr_name in self.ctx.known_methods:
+            args = self._compile_call_args(node)
+            return FunctionCallExpr(function_name=attr_name, args=args)
+        raise CompileError(
+            f"'{attr_name}' is not a known FB instance or method on this POU",
+            node, self.ctx,
+        )
+
+    def _compile_call_math(self, func_name: str, node: ast.Call) -> Expression:
+        """``math.sqrt(x)`` → ``SQRT(x)``, ``math.clamp(v, mn, mx)`` → ``LIMIT(mn, v, mx)``."""
+        if func_name == "clamp":
+            if len(node.args) != 3 or node.keywords:
+                raise CompileError(
+                    "math.clamp() requires exactly 3 positional arguments: "
+                    "math.clamp(value, min, max)",
+                    node, self.ctx,
+                )
+            value = self.compile_expression(node.args[0])
+            mn = self.compile_expression(node.args[1])
+            mx = self.compile_expression(node.args[2])
+            return FunctionCallExpr(
+                function_name="LIMIT",
+                args=[CallArg(value=mn), CallArg(value=value), CallArg(value=mx)],
+            )
+        iec_name = _MATH_FUNC_MAP.get(func_name)
+        if iec_name is None:
+            raise CompileError(
+                f"math.{func_name}() is not supported in PLC logic. "
+                f"Supported: {', '.join(f'math.{k}()' for k in sorted({**_MATH_FUNC_MAP, 'clamp': 'LIMIT'}))}",
+                node, self.ctx,
+            )
+        args = self._compile_call_args(node)
+        return FunctionCallExpr(function_name=iec_name, args=args)
 
     def _compile_subscript(self, node: ast.Subscript) -> Expression:
         array = self.compile_expression(node.value)
