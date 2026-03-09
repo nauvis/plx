@@ -1,5 +1,7 @@
 """Tests for the ST pretty-printer (plx.export.st)."""
 
+import pytest
+
 from plx.export.st import _build_source_map, to_structured_text
 from plx.model import (
     POU,
@@ -702,7 +704,10 @@ class TestFrameworkIntegration:
     def test_compiled_pou(self):
         """Compile a framework @fb and ST-print the result."""
         # Use the sandbox to compile since we need inspect.getsource
-        from web.backend.sandbox import compile_source
+        try:
+            from web.backend.sandbox import compile_source
+        except ImportError:
+            pytest.skip("web IDE module not available")
 
         result = compile_source(
             "from plx.framework import *\n\n"
