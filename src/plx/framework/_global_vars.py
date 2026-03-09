@@ -13,9 +13,9 @@ Examples::
 
     @global_vars(description="IO mappings for conveyor")
     class ConveyorIO:
-        motor_run: BOOL = Field(address="%Q0.0")
+        motor_run: BOOL
         speed_setpoint: REAL = Field(initial=0.0, description="m/s")
-        e_stop: BOOL = Field(address="%I0.0", constant=True)
+        e_stop: BOOL = Field(constant=True)
 """
 
 from __future__ import annotations
@@ -57,7 +57,7 @@ def global_vars(
 
         @global_vars(description="Conveyor IO mapping")
         class ConveyorIO:
-            run_cmd: BOOL = Field(address="%Q0.0")
+            run_cmd: BOOL
             speed: REAL = Field(initial=50.0, retain=True)
     """
     def _apply(cls: type) -> type:

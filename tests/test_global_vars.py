@@ -129,14 +129,6 @@ class TestFieldStyle:
         gvl = Persistent.compile()
         assert gvl.variables[0].persistent is True
 
-    def test_address(self):
-        @global_vars
-        class HardwiredIO:
-            motor_run: BOOL = Field(address="%Q0.0")
-
-        gvl = HardwiredIO.compile()
-        assert gvl.variables[0].address == "%Q0.0"
-
     def test_all_fields(self):
         @global_vars
         class FullSpec:
@@ -145,7 +137,6 @@ class TestFieldStyle:
                 description="Main valve",
                 retain=True,
                 persistent=True,
-                address="%Q1.0",
             )
 
         gvl = FullSpec.compile()
@@ -157,10 +148,9 @@ class TestFieldStyle:
         assert v.constant is False
         assert v.retain is True
         assert v.persistent is True
-        assert v.address == "%Q1.0"
 
     def test_bare_annotation_defaults_no_extra_fields(self):
-        """Bare annotations produce variables with default constant/retain/persistent/address."""
+        """Bare annotations produce variables with default constant/retain/persistent."""
         @global_vars
         class BareOnly:
             flag: BOOL = True
@@ -170,7 +160,6 @@ class TestFieldStyle:
         assert v.constant is False
         assert v.retain is False
         assert v.persistent is False
-        assert v.address is None
 
 
 # ---------------------------------------------------------------------------
@@ -508,7 +497,7 @@ class TestGlobalVarsFolderKwarg:
     def test_global_vars_folder_with_description(self):
         @global_vars(description="IO signals", folder="io")
         class DescFolderGVL:
-            motor: BOOL = Field(address="%Q0.0")
+            motor: BOOL
 
         compiled = DescFolderGVL.compile()
         assert compiled.folder == "io"
@@ -546,7 +535,7 @@ class TestGlobalVarsScopeKwarg:
     def test_scope_with_folder_and_description(self):
         @global_vars(description="Motor IO", folder="io/motors", scope="controller")
         class MotorIO:
-            run: BOOL = Field(address="%Q0.0")
+            run: BOOL
 
         gvl = MotorIO.compile()
         assert gvl.scope == "controller"

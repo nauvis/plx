@@ -651,13 +651,13 @@ class TestGVL:
                 name="GVL",
                 description="Global vars",
                 variables=[
-                    Variable(name="speed", data_type=_real(), address="%Q0.0"),
+                    Variable(name="speed", data_type=_real()),
                 ],
             )],
         )
         st = to_structured_text(proj)
         assert "VAR_GLOBAL" in st
-        assert "speed AT %Q0.0 : REAL;" in st
+        assert "speed : REAL;" in st
         assert "END_VAR" in st
 
 

@@ -420,10 +420,7 @@ class STWriter:
         if v.persistent:
             parts.append("PERSISTENT")
 
-        decl = f"{v.name}"
-        if v.address:
-            decl += f" AT {v.address}"
-        decl += f" : {self._type_ref(v.data_type)}"
+        decl = f"{v.name} : {self._type_ref(v.data_type)}"
         if v.initial_value is not None:
             decl += f" := {v.initial_value}"
         decl += ";"

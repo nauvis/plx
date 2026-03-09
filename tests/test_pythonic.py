@@ -269,11 +269,11 @@ class TestOptionalLogic:
 # ===========================================================================
 
 class TestAnnotatedMetadata:
-    def test_annotated_input_with_address_and_default(self):
-        """Annotated[Input[bool], Field(address=...)] = True"""
+    def test_annotated_input_with_default(self):
+        """Annotated[Input[bool], Field(description=...)] = True"""
         @fb
         class Sensor:
-            prox: Annotated[Input[bool], Field(address="%I0.0")] = True
+            prox: Annotated[Input[bool], Field(description="Proximity sensor")] = True
 
             def logic(self):
                 pass
@@ -281,7 +281,7 @@ class TestAnnotatedMetadata:
         pou = Sensor.compile()
         var = pou.interface.input_vars[0]
         assert var.name == "prox"
-        assert var.address == "%I0.0"
+        assert var.description == "Proximity sensor"
         assert var.initial_value == "TRUE"
 
     def test_annotated_output_with_retain_and_default(self):
@@ -303,7 +303,7 @@ class TestAnnotatedMetadata:
         """Field(initial=X) should win over class default."""
         @fb
         class Override:
-            val: Annotated[Input[bool], Field(initial=False, address="%I0.1")] = True
+            val: Annotated[Input[bool], Field(initial=False)] = True
 
             def logic(self):
                 pass
@@ -311,7 +311,6 @@ class TestAnnotatedMetadata:
         pou = Override.compile()
         var = pou.interface.input_vars[0]
         assert var.initial_value == "FALSE"  # Field(initial=) wins
-        assert var.address == "%I0.1"
 
     def test_annotated_bare_type_is_static(self):
         """Annotated[bool, Field(retain=True)] → static var with metadata."""
@@ -332,7 +331,7 @@ class TestAnnotatedMetadata:
         with pytest.raises(DeclarationError, match="multiple Field"):
             @fb
             class Bad:
-                x: Annotated[Input[bool], Field(retain=True), Field(address="%I0.0")]
+                x: Annotated[Input[bool], Field(retain=True), Field(description="dup")]
 
                 def logic(self):
                     pass
@@ -379,12 +378,12 @@ class TestAnnotatedMetadata:
 
         @global_vars
         class IO:
-            motor_run: Annotated[bool, Field(address="%Q0.0")] = False
+            motor_run: Annotated[bool, Field(description="Motor run output")] = False
             speed: Annotated[float, Field(retain=True)] = 50.0
 
         gvl = IO.compile()
         motor = next(v for v in gvl.variables if v.name == "motor_run")
-        assert motor.address == "%Q0.0"
+        assert motor.description == "Motor run output"
         assert motor.initial_value == "FALSE"
 
         speed = next(v for v in gvl.variables if v.name == "speed")
@@ -395,12 +394,12 @@ class TestAnnotatedMetadata:
         """Annotated with Field but no class default."""
         @fb
         class NoDef:
-            sensor: Annotated[Input[bool], Field(address="%I0.0")]
+            sensor: Annotated[Input[bool], Field(description="No default sensor")]
 
             def logic(self):
                 pass
 
         pou = NoDef.compile()
         var = pou.interface.input_vars[0]
-        assert var.address == "%I0.0"
+        assert var.description == "No default sensor"
         assert var.initial_value is None

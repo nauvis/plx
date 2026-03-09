@@ -98,7 +98,7 @@ class VarDescriptor:
     """
 
     __slots__ = ("direction", "data_type", "initial_value", "description",
-                 "retain", "persistent", "constant", "address")
+                 "retain", "persistent", "constant")
 
     def __init__(
         self,
@@ -109,7 +109,6 @@ class VarDescriptor:
         retain: bool = False,
         persistent: bool = False,
         constant: bool = False,
-        address: str | None = None,
     ) -> None:
         self.direction = direction
         self.data_type = data_type
@@ -118,7 +117,6 @@ class VarDescriptor:
         self.retain = retain
         self.persistent = persistent
         self.constant = constant
-        self.address = address
 
 
 # ---------------------------------------------------------------------------
@@ -137,7 +135,6 @@ class FieldDescriptor:
         "retain",
         "persistent",
         "constant",
-        "address",
     )
 
     def __init__(
@@ -148,14 +145,12 @@ class FieldDescriptor:
         retain: bool = False,
         persistent: bool = False,
         constant: bool = False,
-        address: str | None = None,
     ) -> None:
         self.initial_value = initial_value
         self.description = description
         self.retain = retain
         self.persistent = persistent
         self.constant = constant
-        self.address = address
 
 
 def Field(
@@ -165,13 +160,12 @@ def Field(
     retain: bool = False,
     persistent: bool = False,
     constant: bool = False,
-    address: str | None = None,
 ) -> FieldDescriptor:
     """Declare variable metadata via annotation syntax.
 
     Example::
 
-        sensor: Input[bool] = Field(address="%I0.0", description="Proximity")
+        sensor: Input[bool] = Field(description="Proximity")
         speed: Output[float] = Field(initial=60.0, retain=True)
         state: Static[int] = Field(retain=True)
     """
@@ -181,7 +175,6 @@ def Field(
         retain=retain,
         persistent=persistent,
         constant=constant,
-        address=address,
     )
 
 
@@ -220,8 +213,6 @@ def _validate_field_for_direction(
             raise DeclarationError(f"Temp variable '{attr_name}' cannot use retain")
         if field.persistent:
             raise DeclarationError(f"Temp variable '{attr_name}' cannot use persistent")
-        if field.address is not None:
-            raise DeclarationError(f"Temp variable '{attr_name}' cannot use address")
         if field.description:
             raise DeclarationError(f"Temp variable '{attr_name}' cannot use description")
     elif direction == VarDirection.INOUT:
@@ -231,8 +222,6 @@ def _validate_field_for_direction(
             raise DeclarationError(f"InOut variable '{attr_name}' cannot use retain")
         if field.persistent:
             raise DeclarationError(f"InOut variable '{attr_name}' cannot use persistent")
-        if field.address is not None:
-            raise DeclarationError(f"InOut variable '{attr_name}' cannot use address")
     elif direction == VarDirection.EXTERNAL:
         if field.initial_value is not None:
             raise DeclarationError(f"External variable '{attr_name}' cannot use initial")
@@ -240,15 +229,11 @@ def _validate_field_for_direction(
             raise DeclarationError(f"External variable '{attr_name}' cannot use retain")
         if field.persistent:
             raise DeclarationError(f"External variable '{attr_name}' cannot use persistent")
-        if field.address is not None:
-            raise DeclarationError(f"External variable '{attr_name}' cannot use address")
     elif direction == VarDirection.CONSTANT:
         if field.retain:
             raise DeclarationError(f"Constant variable '{attr_name}' cannot use retain")
         if field.persistent:
             raise DeclarationError(f"Constant variable '{attr_name}' cannot use persistent")
-        if field.address is not None:
-            raise DeclarationError(f"Constant variable '{attr_name}' cannot use address")
 
 
 # ---------------------------------------------------------------------------
@@ -297,7 +282,6 @@ def _field_to_variable(
                 retain=field.retain,
                 persistent=field.persistent,
                 constant=field.constant,
-                address=field.address,
             )
     return Variable(
         name=name,
@@ -307,7 +291,6 @@ def _field_to_variable(
         retain=field.retain,
         persistent=field.persistent,
         constant=is_constant or field.constant,
-        address=field.address,
     )
 
 
@@ -402,7 +385,6 @@ def _resolve_declaration(
             retain=var.retain,
             persistent=var.persistent,
             constant=var.constant,
-            address=var.address,
         )
 
     # No field — skip non-value defaults (step objects, etc.)
@@ -503,7 +485,6 @@ def _collect_descriptors(cls: type, *, own_only: bool = False) -> dict[str, list
             retain=desc.retain,
             persistent=desc.persistent,
             constant=desc.constant,
-            address=desc.address,
         )
         groups[desc.direction].append(var)
 

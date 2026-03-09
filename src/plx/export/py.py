@@ -694,7 +694,7 @@ class PyWriter:
 
     def _has_metadata(self, v: Variable) -> bool:
         """Check if a variable has metadata beyond initial value."""
-        return bool(v.description or v.retain or v.persistent or v.address is not None or v.constant)
+        return bool(v.description or v.retain or v.persistent or v.constant)
 
     def _build_field_kwargs(self, v: Variable) -> str:
         """Build Field() argument string from variable metadata."""
@@ -707,8 +707,6 @@ class PyWriter:
             kwargs.append("retain=True")
         if v.persistent:
             kwargs.append("persistent=True")
-        if v.address is not None:
-            kwargs.append(f'address="{v.address}"')
         if v.constant:
             kwargs.append("constant=True")
         return ", ".join(kwargs)

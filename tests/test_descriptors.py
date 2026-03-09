@@ -77,7 +77,6 @@ class TestField:
         assert f.retain is False
         assert f.persistent is False
         assert f.constant is False
-        assert f.address is None
 
     def test_with_initial(self):
         f = Field(initial=42)
@@ -103,22 +102,17 @@ class TestField:
         f = Field(persistent=True)
         assert f.persistent is True
 
-    def test_with_address(self):
-        f = Field(address="%I0.0")
-        assert f.address == "%I0.0"
-
     def test_with_constant(self):
         f = Field(constant=True)
         assert f.constant is True
 
     def test_all_kwargs(self):
         f = Field(initial=0.0, description="Speed", retain=True,
-                  persistent=True, address="%MW100")
+                  persistent=True)
         assert f.initial_value == "0.0"
         assert f.description == "Speed"
         assert f.retain is True
         assert f.persistent is True
-        assert f.address == "%MW100"
 
 
 # ---------------------------------------------------------------------------
@@ -217,12 +211,11 @@ class TestAnnotationWrappers:
 class TestAnnotationWithField:
     def test_input_with_field(self):
         class MyFB:
-            sensor: Input[bool] = Field(address="%I0.0", description="Proximity")
+            sensor: Input[bool] = Field(description="Proximity")
 
         groups = _collect_descriptors(MyFB)
         v = groups["input"][0]
         assert v.name == "sensor"
-        assert v.address == "%I0.0"
         assert v.description == "Proximity"
 
     def test_output_with_field(self):
@@ -292,12 +285,6 @@ class TestFieldValidation:
                 x: Temp[bool] = Field(retain=True)
             _collect_descriptors(MyFB)
 
-    def test_temp_rejects_address(self):
-        with pytest.raises(DeclarationError, match="address"):
-            class MyFB:
-                x: Temp[bool] = Field(address="%I0.0")
-            _collect_descriptors(MyFB)
-
     def test_temp_rejects_description(self):
         with pytest.raises(DeclarationError, match="description"):
             class MyFB:
@@ -316,12 +303,6 @@ class TestFieldValidation:
                 x: InOut[bool] = Field(retain=True)
             _collect_descriptors(MyFB)
 
-    def test_inout_rejects_address(self):
-        with pytest.raises(DeclarationError, match="address"):
-            class MyFB:
-                x: InOut[bool] = Field(address="%I0.0")
-            _collect_descriptors(MyFB)
-
     def test_external_rejects_initial(self):
         with pytest.raises(DeclarationError, match="initial"):
             class MyFB:
@@ -338,12 +319,6 @@ class TestFieldValidation:
         with pytest.raises(DeclarationError, match="retain"):
             class MyFB:
                 x: Constant[float] = Field(initial=3.14, retain=True)
-            _collect_descriptors(MyFB)
-
-    def test_constant_rejects_address(self):
-        with pytest.raises(DeclarationError, match="address"):
-            class MyFB:
-                x: Constant[int] = Field(initial=0, address="%MW0")
             _collect_descriptors(MyFB)
 
     def test_constant_requires_initial(self):
@@ -468,9 +443,9 @@ class TestCollectDescriptors:
 
     def test_flags_passed_through_to_variable(self):
         class MyFB:
-            a: DINT = Field(retain=True, persistent=True, constant=True, address="%MW100")
-            b: Input[BOOL] = Field(retain=True, address="%I0.0")
-            c: Output[REAL] = Field(retain=True, address="%Q0.0")
+            a: DINT = Field(retain=True, persistent=True, constant=True)
+            b: Input[BOOL] = Field(retain=True)
+            c: Output[REAL] = Field(retain=True)
 
         groups = _collect_descriptors(MyFB)
 
@@ -478,17 +453,14 @@ class TestCollectDescriptors:
         assert static.retain is True
         assert static.persistent is True
         assert static.constant is True
-        assert static.address == "%MW100"
 
         inp = groups["input"][0]
         assert inp.retain is True
-        assert inp.address == "%I0.0"
         assert inp.persistent is False
         assert inp.constant is False
 
         out = groups["output"][0]
         assert out.retain is True
-        assert out.address == "%Q0.0"
         assert out.persistent is False
         assert out.constant is False
 
@@ -511,7 +483,6 @@ class TestCollectDescriptors:
         assert v.retain is False
         assert v.persistent is False
         assert v.constant is False
-        assert v.address is None
 
 
 # ---------------------------------------------------------------------------

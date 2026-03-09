@@ -22,7 +22,6 @@ class Variable(IRModel):
     name: str = Field(min_length=1)
     data_type: TypeRef
     initial_value: str | None = None
-    address: str | None = None
     description: str = ""
     constant: bool = False
     retain: bool = False

@@ -791,7 +791,6 @@ class TestGlobalVarLists:
                 Variable(
                     name="valve",
                     data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL),
-                    address="%Q0.0",
                     retain=True,
                 ),
             ],
@@ -799,7 +798,7 @@ class TestGlobalVarLists:
         w = _make_writer()
         w._write_global_variable_list(gvl)
         out = w.getvalue().strip()
-        assert 'valve: bool = Field(retain=True, address="%Q0.0")' in out
+        assert "valve: bool = Field(retain=True)" in out
 
     def test_gvl_with_description(self):
         gvl = GlobalVariableList(
@@ -1498,7 +1497,7 @@ class TestAnnotationSyntaxEmission:
             interface=POUInterface(
                 input_vars=[Variable(name="sensor", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL), description="Main sensor")],
                 output_vars=[Variable(name="valve", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL), retain=True)],
-                static_vars=[Variable(name="count", data_type=PrimitiveTypeRef(type=PrimitiveType.DINT), address="%MW100")],
+                static_vars=[Variable(name="count", data_type=PrimitiveTypeRef(type=PrimitiveType.DINT))],
             ),
             networks=[Network(statements=[EmptyStatement()])],
         )
@@ -1507,7 +1506,7 @@ class TestAnnotationSyntaxEmission:
         out = w.getvalue()
         assert 'sensor: Input[bool] = Field(description="Main sensor")' in out
         assert "valve: Output[bool] = Field(retain=True)" in out
-        assert 'count: int = Field(address="%MW100")' in out
+        assert "count: int" in out
 
     def test_standard_fb_shorthand_preserved(self):
         """Standard FB types (TON, etc.) should still use annotation shorthand."""

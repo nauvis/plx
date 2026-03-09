@@ -25,7 +25,6 @@ from plx.framework import (
     rising,
     struct,
     task,
-    Field,
 )
 from plx.simulate import simulate
 
@@ -80,22 +79,22 @@ class Clamp:
 
 @global_vars(description="Pump Station I/O")
 class PumpStationIO:
-    wet_well_level: REAL = Field(address="%IW0")
-    pump1_speed_ref: REAL = Field(address="%QW0")
-    pump2_speed_ref: REAL = Field(address="%QW2")
-    pump3_speed_ref: REAL = Field(address="%QW4")
-    pump1_run_fb: BOOL = Field(address="%I0.0")
-    pump2_run_fb: BOOL = Field(address="%I0.1")
-    pump3_run_fb: BOOL = Field(address="%I0.2")
-    pump1_run_cmd: BOOL = Field(address="%Q0.0")
-    pump2_run_cmd: BOOL = Field(address="%Q0.1")
-    pump3_run_cmd: BOOL = Field(address="%Q0.2")
-    pump1_fault: BOOL = Field(address="%I0.3")
-    pump2_fault: BOOL = Field(address="%I0.4")
-    pump3_fault: BOOL = Field(address="%I0.5")
-    e_stop: BOOL = Field(address="%I0.6")
-    alarm_horn: BOOL = Field(address="%Q0.3")
-    alarm_beacon: BOOL = Field(address="%Q0.4")
+    wet_well_level: REAL
+    pump1_speed_ref: REAL
+    pump2_speed_ref: REAL
+    pump3_speed_ref: REAL
+    pump1_run_fb: BOOL
+    pump2_run_fb: BOOL
+    pump3_run_fb: BOOL
+    pump1_run_cmd: BOOL
+    pump2_run_cmd: BOOL
+    pump3_run_cmd: BOOL
+    pump1_fault: BOOL
+    pump2_fault: BOOL
+    pump3_fault: BOOL
+    e_stop: BOOL
+    alarm_horn: BOOL
+    alarm_beacon: BOOL
 
 
 # ==========================================================================
@@ -834,7 +833,6 @@ class TestPumpingProjectCompilation:
         assert clamp_pou.pou_type.value == "FUNCTION"
         assert clamp_pou.return_type is not None
 
-        # Verify global vars have addresses
+        # Verify global vars compiled
         gvl = prj.global_variable_lists[0]
-        addressed = [v for v in gvl.variables if v.address]
-        assert len(addressed) >= 10
+        assert len(gvl.variables) >= 10
