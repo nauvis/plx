@@ -275,6 +275,8 @@ _COUNTER_SENTINELS = {
     "count_down": ("CTD", "CD", "PV", "LOAD"),
 }
 
+_CTUD_SENTINEL = ("CTUD", "CU", "CD", "PV", "RESET", "LOAD")
+
 _BISTABLE_SENTINELS = {
     "set_dominant": ("SR", "SET1", "RESET"),
     "reset_dominant": ("RS", "SET", "RESET1"),
@@ -320,6 +322,11 @@ for _name, (_fb, _count_input, _pv_input, _ctrl_input) in _COUNTER_SENTINELS.ite
         params={"signal": _count_input, "preset": _pv_input, "control": _ctrl_input},
     )
 
+SENTINEL_REGISTRY["count_up_down"] = SentinelDef(
+    name="count_up_down", category="ctud", fb_type="CTUD",
+    params={"up": "CU", "down": "CD", "preset": "PV", "reset": "RESET", "load": "LOAD"},
+)
+
 for _name, (_fb, _set_input, _reset_input) in _BISTABLE_SENTINELS.items():
     SENTINEL_REGISTRY[_name] = SentinelDef(
         name=_name, category="bistable", fb_type=_fb,
@@ -333,7 +340,7 @@ for _name, _flag in _SYSTEM_FLAG_SENTINELS.items():
     )
 
 # Clean up loop variables
-del _name, _fb, _input_name, _pt_name, _count_input, _pv_input, _ctrl_input
+del _name, _fb, _input_name, _pt_name, _count_input, _pv_input, _ctrl_input  # noqa: F821
 del _set_input, _reset_input, _flag
 
 

@@ -305,6 +305,7 @@ class _ExpressionMixin:
                     "timer": self._compile_timer_sentinel,
                     "edge": self._compile_edge_sentinel,
                     "counter": self._compile_counter_sentinel,
+                    "ctud": self._compile_ctud_sentinel,
                     "bistable": self._compile_bistable_sentinel,
                     "system_flag": self._compile_system_flag_sentinel,
                 }

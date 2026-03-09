@@ -423,6 +423,104 @@ class TestCountDown:
 
 
 # ---------------------------------------------------------------------------
+# CTUD sentinel (count_up_down)
+# ---------------------------------------------------------------------------
+
+class TestCountUpDown:
+    def test_basic(self):
+        ctx = CompileContext()
+        stmts = compile_stmts("self.full = count_up_down(self.part_in, self.part_out, preset=100)", ctx)
+        assert len(stmts) == 2
+        assert isinstance(stmts[0], FBInvocation)
+        assert stmts[0].fb_type == "CTUD"
+        assert "CU" in stmts[0].inputs
+        assert "CD" in stmts[0].inputs
+        assert "PV" in stmts[0].inputs
+        pv = stmts[0].inputs["PV"]
+        assert isinstance(pv, LiteralExpr)
+        assert pv.value == "100"
+
+    def test_generates_static_var(self):
+        ctx = CompileContext()
+        compile_stmts("self.full = count_up_down(self.up, self.down, preset=10)", ctx)
+        assert len(ctx.generated_static_vars) == 1
+        var = ctx.generated_static_vars[0]
+        assert var.data_type == NamedTypeRef(name="CTUD")
+        assert var.name.startswith("_plx_ctud_")
+
+    def test_with_reset(self):
+        ctx = CompileContext()
+        stmts = compile_stmts("self.full = count_up_down(self.up, self.down, preset=10, reset=self.rst)", ctx)
+        assert isinstance(stmts[0], FBInvocation)
+        assert "RESET" in stmts[0].inputs
+        reset = stmts[0].inputs["RESET"]
+        assert isinstance(reset, VariableRef)
+        assert reset.name == "rst"
+
+    def test_with_load(self):
+        ctx = CompileContext()
+        stmts = compile_stmts("self.full = count_up_down(self.up, self.down, preset=10, load=self.ld)", ctx)
+        assert isinstance(stmts[0], FBInvocation)
+        assert "LOAD" in stmts[0].inputs
+        load = stmts[0].inputs["LOAD"]
+        assert isinstance(load, VariableRef)
+        assert load.name == "ld"
+
+    def test_with_reset_and_load(self):
+        ctx = CompileContext()
+        stmts = compile_stmts("self.full = count_up_down(self.up, self.down, preset=10, reset=self.rst, load=self.ld)", ctx)
+        assert isinstance(stmts[0], FBInvocation)
+        assert "RESET" in stmts[0].inputs
+        assert "LOAD" in stmts[0].inputs
+
+    def test_preset_required(self):
+        import pytest
+        ctx = CompileContext()
+        with pytest.raises(Exception, match="preset="):
+            compile_stmts("self.full = count_up_down(self.up, self.down)", ctx)
+
+    def test_requires_two_signals(self):
+        import pytest
+        ctx = CompileContext()
+        with pytest.raises(Exception, match="two arguments"):
+            compile_stmts("self.full = count_up_down(self.up, preset=10)", ctx)
+
+    def test_returns_qu(self):
+        ctx = CompileContext()
+        stmts = compile_stmts("self.full = count_up_down(self.up, self.down, preset=10)", ctx)
+        assign = stmts[1]
+        assert isinstance(assign, Assignment)
+        assert isinstance(assign.value, MemberAccessExpr)
+        assert assign.value.member == "QU"
+
+    def test_variable_preset(self):
+        ctx = CompileContext()
+        stmts = compile_stmts("self.full = count_up_down(self.up, self.down, preset=self.limit)", ctx)
+        pv = stmts[0].inputs["PV"]
+        assert isinstance(pv, VariableRef)
+        assert pv.name == "limit"
+
+    def test_in_if_condition(self):
+        ctx = CompileContext()
+        stmts = compile_stmts("""\
+if count_up_down(self.up, self.down, preset=50):
+    self.full = True
+""", ctx)
+        assert len(stmts) == 2
+        assert isinstance(stmts[0], FBInvocation)
+        assert isinstance(stmts[1], IfStatement)
+        cond = stmts[1].if_branch.condition
+        assert isinstance(cond, MemberAccessExpr)
+        assert cond.member == "QU"
+
+    def test_named_instance(self):
+        ctx = CompileContext()
+        compile_stmts('self.full = count_up_down(self.up, self.down, preset=10, name="parts")', ctx)
+        assert len(ctx.generated_static_vars) == 1
+        assert ctx.generated_static_vars[0].name == "parts"
+
+
+# ---------------------------------------------------------------------------
 # System flag sentinels (first_scan)
 # ---------------------------------------------------------------------------
 

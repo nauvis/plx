@@ -137,6 +137,7 @@ from ._compiler import (
     retentive,
     count_up,
     count_down,
+    count_up_down,
     set_dominant,
     reset_dominant,
     CompileError,
@@ -271,6 +272,7 @@ __all__ = [
     "retentive",
     "count_up",
     "count_down",
+    "count_up_down",
     "set_dominant",
     "reset_dominant",
     # Protocols

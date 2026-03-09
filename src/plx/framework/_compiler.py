@@ -11,7 +11,8 @@ Key concepts:
 - **ASTCompiler**: dispatch-table compiler that maps Python AST node
   types to handler methods.
 - **Sentinel functions**: ``delayed``, ``rising``, ``falling``,
-  ``sustained``, ``pulse``, ``retentive``, ``count_up``, ``count_down``
+  ``sustained``, ``pulse``, ``retentive``, ``count_up``, ``count_down``,
+  ``count_up_down``
   — importable functions whose bodies raise ``RuntimeError``.  The AST compiler
   recognises them by name and expands them to FBInvocation + instance
   variables.
@@ -107,6 +108,11 @@ def count_up(signal: object, *, preset: int = 0, reset: object = None, name: str
 def count_down(signal: object, *, preset: int = 0, load: object = None, name: str | None = None) -> bool:
     """CTD (count down).  Recognised by the AST compiler."""
     raise RuntimeError("count_down() is a compile-time sentinel — do not call directly")
+
+
+def count_up_down(up_signal: object, down_signal: object, *, preset: int = 0, reset: object = None, load: object = None, name: str | None = None) -> bool:
+    """CTUD (count up/down).  Recognised by the AST compiler."""
+    raise RuntimeError("count_up_down() is a compile-time sentinel — do not call directly")
 
 
 def set_dominant(set_signal: object, reset_signal: object, *, name: str | None = None) -> bool:

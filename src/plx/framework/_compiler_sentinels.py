@@ -2,7 +2,7 @@
 
 Handles timer sentinels (delayed/sustained/pulse/retentive → TON/TOF/TP/RTO),
 edge sentinels (rising/falling → R_TRIG/F_TRIG),
-counter sentinels (count_up/count_down → CTU/CTD),
+counter sentinels (count_up/count_down → CTU/CTD, count_up_down → CTUD),
 and system flag sentinels (first_scan).
 """
 
@@ -201,6 +201,43 @@ class _SentinelMixin:
             inputs[ctrl_input] = self.compile_expression(keywords[ctrl_kwarg])
 
         return self._emit_fb_sentinel(fb_type, inputs, name=user_name)
+
+    def _compile_ctud_sentinel(self, sentinel_name: str, node: ast.Call) -> Expression:
+        """Compile count_up_down sentinel into CTUD."""
+        if len(node.args) < 2:
+            raise CompileError(
+                "count_up_down() requires two arguments: up_signal and down_signal",
+                node, self.ctx,
+            )
+
+        user_name = _extract_name_kwarg(node, self.ctx)
+        up_signal = self.compile_expression(node.args[0])
+        down_signal = self.compile_expression(node.args[1])
+
+        keywords = {kw.arg: kw.value for kw in node.keywords}
+
+        if "preset" not in keywords:
+            raise CompileError(
+                "count_up_down() requires a preset= argument",
+                node, self.ctx,
+            )
+        preset_node = keywords["preset"]
+        if isinstance(preset_node, ast.Constant) and isinstance(preset_node.value, int):
+            preset_expr = LiteralExpr(
+                value=str(preset_node.value),
+                data_type=PrimitiveTypeRef(type=PrimitiveType.INT),
+            )
+        else:
+            preset_expr = self.compile_expression(preset_node)
+
+        inputs = {"CU": up_signal, "CD": down_signal, "PV": preset_expr}
+
+        if "reset" in keywords:
+            inputs["RESET"] = self.compile_expression(keywords["reset"])
+        if "load" in keywords:
+            inputs["LOAD"] = self.compile_expression(keywords["load"])
+
+        return self._emit_fb_sentinel("CTUD", inputs, output_member="QU", name=user_name)
 
     def _compile_bistable_sentinel(self, sentinel_name: str, node: ast.Call) -> Expression:
         """Compile set_dominant/reset_dominant sentinel into SR/RS."""

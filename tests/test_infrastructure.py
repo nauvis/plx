@@ -224,11 +224,11 @@ class TestCollectTypeRefNames:
 
 class TestSentinelRegistry:
     def test_all_sentinels_present(self):
-        """All 11 sentinel functions are in the registry."""
+        """All 12 sentinel functions are in the registry."""
         expected = {
             "delayed", "sustained", "pulse", "retentive",
             "rising", "falling",
-            "count_up", "count_down",
+            "count_up", "count_down", "count_up_down",
             "set_dominant", "reset_dominant",
             "first_scan",
         }
