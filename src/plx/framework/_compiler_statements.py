@@ -62,6 +62,20 @@ if TYPE_CHECKING:
 from ._compiler_core import CompileContext
 
 
+def _is_negative_step(node: ast.expr) -> bool:
+    """Check if an AST expression is a statically known negative integer."""
+    # -<positive literal>
+    if (isinstance(node, ast.UnaryOp)
+            and isinstance(node.op, ast.USub)
+            and isinstance(node.operand, ast.Constant)
+            and isinstance(node.operand.value, (int, float))):
+        return node.operand.value > 0
+    # Negative constant (Python 3.8+ may fold -1 into Constant directly)
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+        return node.value < 0
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Statement mixin
 # ---------------------------------------------------------------------------
@@ -254,12 +268,23 @@ class _StatementMixin:
             by_expr = None
         elif len(args) == 3:
             from_expr = self.compile_expression(args[0])
-            to_expr = BinaryExpr(
-                op=BinaryOp.SUB,
-                left=self.compile_expression(args[1]),
-                right=LiteralExpr(value="1"),
-            )
+            stop_compiled = self.compile_expression(args[1])
             by_expr = self.compile_expression(args[2])
+            # Python range() excludes the stop value.
+            # Ascending (step>0): IEC inclusive upper = stop - 1
+            # Descending (step<0): IEC inclusive lower = stop + 1
+            if _is_negative_step(args[2]):
+                to_expr = BinaryExpr(
+                    op=BinaryOp.ADD,
+                    left=stop_compiled,
+                    right=LiteralExpr(value="1"),
+                )
+            else:
+                to_expr = BinaryExpr(
+                    op=BinaryOp.SUB,
+                    left=stop_compiled,
+                    right=LiteralExpr(value="1"),
+                )
         else:
             raise CompileError("range() takes 1-3 arguments", node, self.ctx)
 

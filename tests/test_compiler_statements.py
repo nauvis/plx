@@ -62,6 +62,22 @@ class TestAssignment:
         assert ctx.generated_temp_vars[0].name == "x"
         assert ctx.generated_temp_vars[0].data_type.type.value == "DINT"
 
+    def test_bare_name_inferred_bitwise_ops(self):
+        """Bitwise ops (& | ^) should infer type from operands."""
+        for op_sym in ("&", "|", "^"):
+            ctx = CompileContext(
+                declared_vars={"a": VarDirection.TEMP, "b": VarDirection.TEMP},
+                static_var_types={
+                    "a": PrimitiveTypeRef(type=PrimitiveType.DINT),
+                    "b": PrimitiveTypeRef(type=PrimitiveType.DINT),
+                },
+            )
+            stmts = compile_stmts(f"x = a {op_sym} b", ctx)
+            assert len(stmts) == 1
+            assert ctx.declared_vars["x"] == VarDirection.TEMP
+            assert len(ctx.generated_temp_vars) == 1
+            assert ctx.generated_temp_vars[0].data_type.type.value == "DINT"
+
     def test_bare_name_undeclared_no_inference_raises(self):
         """Bare assignment where type cannot be inferred still raises."""
         import pytest
@@ -213,6 +229,36 @@ for i in range(0, 20, 2):
 """)
         stmt = stmts[0]
         assert stmt.by_expr is not None
+
+    def test_range_negative_step(self):
+        """range(10, 0, -1) → FOR i := 10 TO (0 + 1) BY -1 (descending)."""
+        stmts = compile_stmts("""\
+for i in range(10, 0, -1):
+    self.x = i
+""")
+        stmt = stmts[0]
+        assert isinstance(stmt, ForStatement)
+        assert isinstance(stmt.from_expr, LiteralExpr)
+        assert stmt.from_expr.value == "10"
+        # Descending: to_expr = stop + 1 (not stop - 1)
+        assert isinstance(stmt.to_expr, BinaryExpr)
+        assert stmt.to_expr.op == BinaryOp.ADD
+        assert isinstance(stmt.to_expr.left, LiteralExpr)
+        assert stmt.to_expr.left.value == "0"
+        assert isinstance(stmt.to_expr.right, LiteralExpr)
+        assert stmt.to_expr.right.value == "1"
+        # by = -1
+        assert stmt.by_expr is not None
+
+    def test_range_positive_step_uses_sub(self):
+        """range(0, 20, 2) → FOR i := 0 TO (20 - 1) BY 2 (ascending)."""
+        stmts = compile_stmts("""\
+for i in range(0, 20, 2):
+    self.x = i
+""")
+        stmt = stmts[0]
+        assert isinstance(stmt.to_expr, BinaryExpr)
+        assert stmt.to_expr.op == BinaryOp.SUB
 
     def test_loop_var_auto_declared(self):
         ctx = CompileContext()

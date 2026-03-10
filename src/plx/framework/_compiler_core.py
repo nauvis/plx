@@ -454,8 +454,8 @@ def _infer_type(node: ast.expr, ctx: CompileContext) -> TypeRef | None:
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
         return _infer_type(node.operand, ctx)
 
-    # Binary arithmetic: infer from operands (both must agree or one must be known)
-    if isinstance(node, ast.BinOp) and not isinstance(node.op, (ast.BitAnd, ast.BitOr, ast.BitXor)):
+    # Binary ops (arithmetic + bitwise): infer from operands
+    if isinstance(node, ast.BinOp):
         left = _infer_type(node.left, ctx)
         right = _infer_type(node.right, ctx)
         if left is not None and right is not None:
