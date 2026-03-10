@@ -17,7 +17,13 @@ from plx.framework import (
     Field,
 )
 from plx.framework._project import PlxTask
-from plx.model.task import Task, TaskType
+from plx.model.task import (
+    ContinuousTask,
+    EventTask,
+    PeriodicTask,
+    StartupTask,
+    TaskType,
+)
 from plx.model.project import Project
 
 
@@ -116,9 +122,9 @@ class TestTaskCompile:
     def test_compiles_to_ir(self):
         t = task("Main", periodic=timedelta(milliseconds=10), pous=[_FastLoop])
         ir = t.compile()
-        assert isinstance(ir, Task)
+        assert isinstance(ir, PeriodicTask)
         assert ir.name == "Main"
-        assert ir.task_type == TaskType.PERIODIC
+        assert ir.kind == "periodic"
         assert ir.interval == "T#10ms"
 
     def test_assigned_pous(self):
@@ -166,13 +172,13 @@ class TestTaskCompile:
     def test_event_trigger(self):
         t = task("OnAlarm", event="AlarmFlag", pous=[_FastLoop])
         ir = t.compile()
+        assert isinstance(ir, EventTask)
         assert ir.trigger_variable == "AlarmFlag"
-        assert ir.task_type == TaskType.EVENT
 
     def test_startup_compile(self):
         t = task("Init", startup=True, pous=[_StartupProg])
         ir = t.compile()
-        assert ir.task_type == TaskType.STARTUP
+        assert isinstance(ir, StartupTask)
         assert ir.assigned_pous == ["_StartupProg"]
 
 
@@ -248,7 +254,7 @@ class TestProjectWithTasks:
         data = ir.model_dump()
         assert len(data["tasks"]) == 1
         assert data["tasks"][0]["name"] == "Main"
-        assert data["tasks"][0]["task_type"] == "PERIODIC"
+        assert data["tasks"][0]["kind"] == "periodic"
         assert data["tasks"][0]["interval"] == "T#10ms"
         assert data["tasks"][0]["priority"] == 1
         assert data["tasks"][0]["assigned_pous"] == ["_FastLoop"]
@@ -265,6 +271,6 @@ class TestProjectWithTasks:
         restored = Project.model_validate_json(json_str)
         assert len(restored.tasks) == 2
         assert restored.tasks[0].name == "Main"
-        assert restored.tasks[0].task_type == TaskType.PERIODIC
+        assert isinstance(restored.tasks[0], PeriodicTask)
         assert restored.tasks[1].name == "Init"
-        assert restored.tasks[1].task_type == TaskType.STARTUP
+        assert isinstance(restored.tasks[1], StartupTask)

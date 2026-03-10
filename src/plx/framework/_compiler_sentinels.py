@@ -127,7 +127,7 @@ class _SentinelMixin:
 
         self.ctx.pending_fb_invocations.append(FBInvocation(
             instance_name=instance_name,
-            fb_type=fb_type,
+            fb_type=NamedTypeRef(name=fb_type),
             inputs=inputs,
         ))
 
@@ -236,6 +236,7 @@ class _SentinelMixin:
             inputs["LOAD"] = self.compile_expression(keywords["load"])
 
         return self._emit_fb_sentinel("CTUD", inputs, output_member="QU", name=user_name)
+
 
     def _compile_bistable_sentinel(self, sentinel_name: str, node: ast.Call) -> Expression:
         """Compile set_dominant/reset_dominant sentinel into SR/RS."""

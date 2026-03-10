@@ -80,7 +80,7 @@ class TestFBDecorator:
         stmts = pou.networks[0].statements
         assert len(stmts) == 2
         assert isinstance(stmts[0], FBInvocation)
-        assert stmts[0].fb_type == "TON"
+        assert stmts[0].fb_type.name == "TON"
 
     def test_fb_multiple_variables(self):
         @fb

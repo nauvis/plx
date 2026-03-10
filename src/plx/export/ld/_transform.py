@@ -38,6 +38,7 @@ from plx.model.statements import (
     IfStatement,
     Statement,
 )
+from plx.model.types import NamedTypeRef
 
 from ..st import format_expression, format_statement
 from ._model import (
@@ -186,9 +187,10 @@ class _LDTransformer:
             for name, expr in stmt.outputs.items()
         ]
         instance_label = stmt.instance_name if isinstance(stmt.instance_name, str) else format_expression(stmt.instance_name)
+        type_name = stmt.fb_type.name if isinstance(stmt.fb_type, NamedTypeRef) else instance_label
         box = Box(
             name=instance_label,
-            type_name=stmt.fb_type or instance_label,
+            type_name=type_name,
             input_pins=input_pins,
             output_pins=output_pins,
         )
@@ -320,9 +322,10 @@ class _LDTransformer:
         ]
         en_circuit = self._make_condition_circuit(condition)
         instance_label = body_stmt.instance_name if isinstance(body_stmt.instance_name, str) else format_expression(body_stmt.instance_name)
+        type_name = body_stmt.fb_type.name if isinstance(body_stmt.fb_type, NamedTypeRef) else instance_label
         box = Box(
             name=instance_label,
-            type_name=body_stmt.fb_type or instance_label,
+            type_name=type_name,
             input_pins=input_pins,
             output_pins=output_pins,
             en_input=en_circuit,

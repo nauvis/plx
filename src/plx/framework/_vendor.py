@@ -41,6 +41,7 @@ from plx.model.expressions import (
     BitAccessExpr,
     TypeConversionExpr,
 )
+from plx.model.types import NamedTypeRef
 from plx.model.statements import (
     Assignment,
     CaseBranch,
@@ -386,8 +387,8 @@ def _collect_fb_types(project: Project) -> dict[str, set[str]]:
     def _walk_statements(stmts: list[Statement], pou_name: str) -> None:
         for stmt in stmts:
             if isinstance(stmt, FBInvocation):
-                if stmt.fb_type:
-                    result.setdefault(stmt.fb_type, set()).add(pou_name)
+                if isinstance(stmt.fb_type, NamedTypeRef):
+                    result.setdefault(stmt.fb_type.name, set()).add(pou_name)
             elif isinstance(stmt, IfStatement):
                 _walk_statements(stmt.if_branch.body, pou_name)
                 for branch in stmt.elsif_branches:

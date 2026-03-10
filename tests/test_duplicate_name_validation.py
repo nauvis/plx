@@ -17,7 +17,7 @@ from plx.model.pou import (
 from plx.model.project import GlobalVariableList, Project
 from plx.model.sfc import SFCBody, Step, Transition
 from plx.model.statements import CaseBranch, CaseStatement
-from plx.model.task import Task, TaskType
+from plx.model.task import ContinuousTask, PeriodicTask
 from plx.model.types import (
     EnumMember,
     EnumType,
@@ -254,8 +254,8 @@ class TestProjectDuplicateTasks:
             Project(
                 name="Test",
                 tasks=[
-                    Task(name="Main", task_type=TaskType.CONTINUOUS),
-                    Task(name="Main", task_type=TaskType.CONTINUOUS),
+                    ContinuousTask(name="Main"),
+                    ContinuousTask(name="Main"),
                 ],
             )
 
@@ -263,8 +263,8 @@ class TestProjectDuplicateTasks:
         proj = Project(
             name="Test",
             tasks=[
-                Task(name="Main", task_type=TaskType.CONTINUOUS),
-                Task(name="Fast", task_type=TaskType.PERIODIC, interval="T#10ms"),
+                ContinuousTask(name="Main"),
+                PeriodicTask(name="Fast", interval="T#10ms"),
             ],
         )
         assert len(proj.tasks) == 2

@@ -210,7 +210,7 @@ class ASTCompiler(_StatementMixin, _ExpressionMixin, _SentinelMixin):
         if instance_name not in self.ctx.static_var_types:
             return None
         type_ref = self.ctx.static_var_types[instance_name]
-        fb_type = type_ref.name if isinstance(type_ref, NamedTypeRef) else None
+        fb_type = type_ref if isinstance(type_ref, NamedTypeRef) else None
         inputs = self._compile_call_kwargs(call_node)
         return FBInvocation(
             instance_name=instance_name,
@@ -236,6 +236,6 @@ class ASTCompiler(_StatementMixin, _ExpressionMixin, _SentinelMixin):
                 array=VariableRef(name=array_name),
                 indices=index_exprs,
             ),
-            fb_type=elem.name,
+            fb_type=elem,
             inputs=inputs,
         )

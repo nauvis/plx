@@ -54,7 +54,7 @@ from plx.model.statements import (
     ReturnStatement,
     WhileStatement,
 )
-from plx.model.task import Task, TaskType
+from plx.model.task import PeriodicTask
 from plx.model.types import (
     AliasType,
     ArrayTypeRef,
@@ -1180,9 +1180,8 @@ class TestFullProject:
                 ),
             ],
             tasks=[
-                Task(
+                PeriodicTask(
                     name="MainTask",
-                    task_type=TaskType.PERIODIC,
                     interval="T#10ms",
                     priority=1,
                     assigned_pous=["Main"],

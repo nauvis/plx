@@ -61,7 +61,7 @@ class TestFBInvocationModel:
         json_str = inv.model_dump_json()
         restored = FBInvocation.model_validate_json(json_str)
         assert restored.instance_name == "timer"
-        assert restored.fb_type == "TON"
+        assert restored.fb_type.name == "TON"
 
     def test_json_roundtrip_expression(self):
         expr = ArrayAccessExpr(
@@ -77,7 +77,7 @@ class TestFBInvocationModel:
         restored = FBInvocation.model_validate_json(json_str)
         assert isinstance(restored.instance_name, ArrayAccessExpr)
         assert restored.instance_name.array.name == "timers"
-        assert restored.fb_type == "TON"
+        assert restored.fb_type.name == "TON"
 
     def test_member_access_expression_instance(self):
         """MemberAccessExpr as instance_name (e.g. group.timer)."""
@@ -201,7 +201,7 @@ class TestFrameworkCompilerFBArray:
         assert isinstance(inv, FBInvocation)
         assert isinstance(inv.instance_name, ArrayAccessExpr)
         assert inv.instance_name.array.name == "timers"
-        assert inv.fb_type == "TON"
+        assert inv.fb_type.name == "TON"
         assert "IN" in inv.inputs
 
     def test_compile_fb_array_as_expression(self):

@@ -11,6 +11,7 @@ from .expressions import (
     FunctionCallExpr,
     LiteralExpr,
     MemberAccessExpr,
+    SubstringExpr,
     SystemFlag,
     SystemFlagExpr,
     TypeConversionExpr,
@@ -67,7 +68,14 @@ from .statements import (
     Statement,
     WhileStatement,
 )
-from .task import Task, TaskType
+from .task import (
+    ContinuousTask,
+    EventTask,
+    PeriodicTask,
+    StartupTask,
+    Task,
+    TaskType,
+)
 from .types import (
     AliasType,
     ArrayTypeRef,
@@ -126,6 +134,7 @@ __all__ = [
     "MemberAccessExpr",
     "BitAccessExpr",
     "TypeConversionExpr",
+    "SubstringExpr",
     "SystemFlag",
     "SystemFlagExpr",
     "Expression",
@@ -165,8 +174,12 @@ __all__ = [
     "POUAction",
     "POU",
     # task
-    "TaskType",
+    "PeriodicTask",
+    "ContinuousTask",
+    "EventTask",
+    "StartupTask",
     "Task",
+    "TaskType",
     # hardware
     "IODirection",
     "IOPoint",

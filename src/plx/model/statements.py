@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Literal, Union
+from typing import Annotated, Any, Literal, Union
 
 from pydantic import Field, model_validator
 
 from ._base import IRModel
 
-from .expressions import CallArg, Expression
+from .expressions import ArrayAccessExpr, CallArg, Expression, MemberAccessExpr
+from .types import NamedTypeRef, TypeRef
 
 
 class Assignment(IRModel):
@@ -128,10 +129,21 @@ class FBInvocation(IRModel):
     """
 
     kind: Literal["fb_invocation"] = "fb_invocation"
-    instance_name: str | Expression
-    fb_type: str | None = None
+    instance_name: str | ArrayAccessExpr | MemberAccessExpr
+    fb_type: TypeRef | None = None
     inputs: dict[str, Expression] = {}
     outputs: dict[str, Expression] = {}
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_fb_type(cls, data: Any) -> Any:
+        """Auto-coerce bare string fb_type to NamedTypeRef for backward compat."""
+        if isinstance(data, dict):
+            val = data.get("fb_type")
+            if isinstance(val, str):
+                data = dict(data)
+                data["fb_type"] = {"kind": "named", "name": val}
+        return data
 
 
 class EmptyStatement(IRModel):

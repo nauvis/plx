@@ -18,6 +18,7 @@ from plx.model.expressions import (
     FunctionCallExpr,
     LiteralExpr,
     MemberAccessExpr,
+    SubstringExpr,
     SystemFlag,
     SystemFlagExpr,
     TypeConversionExpr,
@@ -467,7 +468,7 @@ class ExecutionEngine:
         raise _ReturnSignal(value)
 
     def _exec_fb_invocation(self, stmt: FBInvocation) -> None:
-        fb_type = stmt.fb_type
+        fb_type = stmt.fb_type.name if isinstance(stmt.fb_type, NamedTypeRef) else None
 
         # 1. Resolve instance state
         if isinstance(stmt.instance_name, str):
@@ -893,6 +894,12 @@ class ExecutionEngine:
         value = self._eval(expr.source)
         return coerce_type(value, expr.target_type)
 
+    def _eval_substring(self, expr: SubstringExpr) -> object:
+        s = str(self._eval(expr.string))
+        start = int(self._eval(expr.start)) if expr.start is not None else None
+        end = int(self._eval(expr.end)) if expr.end is not None else None
+        return s[start:end]
+
     def _eval_system_flag(self, expr: SystemFlagExpr) -> object:
         if expr.flag == SystemFlag.FIRST_SCAN:
             return self.state.get("__system_first_scan", False)
@@ -909,6 +916,7 @@ class ExecutionEngine:
         "bit_access": _eval_bit_access,
         "array_access": _eval_array_access,
         "type_conversion": _eval_type_conversion,
+        "substring": _eval_substring,
         "system_flag": _eval_system_flag,
     }
 

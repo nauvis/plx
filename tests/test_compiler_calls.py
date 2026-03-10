@@ -34,7 +34,7 @@ class TestDelayed:
         # Should have: FBInvocation (TON), Assignment
         assert len(stmts) == 2
         assert isinstance(stmts[0], FBInvocation)
-        assert stmts[0].fb_type == "TON"
+        assert stmts[0].fb_type.name == "TON"
         assert "IN" in stmts[0].inputs
         assert "PT" in stmts[0].inputs
         # PT should be T#5s
@@ -83,7 +83,7 @@ class TestSustained:
         ctx = CompileContext()
         stmts = compile_stmts("self.output = sustained(self.input, timedelta(seconds=3))", ctx)
         assert isinstance(stmts[0], FBInvocation)
-        assert stmts[0].fb_type == "TOF"
+        assert stmts[0].fb_type.name == "TOF"
 
 
 class TestPulse:
@@ -91,7 +91,7 @@ class TestPulse:
         ctx = CompileContext()
         stmts = compile_stmts("self.output = pulse(self.input, timedelta(milliseconds=500))", ctx)
         assert isinstance(stmts[0], FBInvocation)
-        assert stmts[0].fb_type == "TP"
+        assert stmts[0].fb_type.name == "TP"
 
 
 class TestRetentive:
@@ -100,7 +100,7 @@ class TestRetentive:
         stmts = compile_stmts("self.output = retentive(self.input, timedelta(seconds=5))", ctx)
         assert len(stmts) == 2
         assert isinstance(stmts[0], FBInvocation)
-        assert stmts[0].fb_type == "RTO"
+        assert stmts[0].fb_type.name == "RTO"
         assert "IN" in stmts[0].inputs
         assert "PT" in stmts[0].inputs
         pt = stmts[0].inputs["PT"]
@@ -133,7 +133,7 @@ if retentive(self.signal, timedelta(seconds=10)):
 """, ctx)
         assert len(stmts) == 2
         assert isinstance(stmts[0], FBInvocation)
-        assert stmts[0].fb_type == "RTO"
+        assert stmts[0].fb_type.name == "RTO"
         assert isinstance(stmts[1], IfStatement)
         cond = stmts[1].if_branch.condition
         assert isinstance(cond, MemberAccessExpr)
@@ -150,7 +150,7 @@ class TestRising:
         stmts = compile_stmts("self.output = rising(self.input)", ctx)
         assert len(stmts) == 2
         assert isinstance(stmts[0], FBInvocation)
-        assert stmts[0].fb_type == "R_TRIG"
+        assert stmts[0].fb_type.name == "R_TRIG"
         assert "CLK" in stmts[0].inputs
 
     def test_generates_static_var(self):
@@ -181,7 +181,7 @@ class TestFalling:
         ctx = CompileContext()
         stmts = compile_stmts("self.output = falling(self.input)", ctx)
         assert isinstance(stmts[0], FBInvocation)
-        assert stmts[0].fb_type == "F_TRIG"
+        assert stmts[0].fb_type.name == "F_TRIG"
 
 
 # ---------------------------------------------------------------------------
@@ -198,7 +198,7 @@ class TestFBInvocation:
         assert len(stmts) == 1
         assert isinstance(stmts[0], FBInvocation)
         assert stmts[0].instance_name == "timer"
-        assert stmts[0].fb_type == "TON"
+        assert stmts[0].fb_type.name == "TON"
         assert "IN" in stmts[0].inputs
         assert "PT" in stmts[0].inputs
 
@@ -306,7 +306,7 @@ class TestCountUp:
         stmts = compile_stmts("self.output = count_up(self.input, preset=10)", ctx)
         assert len(stmts) == 2
         assert isinstance(stmts[0], FBInvocation)
-        assert stmts[0].fb_type == "CTU"
+        assert stmts[0].fb_type.name == "CTU"
         assert "CU" in stmts[0].inputs
         assert "PV" in stmts[0].inputs
         pv = stmts[0].inputs["PV"]
@@ -391,7 +391,7 @@ class TestCountDown:
         stmts = compile_stmts("self.output = count_down(self.input, preset=50)", ctx)
         assert len(stmts) == 2
         assert isinstance(stmts[0], FBInvocation)
-        assert stmts[0].fb_type == "CTD"
+        assert stmts[0].fb_type.name == "CTD"
         assert "CD" in stmts[0].inputs
         assert "PV" in stmts[0].inputs
         pv = stmts[0].inputs["PV"]
@@ -432,7 +432,7 @@ class TestCountUpDown:
         stmts = compile_stmts("self.full = count_up_down(self.part_in, self.part_out, preset=100)", ctx)
         assert len(stmts) == 2
         assert isinstance(stmts[0], FBInvocation)
-        assert stmts[0].fb_type == "CTUD"
+        assert stmts[0].fb_type.name == "CTUD"
         assert "CU" in stmts[0].inputs
         assert "CD" in stmts[0].inputs
         assert "PV" in stmts[0].inputs
@@ -585,7 +585,7 @@ class TestSetDominant:
         stmts = compile_stmts("self.output = set_dominant(self.set_sig, self.reset_sig)", ctx)
         assert len(stmts) == 2
         assert isinstance(stmts[0], FBInvocation)
-        assert stmts[0].fb_type == "SR"
+        assert stmts[0].fb_type.name == "SR"
         assert "SET1" in stmts[0].inputs
         assert "RESET" in stmts[0].inputs
 
@@ -614,7 +614,7 @@ class TestResetDominant:
         stmts = compile_stmts("self.output = reset_dominant(self.set_sig, self.reset_sig)", ctx)
         assert len(stmts) == 2
         assert isinstance(stmts[0], FBInvocation)
-        assert stmts[0].fb_type == "RS"
+        assert stmts[0].fb_type.name == "RS"
         assert "SET" in stmts[0].inputs
         assert "RESET1" in stmts[0].inputs
 

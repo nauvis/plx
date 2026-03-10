@@ -10,7 +10,13 @@ from typing import Any, overload
 
 from plx.model.pou import POU, POUType
 from plx.model.project import Project
-from plx.model.task import Task, TaskType
+from plx.model.task import (
+    ContinuousTask,
+    EventTask,
+    PeriodicTask,
+    StartupTask,
+    TaskType,
+)
 from plx.model.types import ArrayTypeRef, NamedTypeRef, PointerTypeRef, ReferenceTypeRef
 from plx.model.variables import Variable
 
@@ -49,7 +55,7 @@ class PlxTask:
         self.watchdog = watchdog
         self._pou_classes: list[type] = list(pous) if pous else []
 
-    def compile(self) -> Task:
+    def compile(self) -> PeriodicTask | ContinuousTask | EventTask | StartupTask:
         """Compile to a Task IR node."""
         assigned: list[str] = []
         for cls in self._pou_classes:
@@ -67,15 +73,20 @@ class PlxTask:
                     f"within programs, not scheduled directly."
                 )
             assigned.append(pou.name)
-        return Task(
+
+        common = dict(
             name=self.name,
-            task_type=self.task_type,
-            interval=self.interval,
             priority=self.priority,
-            trigger_variable=self.trigger_variable,
             watchdog=self.watchdog,
             assigned_pous=assigned,
         )
+        if self.task_type == TaskType.PERIODIC:
+            return PeriodicTask(interval=self.interval, **common)
+        if self.task_type == TaskType.EVENT:
+            return EventTask(trigger_variable=self.trigger_variable, **common)
+        if self.task_type == TaskType.CONTINUOUS:
+            return ContinuousTask(**common)
+        return StartupTask(**common)
 
 
 def _format_interval(value: Any) -> str:

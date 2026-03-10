@@ -16,6 +16,7 @@ from plx.model.expressions import (
     LiteralExpr,
     MemberAccessExpr,
     BitAccessExpr,
+    SubstringExpr,
     TypeConversionExpr,
     UnaryExpr,
     VariableRef,
@@ -349,6 +350,12 @@ class AnalysisVisitor:
             self._collect_reads(ctx, expr.target)
         elif isinstance(expr, TypeConversionExpr):
             self._collect_reads(ctx, expr.source)
+        elif isinstance(expr, SubstringExpr):
+            self._collect_reads(ctx, expr.string)
+            if expr.start is not None:
+                self._collect_reads(ctx, expr.start)
+            if expr.end is not None:
+                self._collect_reads(ctx, expr.end)
         # LiteralExpr, SystemFlagExpr — no reads
 
     @staticmethod

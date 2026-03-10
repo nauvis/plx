@@ -10,7 +10,7 @@ from ._base import IRModel
 
 from .hardware import Controller
 from .pou import POU
-from .task import Task
+from .task import Task, _coerce_old_task_format
 from .types import TypeDefinition
 from .variables import Variable
 
@@ -66,6 +66,17 @@ class Project(IRModel):
     tasks: list[Task] = []
     libraries: list[LibraryReference] = []
     metadata: dict[str, Any] = {}
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_old_tasks(cls, data: Any) -> Any:
+        """Pre-process old-format task dicts (task_type → kind)."""
+        if isinstance(data, dict) and "tasks" in data:
+            tasks = data["tasks"]
+            if isinstance(tasks, list):
+                data = dict(data)
+                data["tasks"] = [_coerce_old_task_format(t) for t in tasks]
+        return data
 
     @model_validator(mode="after")
     def _no_duplicate_pou_names(self) -> Self:

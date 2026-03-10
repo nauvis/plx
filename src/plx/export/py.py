@@ -18,6 +18,7 @@ from plx.model.expressions import (
     FunctionCallExpr,
     LiteralExpr,
     MemberAccessExpr,
+    SubstringExpr,
     SystemFlag,
     SystemFlagExpr,
     TypeConversionExpr,
@@ -53,7 +54,13 @@ from plx.model.statements import (
     Statement,
     WhileStatement,
 )
-from plx.model.task import Task, TaskType
+from plx.model.task import (
+    ContinuousTask,
+    EventTask,
+    PeriodicTask,
+    StartupTask,
+    Task,
+)
 from plx.model.types import (
     AliasType,
     ArrayTypeRef,
@@ -1355,6 +1362,12 @@ class PyWriter:
             return tr.name
         return "???"
 
+    def _expr_substring(self, expr: SubstringExpr, _prec: int) -> str:
+        s = self._expr(expr.string)
+        start = self._expr(expr.start) if expr.start is not None else ""
+        end = self._expr(expr.end) if expr.end is not None else ""
+        return f"{s}[{start}:{end}]"
+
     def _expr_system_flag(self, expr: SystemFlagExpr, _prec: int) -> str:
         if expr.flag == SystemFlag.FIRST_SCAN:
             return "first_scan()"
@@ -1407,17 +1420,17 @@ class PyWriter:
     def _write_task(self, t: Task, var_name: str) -> None:
         kwargs: list[str] = []
 
-        if t.task_type == TaskType.PERIODIC and t.interval:
+        if isinstance(t, PeriodicTask):
             interval = _parse_iec_time(t.interval)
             if interval:
                 kwargs.append(f"periodic={interval}")
             else:
                 kwargs.append(f'periodic="{t.interval}"')
-        elif t.task_type == TaskType.CONTINUOUS:
+        elif isinstance(t, ContinuousTask):
             kwargs.append("continuous=True")
-        elif t.task_type == TaskType.EVENT and t.trigger_variable:
+        elif isinstance(t, EventTask):
             kwargs.append(f'event="{t.trigger_variable}"')
-        elif t.task_type == TaskType.STARTUP:
+        elif isinstance(t, StartupTask):
             kwargs.append("startup=True")
 
         if t.assigned_pous:
@@ -1460,6 +1473,7 @@ _EXPR_WRITERS = {
     "member_access": PyWriter._expr_member_access,
     "bit_access": PyWriter._expr_bit_access,
     "type_conversion": PyWriter._expr_type_conversion,
+    "substring": PyWriter._expr_substring,
     "system_flag": PyWriter._expr_system_flag,
 }
 

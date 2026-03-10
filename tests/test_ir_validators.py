@@ -19,7 +19,7 @@ from plx.model.sfc import (
     Transition,
 )
 from plx.model.statements import Assignment, CaseRange
-from plx.model.task import Task, TaskType
+from plx.model.task import ContinuousTask, EventTask, PeriodicTask, StartupTask
 
 
 # ---------------------------------------------------------------------------
@@ -64,55 +64,40 @@ class TestCaseRange:
 class TestTask:
     def test_periodic_with_interval(self):
         """PERIODIC task with interval is valid."""
-        t = Task(name="Main", task_type=TaskType.PERIODIC, interval="T#10ms")
+        t = PeriodicTask(name="Main", interval="T#10ms")
         assert t.interval == "T#10ms"
+        assert t.kind == "periodic"
 
     def test_periodic_without_interval(self):
         """PERIODIC task without interval raises ValidationError."""
-        with pytest.raises(ValidationError, match="PERIODIC task requires 'interval'"):
-            Task(name="Main", task_type=TaskType.PERIODIC)
+        with pytest.raises(ValidationError):
+            PeriodicTask(name="Main")
 
     def test_event_with_trigger(self):
         """EVENT task with trigger_variable is valid."""
-        t = Task(
-            name="EventTask",
-            task_type=TaskType.EVENT,
-            trigger_variable="StartSignal",
-        )
+        t = EventTask(name="EventTask", trigger_variable="StartSignal")
         assert t.trigger_variable == "StartSignal"
+        assert t.kind == "event"
 
     def test_event_without_trigger(self):
         """EVENT task without trigger_variable raises ValidationError."""
-        with pytest.raises(ValidationError, match="EVENT task requires 'trigger_variable'"):
-            Task(name="EventTask", task_type=TaskType.EVENT)
+        with pytest.raises(ValidationError):
+            EventTask(name="EventTask")
 
     def test_continuous_valid(self):
         """CONTINUOUS task with no interval and no trigger is valid."""
-        t = Task(name="Free", task_type=TaskType.CONTINUOUS)
-        assert t.interval is None
-        assert t.trigger_variable is None
+        t = ContinuousTask(name="Free")
+        assert t.kind == "continuous"
 
-    def test_continuous_with_interval(self):
-        """CONTINUOUS task must not have interval."""
-        with pytest.raises(
-            ValidationError, match="CONTINUOUS task must not have 'interval'"
-        ):
-            Task(
-                name="Free",
-                task_type=TaskType.CONTINUOUS,
-                interval="T#10ms",
-            )
+    def test_continuous_rejects_extra_fields(self):
+        """CONTINUOUS task rejects unknown fields (extra='forbid')."""
+        with pytest.raises(ValidationError):
+            ContinuousTask(name="Free", interval="T#10ms")
 
-    def test_startup_with_trigger(self):
-        """STARTUP task must not have trigger_variable."""
-        with pytest.raises(
-            ValidationError, match="STARTUP task must not have 'trigger_variable'"
-        ):
-            Task(
-                name="Init",
-                task_type=TaskType.STARTUP,
-                trigger_variable="Trig",
-            )
+    def test_startup_rejects_extra_fields(self):
+        """STARTUP task rejects unknown fields (extra='forbid')."""
+        with pytest.raises(ValidationError):
+            StartupTask(name="Init", trigger_variable="Trig")
 
 
 # ===========================================================================

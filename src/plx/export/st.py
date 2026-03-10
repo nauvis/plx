@@ -18,6 +18,7 @@ from plx.model.expressions import (
     FunctionCallExpr,
     LiteralExpr,
     MemberAccessExpr,
+    SubstringExpr,
     SystemFlag,
     SystemFlagExpr,
     TypeConversionExpr,
@@ -661,6 +662,15 @@ class STWriter:
             return f"{source}_TO_{target}({self._expr(expr.source)})"
         return f"{target}({self._expr(expr.source)})"
 
+    def _expr_substring(self, expr: SubstringExpr, _prec: int) -> str:
+        s = self._expr(expr.string)
+        parts = [s]
+        if expr.start is not None:
+            parts.append(self._expr(expr.start))
+        if expr.end is not None:
+            parts.append(self._expr(expr.end))
+        return f"MID({', '.join(parts)})"
+
     def _expr_system_flag(self, expr: SystemFlagExpr, _prec: int) -> str:
         if expr.flag == SystemFlag.FIRST_SCAN:
             return "FirstScan"
@@ -899,5 +909,6 @@ _EXPR_WRITERS = {
     "member_access": STWriter._expr_member_access,
     "bit_access": STWriter._expr_bit_access,
     "type_conversion": STWriter._expr_type_conversion,
+    "substring": STWriter._expr_substring,
     "system_flag": STWriter._expr_system_flag,
 }
