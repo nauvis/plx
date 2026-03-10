@@ -25,11 +25,7 @@ from plx.model.variables import Variable
 from ._compiler_core import (
     CompileContext,
     CompileError,
-    _BISTABLE_SENTINELS,
-    _COUNTER_SENTINELS,
-    _EDGE_SENTINELS,
-    _SYSTEM_FLAG_SENTINELS,
-    _TIMER_SENTINELS,
+    SENTINEL_REGISTRY,
 )
 
 if TYPE_CHECKING:
@@ -142,7 +138,7 @@ class _SentinelMixin:
 
     def _compile_timer_sentinel(self, sentinel_name: str, node: ast.Call) -> Expression:
         """Compile delayed/sustained/pulse sentinel into TON/TOF/TP."""
-        fb_type, input_name, pt_name = _TIMER_SENTINELS[sentinel_name]
+        s = SENTINEL_REGISTRY[sentinel_name]
 
         if not node.args:
             raise CompileError(f"{sentinel_name}() requires a signal argument", node, self.ctx)
@@ -151,11 +147,13 @@ class _SentinelMixin:
         signal = self.compile_expression(node.args[0])
         duration = _parse_duration_kwarg(node, self.ctx, self)
 
-        return self._emit_fb_sentinel(fb_type, {input_name: signal, pt_name: duration}, name=user_name)
+        return self._emit_fb_sentinel(
+            s.fb_type, {s.params["signal"]: signal, s.params["duration"]: duration}, name=user_name,
+        )
 
     def _compile_edge_sentinel(self, sentinel_name: str, node: ast.Call) -> Expression:
         """Compile rising/falling sentinel into R_TRIG/F_TRIG."""
-        fb_type = _EDGE_SENTINELS[sentinel_name]
+        s = SENTINEL_REGISTRY[sentinel_name]
 
         if not node.args:
             raise CompileError(f"{sentinel_name}() requires a signal argument", node, self.ctx)
@@ -163,11 +161,11 @@ class _SentinelMixin:
         user_name = _extract_name_kwarg(node, self.ctx)
         signal = self.compile_expression(node.args[0])
 
-        return self._emit_fb_sentinel(fb_type, {"CLK": signal}, name=user_name)
+        return self._emit_fb_sentinel(s.fb_type, {s.params["signal"]: signal}, name=user_name)
 
     def _compile_counter_sentinel(self, sentinel_name: str, node: ast.Call) -> Expression:
         """Compile count_up/count_down sentinel into CTU/CTD."""
-        fb_type, count_input, pv_input, ctrl_input = _COUNTER_SENTINELS[sentinel_name]
+        s = SENTINEL_REGISTRY[sentinel_name]
 
         if not node.args:
             raise CompileError(f"{sentinel_name}() requires a signal argument", node, self.ctx)
@@ -193,14 +191,14 @@ class _SentinelMixin:
         else:
             preset_expr = self.compile_expression(preset_node)
 
-        inputs = {count_input: signal, pv_input: preset_expr}
+        inputs = {s.params["signal"]: signal, s.params["preset"]: preset_expr}
 
         # Optional reset/load
         ctrl_kwarg = "reset" if sentinel_name == "count_up" else "load"
         if ctrl_kwarg in keywords:
-            inputs[ctrl_input] = self.compile_expression(keywords[ctrl_kwarg])
+            inputs[s.params["control"]] = self.compile_expression(keywords[ctrl_kwarg])
 
-        return self._emit_fb_sentinel(fb_type, inputs, name=user_name)
+        return self._emit_fb_sentinel(s.fb_type, inputs, name=user_name)
 
     def _compile_ctud_sentinel(self, sentinel_name: str, node: ast.Call) -> Expression:
         """Compile count_up_down sentinel into CTUD."""
@@ -241,7 +239,7 @@ class _SentinelMixin:
 
     def _compile_bistable_sentinel(self, sentinel_name: str, node: ast.Call) -> Expression:
         """Compile set_dominant/reset_dominant sentinel into SR/RS."""
-        fb_type, set_input, reset_input = _BISTABLE_SENTINELS[sentinel_name]
+        s = SENTINEL_REGISTRY[sentinel_name]
 
         if len(node.args) < 2:
             raise CompileError(
@@ -254,8 +252,8 @@ class _SentinelMixin:
         reset_signal = self.compile_expression(node.args[1])
 
         return self._emit_fb_sentinel(
-            fb_type,
-            {set_input: set_signal, reset_input: reset_signal},
+            s.fb_type,
+            {s.params["set"]: set_signal, s.params["reset"]: reset_signal},
             output_member="Q1",
             name=user_name,
         )
@@ -264,4 +262,4 @@ class _SentinelMixin:
         """Compile first_scan() and other system flag sentinels."""
         if node.args or node.keywords:
             raise CompileError(f"{name}() takes no arguments", node, self.ctx)
-        return SystemFlagExpr(flag=_SYSTEM_FLAG_SENTINELS[name])
+        return SystemFlagExpr(flag=SENTINEL_REGISTRY[name].system_flag)

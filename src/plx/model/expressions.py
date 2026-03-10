@@ -134,6 +134,15 @@ class TypeConversionExpr(IRModel):
     source_type: TypeRef | None = None
 
 
+class SubstringExpr(IRModel):
+    """Substring extraction: MID(string, start, end)."""
+
+    kind: Literal["substring"] = "substring"
+    string: Expression
+    start: Expression | None = None
+    end: Expression | None = None
+
+
 Expression = Annotated[
     Union[
         LiteralExpr,
@@ -145,6 +154,7 @@ Expression = Annotated[
         MemberAccessExpr,
         BitAccessExpr,
         TypeConversionExpr,
+        SubstringExpr,
         SystemFlagExpr,
     ],
     Field(discriminator="kind"),
@@ -159,4 +169,5 @@ ArrayAccessExpr.model_rebuild()
 MemberAccessExpr.model_rebuild()
 BitAccessExpr.model_rebuild()
 TypeConversionExpr.model_rebuild()
+SubstringExpr.model_rebuild()
 SystemFlagExpr.model_rebuild()

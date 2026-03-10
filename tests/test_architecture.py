@@ -40,22 +40,11 @@ class TestBuiltinCoverage:
 
     def test_sentinel_fb_types_fully_covered(self):
         """All sentinel FB types are present in BUILTIN_FBS."""
-        from plx.framework._compiler_core import (
-            _BISTABLE_SENTINELS,
-            _COUNTER_SENTINELS,
-            _EDGE_SENTINELS,
-            _TIMER_SENTINELS,
-        )
+        from plx.framework._compiler_core import SENTINEL_REGISTRY
 
-        sentinel_fb_types: set[str] = set()
-        for _name, val in _TIMER_SENTINELS.items():
-            sentinel_fb_types.add(val[0])
-        for _name, val in _COUNTER_SENTINELS.items():
-            sentinel_fb_types.add(val[0])
-        for _name, val in _BISTABLE_SENTINELS.items():
-            sentinel_fb_types.add(val[0])
-        for _name, fb_type in _EDGE_SENTINELS.items():
-            sentinel_fb_types.add(fb_type)
+        sentinel_fb_types = {
+            sd.fb_type for sd in SENTINEL_REGISTRY.values() if sd.fb_type
+        }
 
         missing = sentinel_fb_types - BUILTIN_FBS.keys()
         assert missing == set(), f"Missing builtin FBs: {missing}"

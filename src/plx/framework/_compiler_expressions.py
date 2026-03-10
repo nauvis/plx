@@ -45,6 +45,7 @@ from ._compiler_core import (
     _REJECTED_BUILTINS,
     _REJECTED_CMPOP_MESSAGES,
     _TYPE_CONV_RE,
+    _infer_type,
 )
 
 if TYPE_CHECKING:
@@ -119,7 +120,6 @@ class _ExpressionMixin:
             bit_index = int(m.group(1))
             target = self.compile_expression(node.value)
             # Validate target type supports bit access when type is known
-            from ._compiler_statements import _infer_type
             target_type = _infer_type(node.value, self.ctx)
             if target_type is not None:
                 if isinstance(target_type, PrimitiveTypeRef):
@@ -161,7 +161,6 @@ class _ExpressionMixin:
             raise CompileError(rejected_msg, node, self.ctx)
         # Reject string concatenation via + — use f-strings instead
         if isinstance(node.op, ast.Add):
-            from ._compiler_statements import _infer_type
             left_type = _infer_type(node.left, self.ctx)
             right_type = _infer_type(node.right, self.ctx)
             if isinstance(left_type, StringTypeRef) or isinstance(right_type, StringTypeRef):
@@ -653,7 +652,6 @@ class _ExpressionMixin:
             return expr
 
         # Infer the type to determine if conversion is needed
-        from ._compiler_statements import _infer_type
         inferred = _infer_type(node.value, self.ctx)
 
         # Already a string → no conversion

@@ -45,15 +45,13 @@ from plx.model.variables import Variable
 
 from ._compiler_core import (
     CompileError,
-    _COUNTER_SENTINELS,
-    _EDGE_SENTINELS,
+    SENTINEL_REGISTRY,
     _PYTHON_BUILTIN_MAP,
     _REJECTED_AUGOP_MESSAGES,
     _REJECTED_BINOP_MESSAGES,
     _REJECTED_BUILTINS,
     _BINOP_MAP,
-    _SYSTEM_FLAG_SENTINELS,
-    _TIMER_SENTINELS,
+    _infer_type,
     resolve_annotation,
 )
 from ._descriptors import VarDirection
@@ -62,83 +60,6 @@ if TYPE_CHECKING:
     from ._compiler import ASTCompiler
 
 from ._compiler_core import CompileContext
-
-
-# ---------------------------------------------------------------------------
-# Type inference for bare assignments
-# ---------------------------------------------------------------------------
-
-def _infer_type(node: ast.expr, ctx: CompileContext) -> TypeRef | None:
-    """Try to infer a PLC type from an AST expression node.
-
-    Returns a TypeRef if the type can be determined unambiguously,
-    None otherwise (caller should fall back to requiring annotation).
-    """
-    # Boolean literals
-    if isinstance(node, ast.Constant):
-        if isinstance(node.value, bool):
-            return PrimitiveTypeRef(type=PrimitiveType.BOOL)
-        if isinstance(node.value, int):
-            return PrimitiveTypeRef(type=PrimitiveType.DINT)
-        if isinstance(node.value, float):
-            return PrimitiveTypeRef(type=PrimitiveType.REAL)
-        if isinstance(node.value, str):
-            return StringTypeRef()
-
-    # True/False name references
-    if isinstance(node, ast.Name) and node.id in ("True", "False", "TRUE", "FALSE"):
-        return PrimitiveTypeRef(type=PrimitiveType.BOOL)
-
-    # not x → BOOL
-    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
-        return PrimitiveTypeRef(type=PrimitiveType.BOOL)
-
-    # x and y, x or y → BOOL
-    if isinstance(node, ast.BoolOp):
-        return PrimitiveTypeRef(type=PrimitiveType.BOOL)
-
-    # x > y, x == y, etc. → BOOL
-    if isinstance(node, ast.Compare):
-        return PrimitiveTypeRef(type=PrimitiveType.BOOL)
-
-    # self.var_name → look up the declared type
-    if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "self":
-        var_type = ctx.static_var_types.get(node.attr)
-        if var_type is not None:
-            return var_type
-
-    # Local variable reference → look up from generated temps
-    if isinstance(node, ast.Name):
-        name = node.id
-        # Check generated temp vars
-        for var in ctx.generated_temp_vars:
-            if var.name == name:
-                return var.data_type
-        # Check static var types (covers input/output/static/inout)
-        var_type = ctx.static_var_types.get(name)
-        if var_type is not None:
-            return var_type
-
-    # Unary minus: -x → infer from operand
-    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
-        return _infer_type(node.operand, ctx)
-
-    # Binary arithmetic: infer from operands (both must agree or one must be known)
-    if isinstance(node, ast.BinOp) and not isinstance(node.op, (ast.BitAnd, ast.BitOr, ast.BitXor)):
-        left = _infer_type(node.left, ctx)
-        right = _infer_type(node.right, ctx)
-        if left is not None and right is not None:
-            # REAL wins over integer types
-            if _is_real(left) or _is_real(right):
-                return PrimitiveTypeRef(type=PrimitiveType.REAL)
-            return left
-        return left or right
-
-    return None
-
-
-def _is_real(t: TypeRef) -> bool:
-    return isinstance(t, PrimitiveTypeRef) and t.type in (PrimitiveType.REAL, PrimitiveType.LREAL)
 
 
 # ---------------------------------------------------------------------------
@@ -501,7 +422,7 @@ class _StatementMixin:
         if isinstance(func, ast.Name):
             name = func.id
             # Check if it's a sentinel (should be used as expression, not statement)
-            if name in _TIMER_SENTINELS or name in _EDGE_SENTINELS or name in _COUNTER_SENTINELS or name in _SYSTEM_FLAG_SENTINELS:
+            if name in SENTINEL_REGISTRY:
                 raise CompileError(
                     f"{name}() must be used in an expression (e.g. in an assignment or if condition), "
                     f"not as a standalone statement",

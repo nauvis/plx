@@ -257,36 +257,6 @@ _REJECTED_BUILTINS: dict[str, str] = {
     "CONCAT": "CONCAT() is not available directly. Use an f-string instead: f\"prefix {self.var}\"",
 }
 
-# Sentinel function names
-_TIMER_SENTINELS = {
-    "delayed": ("TON", "IN", "PT"),
-    "sustained": ("TOF", "IN", "PT"),
-    "pulse": ("TP", "IN", "PT"),
-    "retentive": ("RTO", "IN", "PT"),
-}
-
-_EDGE_SENTINELS = {
-    "rising": "R_TRIG",
-    "falling": "F_TRIG",
-}
-
-_COUNTER_SENTINELS = {
-    "count_up": ("CTU", "CU", "PV", "RESET"),
-    "count_down": ("CTD", "CD", "PV", "LOAD"),
-}
-
-_CTUD_SENTINEL = ("CTUD", "CU", "CD", "PV", "RESET", "LOAD")
-
-_BISTABLE_SENTINELS = {
-    "set_dominant": ("SR", "SET1", "RESET"),
-    "reset_dominant": ("RS", "SET", "RESET1"),
-}
-
-_SYSTEM_FLAG_SENTINELS = {
-    "first_scan": SystemFlag.FIRST_SCAN,
-}
-
-
 # ---------------------------------------------------------------------------
 # Unified sentinel registry
 # ---------------------------------------------------------------------------
@@ -302,46 +272,56 @@ class SentinelDef:
     system_flag: SystemFlag | None = None
 
 
-SENTINEL_REGISTRY: dict[str, SentinelDef] = {}
-
-for _name, (_fb, _input_name, _pt_name) in _TIMER_SENTINELS.items():
-    SENTINEL_REGISTRY[_name] = SentinelDef(
-        name=_name, category="timer", fb_type=_fb,
-        params={"signal": _input_name, "duration": _pt_name},
-    )
-
-for _name, _fb in _EDGE_SENTINELS.items():
-    SENTINEL_REGISTRY[_name] = SentinelDef(
-        name=_name, category="edge", fb_type=_fb,
+SENTINEL_REGISTRY: dict[str, SentinelDef] = {
+    "delayed": SentinelDef(
+        name="delayed", category="timer", fb_type="TON",
+        params={"signal": "IN", "duration": "PT"},
+    ),
+    "sustained": SentinelDef(
+        name="sustained", category="timer", fb_type="TOF",
+        params={"signal": "IN", "duration": "PT"},
+    ),
+    "pulse": SentinelDef(
+        name="pulse", category="timer", fb_type="TP",
+        params={"signal": "IN", "duration": "PT"},
+    ),
+    "retentive": SentinelDef(
+        name="retentive", category="timer", fb_type="RTO",
+        params={"signal": "IN", "duration": "PT"},
+    ),
+    "rising": SentinelDef(
+        name="rising", category="edge", fb_type="R_TRIG",
         params={"signal": "CLK"},
-    )
-
-for _name, (_fb, _count_input, _pv_input, _ctrl_input) in _COUNTER_SENTINELS.items():
-    SENTINEL_REGISTRY[_name] = SentinelDef(
-        name=_name, category="counter", fb_type=_fb,
-        params={"signal": _count_input, "preset": _pv_input, "control": _ctrl_input},
-    )
-
-SENTINEL_REGISTRY["count_up_down"] = SentinelDef(
-    name="count_up_down", category="ctud", fb_type="CTUD",
-    params={"up": "CU", "down": "CD", "preset": "PV", "reset": "RESET", "load": "LOAD"},
-)
-
-for _name, (_fb, _set_input, _reset_input) in _BISTABLE_SENTINELS.items():
-    SENTINEL_REGISTRY[_name] = SentinelDef(
-        name=_name, category="bistable", fb_type=_fb,
-        params={"set": _set_input, "reset": _reset_input},
-    )
-
-for _name, _flag in _SYSTEM_FLAG_SENTINELS.items():
-    SENTINEL_REGISTRY[_name] = SentinelDef(
-        name=_name, category="system_flag", fb_type="",
-        system_flag=_flag,
-    )
-
-# Clean up loop variables
-del _name, _fb, _input_name, _pt_name, _count_input, _pv_input, _ctrl_input  # noqa: F821
-del _set_input, _reset_input, _flag
+    ),
+    "falling": SentinelDef(
+        name="falling", category="edge", fb_type="F_TRIG",
+        params={"signal": "CLK"},
+    ),
+    "count_up": SentinelDef(
+        name="count_up", category="counter", fb_type="CTU",
+        params={"signal": "CU", "preset": "PV", "control": "RESET"},
+    ),
+    "count_down": SentinelDef(
+        name="count_down", category="counter", fb_type="CTD",
+        params={"signal": "CD", "preset": "PV", "control": "LOAD"},
+    ),
+    "count_up_down": SentinelDef(
+        name="count_up_down", category="ctud", fb_type="CTUD",
+        params={"up": "CU", "down": "CD", "preset": "PV", "reset": "RESET", "load": "LOAD"},
+    ),
+    "set_dominant": SentinelDef(
+        name="set_dominant", category="bistable", fb_type="SR",
+        params={"set": "SET1", "reset": "RESET"},
+    ),
+    "reset_dominant": SentinelDef(
+        name="reset_dominant", category="bistable", fb_type="RS",
+        params={"set": "SET", "reset": "RESET1"},
+    ),
+    "first_scan": SentinelDef(
+        name="first_scan", category="system_flag", fb_type="",
+        system_flag=SystemFlag.FIRST_SCAN,
+    ),
+}
 
 
 # Complete set of rejected AST node types
@@ -413,3 +393,80 @@ def resolve_annotation(
     if location_hint:
         msg = f"{msg} ({location_hint})"
     raise CompileError(msg, node, ctx)
+
+
+# ---------------------------------------------------------------------------
+# Type inference for bare assignments
+# ---------------------------------------------------------------------------
+
+def _infer_type(node: ast.expr, ctx: CompileContext) -> TypeRef | None:
+    """Try to infer a PLC type from an AST expression node.
+
+    Returns a TypeRef if the type can be determined unambiguously,
+    None otherwise (caller should fall back to requiring annotation).
+    """
+    # Boolean literals
+    if isinstance(node, ast.Constant):
+        if isinstance(node.value, bool):
+            return PrimitiveTypeRef(type=PrimitiveType.BOOL)
+        if isinstance(node.value, int):
+            return PrimitiveTypeRef(type=PrimitiveType.DINT)
+        if isinstance(node.value, float):
+            return PrimitiveTypeRef(type=PrimitiveType.REAL)
+        if isinstance(node.value, str):
+            return StringTypeRef()
+
+    # True/False name references
+    if isinstance(node, ast.Name) and node.id in ("True", "False", "TRUE", "FALSE"):
+        return PrimitiveTypeRef(type=PrimitiveType.BOOL)
+
+    # not x → BOOL
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+        return PrimitiveTypeRef(type=PrimitiveType.BOOL)
+
+    # x and y, x or y → BOOL
+    if isinstance(node, ast.BoolOp):
+        return PrimitiveTypeRef(type=PrimitiveType.BOOL)
+
+    # x > y, x == y, etc. → BOOL
+    if isinstance(node, ast.Compare):
+        return PrimitiveTypeRef(type=PrimitiveType.BOOL)
+
+    # self.var_name → look up the declared type
+    if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "self":
+        var_type = ctx.static_var_types.get(node.attr)
+        if var_type is not None:
+            return var_type
+
+    # Local variable reference → look up from generated temps
+    if isinstance(node, ast.Name):
+        name = node.id
+        # Check generated temp vars
+        for var in ctx.generated_temp_vars:
+            if var.name == name:
+                return var.data_type
+        # Check static var types (covers input/output/static/inout)
+        var_type = ctx.static_var_types.get(name)
+        if var_type is not None:
+            return var_type
+
+    # Unary minus: -x → infer from operand
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
+        return _infer_type(node.operand, ctx)
+
+    # Binary arithmetic: infer from operands (both must agree or one must be known)
+    if isinstance(node, ast.BinOp) and not isinstance(node.op, (ast.BitAnd, ast.BitOr, ast.BitXor)):
+        left = _infer_type(node.left, ctx)
+        right = _infer_type(node.right, ctx)
+        if left is not None and right is not None:
+            # REAL wins over integer types
+            if _is_real(left) or _is_real(right):
+                return PrimitiveTypeRef(type=PrimitiveType.REAL)
+            return left
+        return left or right
+
+    return None
+
+
+def _is_real(t: TypeRef) -> bool:
+    return isinstance(t, PrimitiveTypeRef) and t.type in (PrimitiveType.REAL, PrimitiveType.LREAL)
