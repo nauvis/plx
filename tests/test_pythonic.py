@@ -35,6 +35,9 @@ from plx.framework import (
     DINT,
     BOOL,
     CompileError,
+    # Lowercase type classes
+    dint,
+    real,
 )
 from plx.framework._descriptors import _collect_descriptors
 from plx.model.types import PrimitiveType, PrimitiveTypeRef, NamedTypeRef
@@ -382,3 +385,129 @@ class TestAnnotatedMetadata:
         var = pou.interface.input_vars[0]
         assert var.description == "No default sensor"
         assert var.initial_value is None
+
+
+# ===========================================================================
+# 6. Lowercase API aliases
+# ===========================================================================
+
+class TestLowercaseTypeConstants:
+    """Lowercase type name constants work as annotations."""
+
+    def test_time_annotation(self):
+        from plx.framework import time
+        @fb
+        class TimerFB:
+            duration: Input[time]
+            def logic(self):
+                pass
+        pou = TimerFB.compile()
+        assert pou.interface.input_vars[0].data_type == PrimitiveTypeRef(type=PrimitiveType.TIME)
+
+    def test_char_annotation(self):
+        from plx.framework import char
+        @fb
+        class CharFB:
+            c: Input[char]
+            def logic(self):
+                pass
+        pou = CharFB.compile()
+        assert pou.interface.input_vars[0].data_type == PrimitiveTypeRef(type=PrimitiveType.CHAR)
+
+    def test_date_annotation(self):
+        from plx.framework import date
+        @fb
+        class DateFB:
+            d: Input[date]
+            def logic(self):
+                pass
+        pou = DateFB.compile()
+        assert pou.interface.input_vars[0].data_type == PrimitiveTypeRef(type=PrimitiveType.DATE)
+
+
+class TestLowercaseFBConstants:
+    """Lowercase FB type constants work as annotations."""
+
+    def test_ton_annotation(self):
+        from plx.framework import ton
+        @fb
+        class MyFB:
+            timer: ton
+            def logic(self):
+                pass
+        pou = MyFB.compile()
+        assert any(v.name == "timer" for v in pou.interface.static_vars)
+
+    def test_ton_same_as_uppercase(self):
+        from plx.framework import TON, ton
+        assert ton == TON
+
+    def test_all_fb_aliases_match(self):
+        from plx.framework import (
+            TON, ton, TOF, tof, TP, tp, RTO, rto,
+            R_TRIG, r_trig, F_TRIG, f_trig,
+            CTU, ctu, CTD, ctd, CTUD, ctud, SR, sr, RS, rs,
+        )
+        assert ton == TON
+        assert tof == TOF
+        assert tp == TP
+        assert rto == RTO
+        assert r_trig == R_TRIG
+        assert f_trig == F_TRIG
+        assert ctu == CTU
+        assert ctd == CTD
+        assert ctud == CTUD
+        assert sr == SR
+        assert rs == RS
+
+
+class TestLowercaseTypeConstructors:
+    """Lowercase type constructors work identically to uppercase."""
+
+    def test_array(self):
+        from plx.framework import array, ARRAY
+        assert array(dint, 10) == ARRAY(dint, 10)
+
+    def test_string(self):
+        from plx.framework import string, STRING
+        assert string(80) == STRING(80)
+
+    def test_wstring(self):
+        from plx.framework import wstring, WSTRING
+        assert wstring(100) == WSTRING(100)
+
+    def test_pointer_to(self):
+        from plx.framework import pointer_to, POINTER_TO
+        assert pointer_to(dint) == POINTER_TO(dint)
+
+    def test_reference_to(self):
+        from plx.framework import reference_to, REFERENCE_TO
+        assert reference_to(real) == REFERENCE_TO(real)
+
+    def test_array_in_annotation(self):
+        from plx.framework import array
+        @fb
+        class ArrFB:
+            data: Static[array(dint, 5)]
+            def logic(self):
+                pass
+        pou = ArrFB.compile()
+        var = pou.interface.static_vars[0]
+        assert var.name == "data"
+
+
+class TestLowercaseAnnotationResolution:
+    """Lowercase names resolve correctly in logic() body via _PYTHON_ANNOTATION_MAP."""
+
+    def test_ton_resolves_to_uppercase(self):
+        """Critically: 'ton' in logic() must resolve to NamedTypeRef('TON'), not 'ton'."""
+        import ast
+        from plx.framework._compiler_core import resolve_annotation
+        result = resolve_annotation(ast.Name(id="ton"))
+        assert result == NamedTypeRef(name="TON")
+
+    def test_time_resolves(self):
+        import ast
+        from plx.framework._compiler_core import resolve_annotation
+        result = resolve_annotation(ast.Name(id="time"))
+        assert result == PrimitiveTypeRef(type=PrimitiveType.TIME)

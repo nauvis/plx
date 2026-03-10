@@ -64,6 +64,19 @@ LDT = PrimitiveType.LDT
 CHAR = PrimitiveType.CHAR
 WCHAR = PrimitiveType.WCHAR
 
+# Lowercase aliases for date/time/character types.
+# (Integer/float/bit-string types are classes in _plc_types.py.)
+time = PrimitiveType.TIME
+ltime = PrimitiveType.LTIME
+date = PrimitiveType.DATE
+ldate = PrimitiveType.LDATE
+tod = PrimitiveType.TOD
+ltod = PrimitiveType.LTOD
+dt = PrimitiveType.DT
+ldt = PrimitiveType.LDT
+char = PrimitiveType.CHAR
+wchar = PrimitiveType.WCHAR
+
 
 # ---------------------------------------------------------------------------
 # timedelta → IEC 61131-3 conversion
@@ -235,6 +248,14 @@ def POINTER_TO(target: PrimitiveType | TypeRef | type | str) -> PointerTypeRef:
 def REFERENCE_TO(target: PrimitiveType | TypeRef | type | str) -> ReferenceTypeRef:
     """Create a REFERENCE TO type reference."""
     return ReferenceTypeRef(target_type=_resolve_type_ref(target))
+
+
+# Lowercase aliases for type constructors
+array = ARRAY
+string = STRING
+wstring = WSTRING
+pointer_to = POINTER_TO
+reference_to = REFERENCE_TO
 
 
 # ---------------------------------------------------------------------------

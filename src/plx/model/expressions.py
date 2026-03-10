@@ -135,12 +135,26 @@ class TypeConversionExpr(IRModel):
 
 
 class SubstringExpr(IRModel):
-    """Substring extraction: MID(string, start, end)."""
+    """String substring extraction (0-based, half-open interval).
+
+    Models Python-style string slicing: ``s[start:end]``.
+    Exporters emit the appropriate vendor function (LEFT, RIGHT, MID).
+
+    - ``start`` only  → ``s[n:]``  (RIGHT)
+    - ``end`` only    → ``s[:n]``  (LEFT)
+    - both            → ``s[i:j]`` (MID)
+    - neither         → ``s[:]``   (identity — should be optimized away)
+
+    When ``single_char`` is True, represents ``s[i]`` (single character
+    access) rather than ``s[i:i+1]``.  ``start`` holds the index and
+    ``end`` is unused.
+    """
 
     kind: Literal["substring"] = "substring"
     string: Expression
     start: Expression | None = None
     end: Expression | None = None
+    single_char: bool = False
 
 
 Expression = Annotated[

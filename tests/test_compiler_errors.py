@@ -381,7 +381,7 @@ class TestImprovedGuidance:
             compile_expr("f'val: {UNKNOWN_FUNC()}'")
 
     def test_slice_guidance(self):
-        with pytest.raises(CompileError, match="single index"):
+        with pytest.raises(CompileError, match="Cannot determine"):
             compile_expr("arr[1:3]")
 
     def test_list_comp_guidance(self):

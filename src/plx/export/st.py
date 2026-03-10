@@ -706,13 +706,25 @@ class STWriter:
         return f"{target}({self._expr(expr.source)})"
 
     def _expr_substring(self, expr: SubstringExpr, _prec: int) -> str:
-        s = self._expr(expr.string)
-        parts = [s]
-        if expr.start is not None:
-            parts.append(self._expr(expr.start))
+        s = self._expr(expr.string, 10)
+        if expr.single_char:
+            # s[i] → MID(s, 1, i + 1)
+            pos = f"{self._expr(expr.start)} + 1"
+            return f"MID({s}, 1, {pos})"
+        if expr.start is not None and expr.end is not None:
+            # s[i:j] → MID(s, j - i, i + 1)
+            start = self._expr(expr.start)
+            end = self._expr(expr.end)
+            return f"MID({s}, {end} - {start}, {start} + 1)"
         if expr.end is not None:
-            parts.append(self._expr(expr.end))
-        return f"MID({', '.join(parts)})"
+            # s[:n] → LEFT(s, n)
+            return f"LEFT({s}, {self._expr(expr.end)})"
+        if expr.start is not None:
+            # s[n:] → RIGHT(s, LEN(s) - n)
+            start = self._expr(expr.start)
+            return f"RIGHT({s}, LEN({s}) - {start})"
+        # s[:] — identity (shouldn't reach here, compiler optimizes away)
+        return s
 
     def _expr_system_flag(self, expr: SystemFlagExpr, _prec: int) -> str:
         if expr.flag == SystemFlag.FIRST_SCAN:

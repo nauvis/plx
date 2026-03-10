@@ -14,12 +14,13 @@ from plx.model.expressions import (
     FunctionCallExpr,
     LiteralExpr,
     MemberAccessExpr,
+    SubstringExpr,
     TypeConversionExpr,
     UnaryExpr,
     UnaryOp,
     VariableRef,
 )
-from plx.model.types import PrimitiveType, PrimitiveTypeRef, NamedTypeRef
+from plx.model.types import PrimitiveType, PrimitiveTypeRef, NamedTypeRef, StringTypeRef
 
 
 # ---------------------------------------------------------------------------
@@ -692,3 +693,102 @@ class TestMembershipOperators:
         membership = result.right
         assert isinstance(membership, BinaryExpr)
         assert membership.op == BinaryOp.OR
+
+
+# ---------------------------------------------------------------------------
+# String slicing
+# ---------------------------------------------------------------------------
+
+class TestStringSlicing:
+    """String slicing: s[:n] → LEFT, s[n:] → RIGHT, s[i:j] → MID, s[i] → MID."""
+
+    def _ctx(self, var_name: str = "s") -> CompileContext:
+        return CompileContext(static_var_types={var_name: StringTypeRef()})
+
+    # --- s[:n] ---
+
+    def test_left_literal(self):
+        """self.s[:3] → SubstringExpr(end=3)."""
+        result = compile_expr("self.s[:3]", self._ctx())
+        assert isinstance(result, SubstringExpr)
+        assert result.start is None
+        assert result.end == LiteralExpr(value="3")
+        assert result.single_char is False
+
+    def test_left_variable(self):
+        """self.s[:n] → SubstringExpr(end=VariableRef('n'))."""
+        result = compile_expr("self.s[:n]", self._ctx())
+        assert isinstance(result, SubstringExpr)
+        assert result.start is None
+        assert result.end == VariableRef(name="n")
+
+    # --- s[n:] ---
+
+    def test_right_literal(self):
+        """self.s[3:] → SubstringExpr(start=3)."""
+        result = compile_expr("self.s[3:]", self._ctx())
+        assert isinstance(result, SubstringExpr)
+        assert result.start == LiteralExpr(value="3")
+        assert result.end is None
+
+    # --- s[i:j] ---
+
+    def test_mid_literals(self):
+        """self.s[2:5] → SubstringExpr(start=2, end=5)."""
+        result = compile_expr("self.s[2:5]", self._ctx())
+        assert isinstance(result, SubstringExpr)
+        assert result.start == LiteralExpr(value="2")
+        assert result.end == LiteralExpr(value="5")
+        assert result.single_char is False
+
+    # --- s[i] (single char) ---
+
+    def test_single_index(self):
+        """self.s[0] → SubstringExpr(start=0, single_char=True)."""
+        result = compile_expr("self.s[0]", self._ctx())
+        assert isinstance(result, SubstringExpr)
+        assert result.start == LiteralExpr(value="0")
+        assert result.single_char is True
+
+    def test_single_index_variable(self):
+        """self.s[i] → SubstringExpr(start=VariableRef('i'), single_char=True)."""
+        result = compile_expr("self.s[i]", self._ctx())
+        assert isinstance(result, SubstringExpr)
+        assert result.start == VariableRef(name="i")
+        assert result.single_char is True
+
+    # --- s[:] ---
+
+    def test_full_slice_identity(self):
+        """self.s[:] → VariableRef('s') (identity, no SubstringExpr)."""
+        result = compile_expr("self.s[:]", self._ctx())
+        assert isinstance(result, VariableRef)
+        assert result.name == "s"
+
+    # --- Error cases ---
+
+    def test_negative_start_rejected(self):
+        with pytest.raises(CompileError, match="Negative start"):
+            compile_expr("self.s[-1:]", self._ctx())
+
+    def test_negative_stop_rejected(self):
+        with pytest.raises(CompileError, match="Negative stop"):
+            compile_expr("self.s[:-1]", self._ctx())
+
+    def test_negative_single_index_rejected(self):
+        with pytest.raises(CompileError, match="Negative index"):
+            compile_expr("self.s[-1]", self._ctx())
+
+    def test_step_slice_rejected(self):
+        with pytest.raises(CompileError, match="Step slicing"):
+            compile_expr("self.s[::2]", self._ctx())
+
+    def test_unknown_type_slice_rejected(self):
+        """Slicing a variable with unknown type raises a clear error."""
+        with pytest.raises(CompileError, match="Cannot determine"):
+            compile_expr("x[1:3]")
+
+    def test_array_single_index_unaffected(self):
+        """Single index on untyped variables still produces ArrayAccessExpr."""
+        result = compile_expr("arr[0]")
+        assert isinstance(result, ArrayAccessExpr)

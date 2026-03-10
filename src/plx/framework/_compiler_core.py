@@ -238,6 +238,18 @@ _PYTHON_ANNOTATION_MAP: dict[str, TypeRef] = {
     # Lowercase PLC types — character
     "char": PrimitiveTypeRef(type=PrimitiveType.CHAR),
     "wchar": PrimitiveTypeRef(type=PrimitiveType.WCHAR),
+    # Lowercase FB type names
+    "ton": NamedTypeRef(name="TON"),
+    "tof": NamedTypeRef(name="TOF"),
+    "tp": NamedTypeRef(name="TP"),
+    "rto": NamedTypeRef(name="RTO"),
+    "r_trig": NamedTypeRef(name="R_TRIG"),
+    "f_trig": NamedTypeRef(name="F_TRIG"),
+    "ctu": NamedTypeRef(name="CTU"),
+    "ctd": NamedTypeRef(name="CTD"),
+    "ctud": NamedTypeRef(name="CTUD"),
+    "sr": NamedTypeRef(name="SR"),
+    "rs": NamedTypeRef(name="RS"),
 }
 
 _PYTHON_TYPE_CONV_MAP: dict[str, TypeRef] = {
@@ -368,7 +380,6 @@ _REJECTED_NODES: dict[type, str] = {
     ast.Yield: "yield expressions are not allowed in PLC logic. PLCs execute synchronously in scan cycles.",
     ast.YieldFrom: "yield from expressions are not allowed in PLC logic. PLCs execute synchronously in scan cycles.",
     ast.Starred: "Star unpacking is not allowed in PLC logic. Assign each variable on a separate line.",
-    ast.Slice: "Slice operations are not allowed in PLC logic. Access array elements individually with a single index: arr[i].",
 }
 
 # Also reject TryStar if available (Python 3.11+)

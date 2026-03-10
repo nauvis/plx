@@ -905,6 +905,17 @@ class ExecutionEngine:
             return self.state.get("__system_first_scan", False)
         raise SimulationError(f"Unknown system flag: {expr.flag}")
 
+    def _eval_substring(self, expr: SubstringExpr) -> object:
+        s = self._eval(expr.string)
+        if not isinstance(s, str):
+            raise SimulationError(f"Substring requires a string, got {type(s).__name__}")
+        if expr.single_char:
+            idx = int(self._eval(expr.start))  # type: ignore[arg-type]
+            return s[idx]
+        start = int(self._eval(expr.start)) if expr.start is not None else None  # type: ignore[arg-type]
+        end = int(self._eval(expr.end)) if expr.end is not None else None  # type: ignore[arg-type]
+        return s[start:end]
+
     # Expression dispatch table
     _EXPR_DISPATCH: dict[str, Callable[[ExecutionEngine, Expression], object]] = {
         "literal": _eval_literal,

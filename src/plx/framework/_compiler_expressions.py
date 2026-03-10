@@ -22,6 +22,7 @@ from plx.model.expressions import (
     FunctionCallExpr,
     LiteralExpr,
     MemberAccessExpr,
+    SubstringExpr,
     TypeConversionExpr,
     UnaryExpr,
     UnaryOp,
@@ -515,13 +516,91 @@ class _ExpressionMixin:
         return FunctionCallExpr(function_name=iec_name, args=args)
 
     def _compile_subscript(self, node: ast.Subscript) -> Expression:
+        # Slice operation (e.g. s[1:3], s[:n], s[n:])
+        if isinstance(node.slice, ast.Slice):
+            return self._compile_slice(node, node.slice)
+
+        # Single index — check if this is string indexing
+        from ._compiler_statements import _infer_type
+        value_type = _infer_type(node.value, self.ctx)
+        if isinstance(value_type, StringTypeRef):
+            return self._compile_string_index(node)
+
+        # Array access (existing logic)
         array = self.compile_expression(node.value)
-        # Multi-dimensional: a[i, j] → ast.Tuple in node.slice
         if isinstance(node.slice, ast.Tuple):
             indices = [self.compile_expression(elt) for elt in node.slice.elts]
         else:
             indices = [self.compile_expression(node.slice)]
         return ArrayAccessExpr(array=array, indices=indices)
+
+    def _compile_slice(self, node: ast.Subscript, slc: ast.Slice) -> Expression:
+        """Compile a slice operation. Only valid on STRING types."""
+        from ._compiler_statements import _infer_type
+
+        value_type = _infer_type(node.value, self.ctx)
+
+        if not isinstance(value_type, StringTypeRef):
+            if value_type is None:
+                raise CompileError(
+                    "Cannot determine the type of the sliced expression. "
+                    "String slicing requires a declared STRING variable. "
+                    "If this is an array, access elements individually "
+                    "with a single index: arr[i].",
+                    node, self.ctx,
+                )
+            raise CompileError(
+                "Slice operations are not supported on this type. "
+                "Only STRING variables support slicing. "
+                "Access array elements individually with a single index: arr[i].",
+                node, self.ctx,
+            )
+
+        # Reject step slicing: s[::2], s[1:3:2]
+        if slc.step is not None:
+            raise CompileError(
+                "Step slicing (e.g. s[::2]) is not supported on strings.",
+                node, self.ctx,
+            )
+
+        # Reject negative indices
+        self._reject_negative_index(slc.lower, "start", node)
+        self._reject_negative_index(slc.upper, "stop", node)
+
+        string_expr = self.compile_expression(node.value)
+        start = self.compile_expression(slc.lower) if slc.lower is not None else None
+        end = self.compile_expression(slc.upper) if slc.upper is not None else None
+
+        # s[:] → identity (return the string expression directly)
+        if start is None and end is None:
+            return string_expr
+
+        return SubstringExpr(string=string_expr, start=start, end=end)
+
+    def _compile_string_index(self, node: ast.Subscript) -> Expression:
+        """Compile s[i] on a STRING → SubstringExpr(single_char=True)."""
+        self._reject_negative_index(node.slice, "index", node)
+        string_expr = self.compile_expression(node.value)
+        index = self.compile_expression(node.slice)
+        return SubstringExpr(string=string_expr, start=index, single_char=True)
+
+    def _reject_negative_index(
+        self, node: ast.expr | None, label: str, parent: ast.AST,
+    ) -> None:
+        """Raise CompileError if node is a negative literal."""
+        if node is None:
+            return
+        if (
+            isinstance(node, ast.UnaryOp)
+            and isinstance(node.op, ast.USub)
+            and isinstance(node.operand, ast.Constant)
+            and isinstance(node.operand.value, (int, float))
+        ):
+            raise CompileError(
+                f"Negative {label} in string slicing is not supported. "
+                f"Use LEN() to compute the position explicitly.",
+                parent, self.ctx,
+            )
 
     def _compile_ifexp(self, node: ast.IfExp) -> Expression:
         """Ternary: ``a if cond else b`` → ``SEL(cond, false_val, true_val)``."""
