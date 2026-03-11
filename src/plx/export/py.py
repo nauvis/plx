@@ -352,6 +352,7 @@ class PyWriter:
         self._indent = 0
         self._indent_str = "    "
         self._self_vars: set[str] = set()
+        self._return_var: str | None = None  # property/function name → return rewrite
 
     def getvalue(self) -> str:
         return self._buf.getvalue().rstrip("\n") + "\n"
@@ -766,9 +767,11 @@ class PyWriter:
         else:
             self._line("@method")
 
-        # Signature
+        # Signature — input and inout params go in the method signature
         params: list[str] = ["self"]
         for v in m.interface.input_vars:
+            params.append(f"{v.name}: {self._type_ref(v.data_type)}")
+        for v in m.interface.inout_vars:
             params.append(f"{v.name}: {self._type_ref(v.data_type)}")
 
         ret = f" -> {self._type_ref(m.return_type)}" if m.return_type else ""
@@ -776,11 +779,9 @@ class PyWriter:
 
         self._indent_inc()
 
-        # Non-input vars as local declarations
+        # Non-input/inout vars as local declarations
         for v in m.interface.output_vars:
             self._write_annotation_var(v, "Output")
-        for v in m.interface.inout_vars:
-            self._write_annotation_var(v, "InOut")
         for v in m.interface.static_vars:
             self._write_static_var(v)
         for v in m.interface.temp_vars:
@@ -828,9 +829,11 @@ class PyWriter:
         # Save/restore self_vars for property scope
         saved_self_vars = self._self_vars
 
-        # Getter
+        # Getter — assignments to property name become return statements
         self._line(f"def {prop.name}(self):")
         self._indent_inc()
+        saved_return_var = self._return_var
+        self._return_var = prop.name
         if prop.getter is not None:
             # Include local_vars if present
             for v in prop.getter.local_vars:
@@ -854,6 +857,7 @@ class PyWriter:
                         self._write_stmt(item)
         else:
             self._line("pass")
+        self._return_var = saved_return_var
         self._indent_dec()
 
         # Setter
@@ -1021,12 +1025,17 @@ class PyWriter:
         elem = self._type_ref(tr.element_type)
         dims: list[str] = []
         for d in tr.dimensions:
-            if d.lower == 0:
+            if d.lower == 0 and d.upper == -1:
+                # Variable-length array (ARRAY[*] OF T)
+                continue
+            elif d.lower == 0:
                 # Simple size: ARRAY(INT, 10) for 0..9
                 dims.append(str(d.upper + 1))
             else:
                 # Explicit bounds: ARRAY(INT, (1, 10))
                 dims.append(f"({d.lower}, {d.upper})")
+        if not dims:
+            return f"ARRAY({elem})"
         return f"ARRAY({elem}, {', '.join(dims)})"
 
     # ======================================================================
@@ -1056,6 +1065,12 @@ class PyWriter:
     }
 
     def _write_assignment(self, stmt: Assignment) -> None:
+        # Property/function return: ``PropName = expr`` → ``return expr``
+        if (self._return_var is not None
+                and isinstance(stmt.target, VariableRef)
+                and stmt.target.name == self._return_var):
+            self._line(f"return {self._expr(stmt.value)}")
+            return
         # Recover augmented assignment: ``x = x + y`` → ``x += y``
         if isinstance(stmt.value, BinaryExpr):
             aug = self._AUGOP.get(stmt.value.op)
@@ -1095,8 +1110,14 @@ class PyWriter:
         self._line(f"match {self._expr(stmt.selector)}:")
         self._indent_inc()
         for branch in stmt.branches:
-            values = [str(v) for v in branch.values]
-            pattern = " | ".join(values) if values else "_"
+            labels: list[str] = []
+            for v in branch.values:
+                if isinstance(v, str):
+                    # Enum reference: E_State.Idle → use as-is (Python dotted name)
+                    labels.append(v)
+                else:
+                    labels.append(str(v))
+            pattern = " | ".join(labels) if labels else "_"
             self._line(f"case {pattern}:")
             self._indent_inc()
             self._write_body(branch.body)
@@ -1175,7 +1196,14 @@ class PyWriter:
             self._line("return")
 
     def _write_function_call_stmt(self, stmt: FunctionCallStatement) -> None:
-        name = _FUNC_REMAP.get(stmt.function_name, stmt.function_name)
+        name = stmt.function_name
+        # Beckhoff OOP: SUPER^.Method() → super().Method()
+        if name.startswith("SUPER^."):
+            name = f"super().{name[7:]}"
+        elif name.startswith("THIS^."):
+            name = f"self.{name[6:]}"
+        else:
+            name = _FUNC_REMAP.get(name, name)
         args = ", ".join(self._call_arg(a) for a in stmt.args)
         self._line(f"{name}({args})")
 
@@ -1249,6 +1277,10 @@ class PyWriter:
         return v
 
     def _expr_variable_ref(self, expr: VariableRef, _prec: int) -> str:
+        if expr.name == "SUPER^":
+            return "super()"
+        if expr.name == "THIS^":
+            return "self"
         if expr.name in self._self_vars:
             return f"self.{expr.name}"
         return expr.name
@@ -1295,7 +1327,14 @@ class PyWriter:
                 left = self._expr(inner.left, 5)
                 right = self._expr(inner.right, 6)
                 return f"{left} // {right}"
-        name = _FUNC_REMAP.get(expr.function_name, expr.function_name)
+        name = expr.function_name
+        # Beckhoff OOP: SUPER^.Method() → super().Method()
+        if name.startswith("SUPER^."):
+            name = f"super().{name[7:]}"
+        elif name.startswith("THIS^."):
+            name = f"self.{name[6:]}"
+        else:
+            name = _FUNC_REMAP.get(name, name)
         args = ", ".join(self._call_arg(a) for a in expr.args)
         return f"{name}({args})"
 
@@ -1542,7 +1581,10 @@ def _case_branch_condition(sel: str, branch: CaseBranch) -> str:
     """Build a Python condition for a CASE branch with ranges."""
     parts: list[str] = []
     for v in branch.values:
-        parts.append(f"{sel} == {v}")
+        if isinstance(v, str):
+            parts.append(f"{sel} == {v}")
+        else:
+            parts.append(f"{sel} == {v}")
     for r in branch.ranges:
         parts.append(f"{r.start} <= {sel} <= {r.end}")
     return " or ".join(parts) if parts else "True"

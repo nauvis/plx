@@ -53,7 +53,7 @@ class CaseBranch(IRModel):
     or falls within any range in *ranges*.
     """
 
-    values: list[int] = []
+    values: list[int | str] = []
     ranges: list[CaseRange] = []
     body: list[Statement] = []
 

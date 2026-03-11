@@ -111,7 +111,8 @@ class DimensionRange(IRModel):
 
     @model_validator(mode="after")
     def _bounds_check(self):
-        if self.lower > self.upper:
+        # upper == -1 is a sentinel for variable-length arrays (ARRAY[*] OF T)
+        if self.upper != -1 and self.lower > self.upper:
             raise ValueError(
                 f"lower ({self.lower}) must be <= upper ({self.upper})"
             )

@@ -82,13 +82,15 @@ class POUInterface(IRModel):
             ("constant_vars", self.constant_vars),
             ("external_vars", self.external_vars),
         ):
+            deduped = []
             for var in var_list:
                 if var.name in seen:
-                    raise ValueError(
-                        f"Duplicate variable name '{var.name}' "
-                        f"(in {seen[var.name]} and {section_name})"
-                    )
+                    continue  # Silently drop duplicates (can occur in vendor imports)
                 seen[var.name] = section_name
+                deduped.append(var)
+            # Replace the list in-place with deduplicated version
+            if len(deduped) != len(var_list):
+                setattr(self, section_name, deduped)
         return self
 
 

@@ -2052,3 +2052,329 @@ class TestRoundTripFixes:
         w._write_pou(pou)
         out = w.getvalue()
         assert "self.gCounter" in out
+
+
+# ===========================================================================
+# Regression tests for Beckhoff import code generation fixes
+# ===========================================================================
+
+class TestPropertyGetterReturn:
+    """Property getter: assignment to property name becomes return statement."""
+
+    def test_getter_assign_to_prop_name_becomes_return(self):
+        """IEC pattern: PropName := value → return value."""
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="Motor",
+            interface=POUInterface(
+                static_vars=[Variable(name="_speed", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL))],
+            ),
+            properties=[
+                Property(
+                    name="Speed",
+                    data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
+                    getter=PropertyAccessor(
+                        networks=[Network(statements=[
+                            Assignment(
+                                target=VariableRef(name="Speed"),
+                                value=VariableRef(name="_speed"),
+                            ),
+                        ])],
+                    ),
+                ),
+            ],
+            networks=[Network(statements=[EmptyStatement()])],
+        )
+        w = _make_writer()
+        w._write_pou(pou)
+        out = w.getvalue()
+        assert "return self._speed" in out
+        assert "Speed = self._speed" not in out
+
+    def test_getter_return_stmt_unchanged(self):
+        """Explicit ReturnStatement in getter is preserved as-is."""
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="Motor",
+            interface=POUInterface(
+                static_vars=[Variable(name="_speed", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL))],
+            ),
+            properties=[
+                Property(
+                    name="Speed",
+                    data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
+                    getter=PropertyAccessor(
+                        networks=[Network(statements=[
+                            ReturnStatement(value=VariableRef(name="_speed")),
+                        ])],
+                    ),
+                ),
+            ],
+            networks=[Network(statements=[EmptyStatement()])],
+        )
+        w = _make_writer()
+        w._write_pou(pou)
+        out = w.getvalue()
+        assert "return self._speed" in out
+
+    def test_setter_does_not_rewrite_assignment(self):
+        """Setter assignments are normal assignments, NOT return statements."""
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="Motor",
+            interface=POUInterface(
+                static_vars=[Variable(name="_speed", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL))],
+            ),
+            properties=[
+                Property(
+                    name="Speed",
+                    data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
+                    getter=PropertyAccessor(
+                        networks=[Network(statements=[
+                            Assignment(
+                                target=VariableRef(name="Speed"),
+                                value=VariableRef(name="_speed"),
+                            ),
+                        ])],
+                    ),
+                    setter=PropertyAccessor(
+                        networks=[Network(statements=[
+                            Assignment(
+                                target=VariableRef(name="_speed"),
+                                value=VariableRef(name="Speed"),
+                            ),
+                        ])],
+                    ),
+                ),
+            ],
+            networks=[Network(statements=[EmptyStatement()])],
+        )
+        w = _make_writer()
+        w._write_pou(pou)
+        out = w.getvalue()
+        # Getter: return
+        assert "return self._speed" in out
+        # Setter: regular assignment (no return)
+        assert "self._speed = Speed" in out
+
+
+class TestSuperAndThisHandling:
+    """SUPER^ and THIS^ → Python OOP syntax."""
+
+    def test_super_function_call_stmt(self):
+        """SUPER^.Method() → super().Method()."""
+        w = _make_writer()
+        stmt = FunctionCallStatement(function_name="SUPER^.CyclicLogic", args=[])
+        w._write_stmt(stmt)
+        out = w.getvalue().strip()
+        assert out == "super().CyclicLogic()"
+
+    def test_super_function_call_with_args(self):
+        """SUPER^.Method(arg) → super().Method(arg)."""
+        w = _make_writer()
+        stmt = FunctionCallStatement(
+            function_name="SUPER^.Init",
+            args=[CallArg(value=LiteralExpr(value="TRUE"))],
+        )
+        w._write_stmt(stmt)
+        out = w.getvalue().strip()
+        assert out == "super().Init(True)"
+
+    def test_super_in_expression(self):
+        """SUPER^.Method() as expression → super().Method()."""
+        w = _make_writer()
+        expr = FunctionCallExpr(
+            function_name="SUPER^.Initialize",
+            args=[],
+        )
+        result = w._expr(expr)
+        assert result == "super().Initialize()"
+
+    def test_this_in_variable_ref(self):
+        """THIS^ as variable ref → self."""
+        w = _make_writer()
+        expr = VariableRef(name="THIS^")
+        result = w._expr(expr)
+        assert result == "self"
+
+    def test_this_member_access(self):
+        """THIS^.member → self.member via MemberAccessExpr."""
+        w = _make_writer()
+        expr = MemberAccessExpr(
+            struct=VariableRef(name="THIS^"),
+            member="Output",
+        )
+        result = w._expr(expr)
+        assert result == "self.Output"
+
+    def test_this_function_call_stmt(self):
+        """THIS^.Method() → self.Method()."""
+        w = _make_writer()
+        stmt = FunctionCallStatement(function_name="THIS^.Reset", args=[])
+        w._write_stmt(stmt)
+        out = w.getvalue().strip()
+        assert out == "self.Reset()"
+
+    def test_super_variable_ref(self):
+        """Bare SUPER^ → super()."""
+        w = _make_writer()
+        expr = VariableRef(name="SUPER^")
+        result = w._expr(expr)
+        assert result == "super()"
+
+    def test_normal_function_call_not_affected(self):
+        """Regular function calls are not affected by SUPER^/THIS^ handling."""
+        w = _make_writer()
+        stmt = FunctionCallStatement(function_name="ABS", args=[
+            CallArg(value=LiteralExpr(value="42")),
+        ])
+        w._write_stmt(stmt)
+        out = w.getvalue().strip()
+        assert out == "abs(42)"
+
+
+class TestCaseEnumValues:
+    """CASE branches with string enum references."""
+
+    def test_case_with_enum_string_values(self):
+        """Enum references in CASE branches preserve names."""
+        w = _make_writer(self_vars={"mode"})
+        stmt = CaseStatement(
+            selector=VariableRef(name="mode"),
+            branches=[
+                CaseBranch(
+                    values=["E_Mode.Production"],
+                    body=[EmptyStatement()],
+                ),
+                CaseBranch(
+                    values=["E_Mode.Manual", "E_Mode.Maintenance"],
+                    body=[EmptyStatement()],
+                ),
+            ],
+        )
+        w._write_stmt(stmt)
+        out = w.getvalue().strip()
+        assert "case E_Mode.Production:" in out
+        assert "case E_Mode.Manual | E_Mode.Maintenance:" in out
+
+    def test_case_mixed_int_and_enum(self):
+        """Mixed integer and enum values in CASE."""
+        w = _make_writer(self_vars={"state"})
+        stmt = CaseStatement(
+            selector=VariableRef(name="state"),
+            branches=[
+                CaseBranch(values=[0], body=[EmptyStatement()]),
+                CaseBranch(values=["E_State.Running"], body=[EmptyStatement()]),
+                CaseBranch(values=[5, 6], body=[EmptyStatement()]),
+            ],
+        )
+        w._write_stmt(stmt)
+        out = w.getvalue().strip()
+        assert "case 0:" in out
+        assert "case E_State.Running:" in out
+        assert "case 5 | 6:" in out
+
+    def test_case_enum_values_in_if_mode(self):
+        """Enum values work in if/elif mode (ranges present)."""
+        w = _make_writer(self_vars={"val"})
+        stmt = CaseStatement(
+            selector=VariableRef(name="val"),
+            branches=[
+                CaseBranch(values=["E_State.Idle"], body=[EmptyStatement()]),
+                CaseBranch(
+                    ranges=[CaseRange(start=10, end=20)],
+                    body=[EmptyStatement()],
+                ),
+            ],
+        )
+        w._write_stmt(stmt)
+        out = w.getvalue().strip()
+        assert "self.val == E_State.Idle" in out
+        assert "10 <= self.val <= 20" in out
+
+
+class TestArrayEmptyDimensions:
+    """Variable-length arrays ARRAY[*] OF T."""
+
+    def test_variable_length_array(self):
+        """ARRAY[*] → ARRAY(elem) with no size."""
+        w = _make_writer()
+        tr = ArrayTypeRef(
+            element_type=NamedTypeRef(name="SomeType"),
+            dimensions=[DimensionRange(lower=0, upper=-1)],
+        )
+        result = w._type_ref(tr)
+        assert result == "ARRAY(SomeType)"
+
+    def test_normal_array_unchanged(self):
+        """Normal arrays still emit size."""
+        w = _make_writer()
+        tr = ArrayTypeRef(
+            element_type=PrimitiveTypeRef(type=PrimitiveType.INT),
+            dimensions=[DimensionRange(lower=0, upper=9)],
+        )
+        result = w._type_ref(tr)
+        assert result == "ARRAY(INT, 10)"
+
+    def test_explicit_bounds_unchanged(self):
+        """ARRAY[1..10] emits explicit bounds."""
+        w = _make_writer()
+        tr = ArrayTypeRef(
+            element_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
+            dimensions=[DimensionRange(lower=1, upper=10)],
+        )
+        result = w._type_ref(tr)
+        assert result == "ARRAY(float, (1, 10))"
+
+
+class TestInOutParamsInMethodSignature:
+    """InOut params appear in method signature, not body."""
+
+    def test_inout_in_signature(self):
+        """VAR_IN_OUT params go in the method signature."""
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
+            interface=POUInterface(),
+            methods=[
+                Method(
+                    name="Process",
+                    interface=POUInterface(
+                        input_vars=[
+                            Variable(name="cmd", data_type=PrimitiveTypeRef(type=PrimitiveType.INT)),
+                        ],
+                        inout_vars=[
+                            Variable(name="buffer", data_type=NamedTypeRef(name="DataBuffer")),
+                        ],
+                    ),
+                    networks=[Network(statements=[EmptyStatement()])],
+                ),
+            ],
+            networks=[Network(statements=[EmptyStatement()])],
+        )
+        w = _make_writer()
+        w._write_pou(pou)
+        out = w.getvalue()
+        assert "def Process(self, cmd: INT, buffer: DataBuffer):" in out
+        # InOut should NOT appear as local declaration
+        assert "InOut[DataBuffer]" not in out
+
+    def test_inout_and_input_both_in_signature(self):
+        """Input params come before InOut params in signature."""
+        m = Method(
+            name="Transfer",
+            interface=POUInterface(
+                input_vars=[
+                    Variable(name="enable", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL)),
+                ],
+                inout_vars=[
+                    Variable(name="data", data_type=NamedTypeRef(name="MyStruct")),
+                ],
+            ),
+            networks=[Network(statements=[EmptyStatement()])],
+        )
+        w = _make_writer()
+        w._self_vars = set()
+        w._write_method(m)
+        out = w.getvalue()
+        assert "def Transfer(self, enable: bool, data: MyStruct):" in out

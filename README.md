@@ -182,15 +182,15 @@ Both are auto-compiled to IEC STRUCT/ENUM on first use — no plx-specific decor
 
 ### Properties
 
-Use Python's native `@property` decorator for IEC 61131-3 PROPERTY constructs:
+Use `@fb_property` for IEC 61131-3 PROPERTY constructs:
 
 ```python
 @fb
 class Motor:
     _speed: float
 
-    @property
-    def speed(self) -> float:
+    @fb_property(float)
+    def speed(self):
         return self._speed
 
     @speed.setter
@@ -201,7 +201,7 @@ class Motor:
         pass
 ```
 
-Properties with a `-> TYPE` return annotation compile to IEC PROPERTY with GET/SET accessors. Properties without a return annotation are ignored (treated as plain Python). `@fb_property(REAL)` is also available when you need access specifiers (`access=PRIVATE`) or `abstract`/`final` flags.
+`@fb_property(TYPE)` compiles to IEC PROPERTY with GET/SET accessors. Supports `access=PRIVATE`/`PROTECTED` and `abstract`/`final` flags.
 
 ### Sequential Function Charts (SFC)
 

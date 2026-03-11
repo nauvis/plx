@@ -132,7 +132,7 @@ def fb_property(
 # ---------------------------------------------------------------------------
 
 def _collect_properties(cls: type) -> list[tuple[str, _PropertyMarker]]:
-    """Collect PropDescriptor and native property instances from *cls* MRO."""
+    """Collect PropDescriptor instances from *cls* MRO."""
     seen: set[str] = set()
     collected: list[tuple[str, _PropertyMarker]] = []
 
@@ -142,44 +142,8 @@ def _collect_properties(cls: type) -> list[tuple[str, _PropertyMarker]]:
         for attr_name, value in base.__dict__.items():
             if isinstance(value, PropDescriptor):
                 _mro_upsert(collected, seen, attr_name, (attr_name, value._marker))
-            elif isinstance(value, property):
-                marker = _native_property_to_marker(attr_name, value)
-                if marker is not None:
-                    _mro_upsert(collected, seen, attr_name, (attr_name, marker))
 
     return collected
-
-
-def _native_property_to_marker(name: str, prop: property) -> _PropertyMarker | None:
-    """Convert a native Python ``@property`` into a ``_PropertyMarker``.
-
-    The property's return type is inferred from the getter's ``-> TYPE``
-    annotation.  Properties without a return annotation are skipped (they
-    may be regular Python properties not intended for PLC compilation).
-    """
-    if prop.fget is None:
-        return None
-
-    # Use raw __annotations__ instead of typing.get_type_hints() because
-    # PrimitiveType is a str enum — get_type_hints wraps it in ForwardRef.
-    ret_type = getattr(prop.fget, "__annotations__", {}).get("return")
-    if ret_type is None:
-        return None
-
-    from ._types import _resolve_type_ref
-    try:
-        data_type = _resolve_type_ref(ret_type)
-    except (TypeError, ValueError):
-        return None
-
-    return _PropertyMarker(
-        data_type=data_type,
-        access=AccessSpecifier.PUBLIC,
-        abstract=False,
-        final=False,
-        getter_func=prop.fget,
-        setter_func=prop.fset,
-    )
 
 
 def _compile_property(
