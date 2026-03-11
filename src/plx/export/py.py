@@ -337,7 +337,77 @@ def _format_initial_value(value: str) -> str:
     if value.startswith("'") or value.startswith('"'):
         return value
 
+    # IEC FB/struct initialization: (Param := Value, ...) → dict(Param=Value, ...)
+    fb_init = _try_format_fb_init(value)
+    if fb_init is not None:
+        return fb_init
+
     return repr(value)
+
+
+def _try_format_fb_init(value: str) -> str | None:
+    """Convert IEC FB init ``(A := 1, B := TRUE)`` to ``dict(A=1, B=True)``.
+
+    Returns None if the value doesn't match the pattern.
+    """
+    stripped = value.strip()
+    if not (stripped.startswith("(") and stripped.endswith(")")):
+        return None
+    inner = stripped[1:-1].strip()
+    if ":=" not in inner:
+        return None
+
+    # Split on commas that aren't inside nested parens or strings
+    parts = _split_init_params(inner)
+    if not parts:
+        return None
+
+    py_params: list[str] = []
+    for part in parts:
+        part = part.strip()
+        if ":=" not in part:
+            return None  # Not a named param — bail
+        name, _, val = part.partition(":=")
+        name = name.strip()
+        val = val.strip()
+        if not name or not val:
+            return None
+        # Recursively format the value
+        py_val = _format_initial_value(val)
+        py_params.append(f"{name}={py_val}")
+
+    return f"dict({', '.join(py_params)})"
+
+
+def _split_init_params(text: str) -> list[str]:
+    """Split comma-separated IEC init params, respecting nested parens and strings."""
+    parts: list[str] = []
+    depth = 0
+    current: list[str] = []
+    in_string = False
+    for ch in text:
+        if ch == "'" and not in_string:
+            in_string = True
+            current.append(ch)
+        elif ch == "'" and in_string:
+            in_string = False
+            current.append(ch)
+        elif in_string:
+            current.append(ch)
+        elif ch == "(":
+            depth += 1
+            current.append(ch)
+        elif ch == ")":
+            depth -= 1
+            current.append(ch)
+        elif ch == "," and depth == 0:
+            parts.append("".join(current))
+            current = []
+        else:
+            current.append(ch)
+    if current:
+        parts.append("".join(current))
+    return parts
 
 
 # ---------------------------------------------------------------------------
@@ -700,11 +770,12 @@ class PyWriter:
             any_emitted = True
         return any_emitted
 
-    def _has_metadata(self, v: Variable) -> bool:
+    def _has_metadata(self, v: Variable, *, skip_constant: bool = False) -> bool:
         """Check if a variable has metadata beyond initial value."""
-        return bool(v.description or v.retain or v.persistent or v.constant)
+        constant_flag = v.constant and not skip_constant
+        return bool(v.description or v.retain or v.persistent or constant_flag)
 
-    def _build_field_kwargs(self, v: Variable) -> str:
+    def _build_field_kwargs(self, v: Variable, *, skip_constant: bool = False) -> str:
         """Build Field() argument string from variable metadata."""
         kwargs: list[str] = []
         if v.initial_value is not None:
@@ -715,15 +786,17 @@ class PyWriter:
             kwargs.append("retain=True")
         if v.persistent:
             kwargs.append("persistent=True")
-        if v.constant:
+        if v.constant and not skip_constant:
             kwargs.append("constant=True")
         return ", ".join(kwargs)
 
     def _write_annotation_var(self, v: Variable, wrapper: str) -> None:
         """Emit annotation syntax, using Field() when metadata is present."""
         type_str = self._type_ref(v.data_type)
-        if self._has_metadata(v):
-            field_args = self._build_field_kwargs(v)
+        # Constant[T] already implies constant=True — don't repeat it in Field()
+        skip_constant = wrapper == "Constant"
+        if self._has_metadata(v, skip_constant=skip_constant):
+            field_args = self._build_field_kwargs(v, skip_constant=skip_constant)
             self._line(f"{v.name}: {wrapper}[{type_str}] = Field({field_args})")
         elif v.initial_value is not None:
             self._line(f"{v.name}: {wrapper}[{type_str}] = {_format_initial_value(v.initial_value)}")
@@ -993,11 +1066,41 @@ class PyWriter:
     # Type references
     # ======================================================================
 
-    # Python builtin names for default PLC types
+    # Map IEC primitive types to lowercase Python names.
+    # Must mirror _PYTHON_ANNOTATION_MAP in _compiler_core.py so that
+    # exported code round-trips cleanly through the compiler.
     _PYTHON_TYPE_NAMES = {
+        # Python builtins
         PrimitiveType.BOOL: "bool",
         PrimitiveType.DINT: "int",
         PrimitiveType.REAL: "float",
+        # Integer types
+        PrimitiveType.SINT: "sint",
+        PrimitiveType.INT: "int",
+        PrimitiveType.LINT: "lint",
+        PrimitiveType.USINT: "usint",
+        PrimitiveType.UINT: "uint",
+        PrimitiveType.UDINT: "udint",
+        PrimitiveType.ULINT: "ulint",
+        PrimitiveType.LREAL: "lreal",
+        # Bit-string types
+        PrimitiveType.BYTE: "byte",
+        PrimitiveType.WORD: "word",
+        PrimitiveType.DWORD: "dword",
+        PrimitiveType.LWORD: "lword",
+        # Time types
+        PrimitiveType.TIME: "time",
+        PrimitiveType.LTIME: "ltime",
+        # Date types
+        PrimitiveType.DATE: "date",
+        PrimitiveType.LDATE: "ldate",
+        PrimitiveType.TOD: "tod",
+        PrimitiveType.LTOD: "ltod",
+        PrimitiveType.DT: "dt",
+        PrimitiveType.LDT: "ldt",
+        # Character types
+        PrimitiveType.CHAR: "char",
+        PrimitiveType.WCHAR: "wchar",
     }
 
     def _type_ref(self, tr: TypeRef) -> str:
@@ -1382,24 +1485,10 @@ class PyWriter:
         return f"{self._expr(expr.target, 10)}.bit{expr.bit_index}"
 
     def _expr_type_conversion(self, expr: TypeConversionExpr, _prec: int) -> str:
-        if expr.source_type is not None:
-            # Use IEC names: DINT_TO_REAL(x) — the framework compiler handles this form
-            source = self._iec_type_name(expr.source_type)
-            target = self._iec_type_name(expr.target_type)
-            return f"{source}_TO_{target}({self._expr(expr.source)})"
-        target = self._type_ref(expr.target_type)
-        return f"{target}({self._expr(expr.source)})"
-
-    @staticmethod
-    def _iec_type_name(tr: TypeRef) -> str:
-        """Return the IEC 61131-3 type name (no Python mapping)."""
-        if isinstance(tr, PrimitiveTypeRef):
-            return tr.type.value
-        if isinstance(tr, StringTypeRef):
-            return "WSTRING" if tr.wide else "STRING"
-        if isinstance(tr, NamedTypeRef):
-            return tr.name
-        return "???"
+        # Type conversions are implicit in the Python DSL — variable declarations
+        # carry the type info, and the raise pass inserts explicit conversions
+        # when compiling to vendor ST.
+        return self._expr(expr.source, _prec)
 
     def _expr_substring(self, expr: SubstringExpr, _prec: int) -> str:
         s = self._expr(expr.string)

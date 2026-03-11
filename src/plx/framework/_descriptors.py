@@ -193,9 +193,36 @@ def _format_initial(value: object) -> str | None:
         return timedelta_to_iec(value)
     if isinstance(value, str):
         return value
+    if isinstance(value, dict):
+        return _dict_to_iec_init(value)
     raise DeclarationError(
         f"Cannot convert {type(value).__name__} to IEC literal"
     )
+
+
+def _dict_to_iec_init(d: dict) -> str:
+    """Convert a Python dict to IEC FB/struct init: ``(Name := 'val', Flag := TRUE)``."""
+    parts: list[str] = []
+    for k, v in d.items():
+        parts.append(f"{k} := {_format_init_param(v)}")
+    return f"({', '.join(parts)})"
+
+
+def _format_init_param(value: object) -> str:
+    """Format a single FB init parameter value to IEC literal.
+
+    Unlike ``_format_initial``, string values are wrapped in IEC single quotes
+    since they represent parameter values inside ``(Param := 'value')`` syntax.
+    """
+    if isinstance(value, str):
+        # Already an IEC literal (time, hex, etc.) — pass through
+        if (value.startswith("T#") or value.startswith("16#") or
+                value.startswith("8#") or value.startswith("2#") or
+                value.startswith("(") or value == "TRUE" or value == "FALSE"):
+            return value
+        # Wrap plain strings in IEC single quotes
+        return f"'{value}'"
+    return _format_initial(value)
 
 
 # ---------------------------------------------------------------------------

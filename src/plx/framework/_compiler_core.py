@@ -210,7 +210,7 @@ _PYTHON_ANNOTATION_MAP: dict[str, TypeRef] = {
     "int": PrimitiveTypeRef(type=PrimitiveType.INT),
     "float": PrimitiveTypeRef(type=PrimitiveType.REAL),
     "str": StringTypeRef(wide=False, max_length=255),
-    # Lowercase PLC types
+    # Lowercase PLC types — integer
     "sint": PrimitiveTypeRef(type=PrimitiveType.SINT),
     "dint": PrimitiveTypeRef(type=PrimitiveType.DINT),
     "lint": PrimitiveTypeRef(type=PrimitiveType.LINT),
@@ -220,10 +220,24 @@ _PYTHON_ANNOTATION_MAP: dict[str, TypeRef] = {
     "ulint": PrimitiveTypeRef(type=PrimitiveType.ULINT),
     "real": PrimitiveTypeRef(type=PrimitiveType.REAL),
     "lreal": PrimitiveTypeRef(type=PrimitiveType.LREAL),
+    # Lowercase PLC types — bit-string
     "byte": PrimitiveTypeRef(type=PrimitiveType.BYTE),
     "word": PrimitiveTypeRef(type=PrimitiveType.WORD),
     "dword": PrimitiveTypeRef(type=PrimitiveType.DWORD),
     "lword": PrimitiveTypeRef(type=PrimitiveType.LWORD),
+    # Lowercase PLC types — time
+    "time": PrimitiveTypeRef(type=PrimitiveType.TIME),
+    "ltime": PrimitiveTypeRef(type=PrimitiveType.LTIME),
+    # Lowercase PLC types — date
+    "date": PrimitiveTypeRef(type=PrimitiveType.DATE),
+    "ldate": PrimitiveTypeRef(type=PrimitiveType.LDATE),
+    "tod": PrimitiveTypeRef(type=PrimitiveType.TOD),
+    "ltod": PrimitiveTypeRef(type=PrimitiveType.LTOD),
+    "dt": PrimitiveTypeRef(type=PrimitiveType.DT),
+    "ldt": PrimitiveTypeRef(type=PrimitiveType.LDT),
+    # Lowercase PLC types — character
+    "char": PrimitiveTypeRef(type=PrimitiveType.CHAR),
+    "wchar": PrimitiveTypeRef(type=PrimitiveType.WCHAR),
 }
 
 _PYTHON_TYPE_CONV_MAP: dict[str, TypeRef] = {

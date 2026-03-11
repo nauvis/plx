@@ -144,6 +144,47 @@ class TestFormatInitialValue:
         # Hex literals like 16#FF should not be treated as enum
         assert _format_initial_value("16#FF") != "16.FF"
 
+    def test_fb_init_simple(self):
+        result = _format_initial_value("(Name := 'Pull Wheel', LogStateChanges := TRUE)")
+        assert result == "dict(Name='Pull Wheel', LogStateChanges=True)"
+
+    def test_fb_init_numeric(self):
+        result = _format_initial_value("(nValue := 42, fGain := 3.14)")
+        assert result == "dict(nValue=42, fGain=3.14)"
+
+    def test_fb_init_time(self):
+        result = _format_initial_value("(PT := T#5S, bEnabled := TRUE)")
+        assert result == "dict(PT=timedelta(seconds=5), bEnabled=True)"
+
+    def test_fb_init_nested(self):
+        result = _format_initial_value("(nValue := 42, stConfig := (nParam := 1))")
+        assert result == "dict(nValue=42, stConfig=dict(nParam=1))"
+
+    def test_fb_init_enum(self):
+        result = _format_initial_value("(eMode := E_Mode#Auto)")
+        assert result == "dict(eMode=E_Mode.Auto)"
+
+    def test_fb_init_round_trip(self):
+        """IEC init → Python dict → IEC init round-trips correctly."""
+        from plx.framework._descriptors import _format_initial
+        iec = "(Name := 'Pull Wheel', LogStateChanges := TRUE)"
+        py = _format_initial_value(iec)
+        d = eval(py)  # noqa: S307
+        assert _format_initial(d) == iec
+
+    def test_fb_init_static_var_output(self):
+        """FB instance with init renders as dict(), not a quoted string."""
+        w = _make_writer()
+        v = Variable(
+            name="PullWheels",
+            data_type=NamedTypeRef(name="FB_PullWheel"),
+            initial_value="(Name := 'Pull Wheel', LogStateChanges := TRUE)",
+        )
+        w._self_vars = set()
+        w._write_static_var(v)
+        out = w.getvalue().strip()
+        assert out == "PullWheels: FB_PullWheel = dict(Name='Pull Wheel', LogStateChanges=True)"
+
 
 # ===========================================================================
 # Type references
@@ -153,7 +194,7 @@ class TestTypeRef:
     def test_primitive(self):
         w = _make_writer()
         assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.BOOL)) == "bool"
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.INT)) == "INT"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.INT)) == "int"
         assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.REAL)) == "float"
 
     def test_primitive_python_aliases(self):
@@ -162,11 +203,16 @@ class TestTypeRef:
         assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.BOOL)) == "bool"
         assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.REAL)) == "float"
 
-    def test_primitive_non_default_preserved(self):
+    def test_primitive_lowercase(self):
         w = _make_writer()
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.SINT)) == "SINT"
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.LINT)) == "LINT"
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.LREAL)) == "LREAL"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.SINT)) == "sint"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.LINT)) == "lint"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.LREAL)) == "lreal"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.UDINT)) == "udint"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.UINT)) == "uint"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.BYTE)) == "byte"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.WORD)) == "word"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.DWORD)) == "dword"
 
     def test_string_default_as_str(self):
         w = _make_writer()
@@ -198,7 +244,7 @@ class TestTypeRef:
             element_type=PrimitiveTypeRef(type=PrimitiveType.INT),
             dimensions=[DimensionRange(lower=0, upper=9)],
         )
-        assert w._type_ref(tr) == "ARRAY(INT, 10)"
+        assert w._type_ref(tr) == "ARRAY(int, 10)"
 
     def test_array_one_based(self):
         w = _make_writer()
@@ -206,7 +252,7 @@ class TestTypeRef:
             element_type=PrimitiveTypeRef(type=PrimitiveType.INT),
             dimensions=[DimensionRange(lower=1, upper=10)],
         )
-        assert w._type_ref(tr) == "ARRAY(INT, (1, 10))"
+        assert w._type_ref(tr) == "ARRAY(int, (1, 10))"
 
     def test_array_with_python_types(self):
         w = _make_writer()
@@ -219,7 +265,7 @@ class TestTypeRef:
     def test_pointer(self):
         w = _make_writer()
         tr = PointerTypeRef(target_type=PrimitiveTypeRef(type=PrimitiveType.INT))
-        assert w._type_ref(tr) == "POINTER_TO(INT)"
+        assert w._type_ref(tr) == "POINTER_TO(int)"
 
     def test_pointer_with_python_types(self):
         w = _make_writer()
@@ -447,7 +493,7 @@ class TestExpressions:
             target_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
             source=VariableRef(name="x"),
         )
-        assert w._expr(expr) == "float(x)"
+        assert w._expr(expr) == "x"
 
     def test_system_flag_first_scan(self):
         w = _make_writer()
@@ -1552,6 +1598,63 @@ class TestAnnotationSyntaxEmission:
         out = w.getvalue()
         assert "speed: Input[float] = 100.0" in out
 
+    def test_constant_no_redundant_flag(self):
+        """Constant[T] wrapper should not repeat constant=True in Field()."""
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="ConstFB",
+            interface=POUInterface(
+                constant_vars=[
+                    Variable(name="SEALER_ALARM_COUNT", data_type=PrimitiveTypeRef(type=PrimitiveType.INT),
+                             initial_value="6", constant=True),
+                ],
+            ),
+            networks=[Network(statements=[EmptyStatement()])],
+        )
+        w = _make_writer()
+        w._write_pou(pou)
+        out = w.getvalue()
+        # Simple form — no Field() needed since constant is implicit from the wrapper
+        assert "SEALER_ALARM_COUNT: Constant[int] = 6" in out
+        assert "constant=True" not in out
+
+    def test_constant_with_description_no_redundant_flag(self):
+        """Constant with description uses Field() but omits constant=True."""
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="ConstDescFB",
+            interface=POUInterface(
+                constant_vars=[
+                    Variable(name="FAULTID", data_type=PrimitiveTypeRef(type=PrimitiveType.INT),
+                             initial_value="1", description="Fault number", constant=True),
+                ],
+            ),
+            networks=[Network(statements=[EmptyStatement()])],
+        )
+        w = _make_writer()
+        w._write_pou(pou)
+        out = w.getvalue()
+        assert 'FAULTID: Constant[int] = Field(initial=1, description="Fault number")' in out
+        assert "constant=True" not in out
+
+    def test_constant_bare_no_initial(self):
+        """Constant without initial or metadata uses bare annotation."""
+        w = _make_writer()
+        v = Variable(name="MAX", data_type=PrimitiveTypeRef(type=PrimitiveType.INT), constant=True)
+        w._write_annotation_var(v, "Constant")
+        out = w.getvalue().strip()
+        assert out == "MAX: Constant[int]"
+
+    def test_static_constant_flag_preserved(self):
+        """Static var with constant=True still emits the flag (no wrapper to imply it)."""
+        w = _make_writer()
+        w._self_vars = set()
+        v = Variable(name="PI", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
+                     initial_value="3.14", constant=True)
+        w._write_static_var(v)
+        out = w.getvalue().strip()
+        assert "constant=True" in out
+
 
 # ===========================================================================
 # Multi-file generation
@@ -1921,32 +2024,74 @@ class TestInterfaceExport:
 # ===========================================================================
 
 class TestTypeConversionExport:
-    def test_type_conversion_iec_name(self):
-        """IEC type names like INT(x), SINT(x), LREAL(x) round-trip correctly."""
-        w = _make_writer()
-        # Types NOT in _PYTHON_TYPE_NAMES keep their IEC name
-        for type_name in ("INT", "SINT", "LREAL", "UINT", "UDINT", "LINT"):
-            prim = PrimitiveType(type_name)
-            expr = TypeConversionExpr(
-                target_type=PrimitiveTypeRef(type=prim),
-                source=VariableRef(name="x"),
-            )
-            assert w._expr(expr) == f"{type_name}(x)", f"Failed for {type_name}"
+    """Type conversions are implicit in Python — the py exporter strips them."""
 
-    def test_type_conversion_python_mapped(self):
-        """BOOL/DINT/REAL map to Python builtins bool()/int()/float()."""
+    def test_primitive_cast_stripped(self):
+        """Simple primitive cast REAL(x) exports as just x."""
         w = _make_writer()
-        cases = [
-            (PrimitiveType.BOOL, "bool(x)"),
-            (PrimitiveType.DINT, "int(x)"),
-            (PrimitiveType.REAL, "float(x)"),
-        ]
-        for prim, expected in cases:
+        for prim in [PrimitiveType.INT, PrimitiveType.SINT, PrimitiveType.LREAL,
+                      PrimitiveType.UINT, PrimitiveType.UDINT, PrimitiveType.LINT,
+                      PrimitiveType.BOOL, PrimitiveType.DINT, PrimitiveType.REAL]:
             expr = TypeConversionExpr(
                 target_type=PrimitiveTypeRef(type=prim),
                 source=VariableRef(name="x"),
             )
-            assert w._expr(expr) == expected
+            assert w._expr(expr) == "x", f"Failed for {prim}"
+
+    def test_explicit_conversion_stripped(self):
+        """LREAL_TO_DINT(x) (with source_type set) exports as just x."""
+        w = _make_writer()
+        expr = TypeConversionExpr(
+            target_type=PrimitiveTypeRef(type=PrimitiveType.DINT),
+            source=VariableRef(name="timeToUpdate"),
+            source_type=PrimitiveTypeRef(type=PrimitiveType.LREAL),
+        )
+        assert w._expr(expr) == "timeToUpdate"
+
+    def test_nested_conversions_stripped(self):
+        """Nested DINT_TO_REAL(BOOL_TO_INT(x)) exports as just x."""
+        w = _make_writer()
+        inner = TypeConversionExpr(
+            target_type=PrimitiveTypeRef(type=PrimitiveType.INT),
+            source=VariableRef(name="x"),
+            source_type=PrimitiveTypeRef(type=PrimitiveType.BOOL),
+        )
+        outer = TypeConversionExpr(
+            target_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
+            source=inner,
+            source_type=PrimitiveTypeRef(type=PrimitiveType.INT),
+        )
+        assert w._expr(outer) == "x"
+
+    def test_string_conversion_stripped(self):
+        """DINT_TO_STRING(x) also exports as just x (implicit in Python)."""
+        w = _make_writer()
+        expr = TypeConversionExpr(
+            target_type=StringTypeRef(),
+            source=VariableRef(name="count"),
+            source_type=PrimitiveTypeRef(type=PrimitiveType.DINT),
+        )
+        assert w._expr(expr) == "count"
+
+    def test_named_type_conversion_stripped(self):
+        """Conversion targeting a named type exports as just x."""
+        w = _make_writer()
+        expr = TypeConversionExpr(
+            target_type=NamedTypeRef(name="E_PackMode"),
+            source=VariableRef(name="modeInt"),
+        )
+        assert w._expr(expr) == "modeInt"
+
+    def test_conversion_in_binary_expr(self):
+        """Type conversion inside a binary expression is transparent."""
+        w = _make_writer()
+        conv = TypeConversionExpr(
+            target_type=PrimitiveTypeRef(type=PrimitiveType.DINT),
+            source=VariableRef(name="val"),
+            source_type=PrimitiveTypeRef(type=PrimitiveType.LREAL),
+        )
+        expr = BinaryExpr(op=BinaryOp.ADD, left=VariableRef(name="total"), right=conv)
+        assert w._expr(expr) == "total + val"
 
 
 # ===========================================================================
@@ -2314,7 +2459,7 @@ class TestArrayEmptyDimensions:
             dimensions=[DimensionRange(lower=0, upper=9)],
         )
         result = w._type_ref(tr)
-        assert result == "ARRAY(INT, 10)"
+        assert result == "ARRAY(int, 10)"
 
     def test_explicit_bounds_unchanged(self):
         """ARRAY[1..10] emits explicit bounds."""
@@ -2355,7 +2500,7 @@ class TestInOutParamsInMethodSignature:
         w = _make_writer()
         w._write_pou(pou)
         out = w.getvalue()
-        assert "def Process(self, cmd: INT, buffer: DataBuffer):" in out
+        assert "def Process(self, cmd: int, buffer: DataBuffer):" in out
         # InOut should NOT appear as local declaration
         assert "InOut[DataBuffer]" not in out
 
