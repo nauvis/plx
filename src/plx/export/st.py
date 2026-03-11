@@ -475,6 +475,9 @@ class STWriter:
                 self._write_stmt(stmt)
 
     def _write_stmt(self, stmt: Statement) -> None:
+        if stmt.comment:
+            for cline in stmt.comment.split("\n"):
+                self._line(f"// {cline}" if cline else "//")
         kind = stmt.kind
         handler = _STMT_WRITERS.get(kind)
         if handler is not None:
@@ -594,8 +597,9 @@ class STWriter:
         instance_text = stmt.instance_name if isinstance(stmt.instance_name, str) else self._expr(stmt.instance_name)
         self._line(f"{instance_text}({args});")
 
-    def _write_empty(self, _stmt: EmptyStatement) -> None:
-        self._line(";")
+    def _write_empty(self, stmt: EmptyStatement) -> None:
+        if not stmt.comment:
+            self._line(";")
 
     def _write_pragma(self, stmt: PragmaStatement) -> None:
         self._line(stmt.text)

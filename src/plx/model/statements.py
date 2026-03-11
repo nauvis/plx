@@ -17,6 +17,7 @@ class Assignment(IRModel):
     target: Expression
     value: Expression
     ref_assign: bool = False  # True for REF= (reference binding)
+    comment: str = ""  # Leading comment lines (preserved from source)
 
 
 class IfBranch(IRModel):
@@ -29,6 +30,7 @@ class IfStatement(IRModel):
     if_branch: IfBranch
     elsif_branches: list[IfBranch] = []
     else_body: list[Statement] = []
+    comment: str = ""
 
 
 class CaseRange(IRModel):
@@ -71,6 +73,7 @@ class CaseStatement(IRModel):
     selector: Expression
     branches: list[CaseBranch]
     else_body: list[Statement] = []
+    comment: str = ""
 
     @model_validator(mode="after")
     def _non_empty_branches(self):
@@ -86,31 +89,37 @@ class ForStatement(IRModel):
     to_expr: Expression
     by_expr: Expression | None = None
     body: list[Statement]
+    comment: str = ""
 
 
 class WhileStatement(IRModel):
     kind: Literal["while"] = "while"
     condition: Expression
     body: list[Statement]
+    comment: str = ""
 
 
 class RepeatStatement(IRModel):
     kind: Literal["repeat"] = "repeat"
     body: list[Statement]
     until: Expression
+    comment: str = ""
 
 
 class ExitStatement(IRModel):
     kind: Literal["exit"] = "exit"
+    comment: str = ""
 
 
 class ContinueStatement(IRModel):
     kind: Literal["continue"] = "continue"
+    comment: str = ""
 
 
 class ReturnStatement(IRModel):
     kind: Literal["return"] = "return"
     value: Expression | None = None
+    comment: str = ""
 
 
 class FunctionCallStatement(IRModel):
@@ -119,6 +128,7 @@ class FunctionCallStatement(IRModel):
     kind: Literal["function_call_stmt"] = "function_call_stmt"
     function_name: str = Field(min_length=1)
     args: list[CallArg] = []
+    comment: str = ""
 
 
 class FBInvocation(IRModel):
@@ -133,6 +143,7 @@ class FBInvocation(IRModel):
     fb_type: TypeRef | None = None
     inputs: dict[str, Expression] = {}
     outputs: dict[str, Expression] = {}
+    comment: str = ""
 
     @model_validator(mode="before")
     @classmethod
@@ -148,6 +159,7 @@ class FBInvocation(IRModel):
 
 class EmptyStatement(IRModel):
     kind: Literal["empty"] = "empty"
+    comment: str = ""
 
 
 class PragmaStatement(IRModel):
@@ -155,6 +167,7 @@ class PragmaStatement(IRModel):
 
     kind: Literal["pragma"] = "pragma"
     text: str
+    comment: str = ""
 
 
 Statement = Annotated[

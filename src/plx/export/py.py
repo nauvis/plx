@@ -1146,6 +1146,9 @@ class PyWriter:
     # ======================================================================
 
     def _write_stmt(self, stmt: Statement) -> None:
+        if stmt.comment:
+            for cline in stmt.comment.split("\n"):
+                self._line(f"# {cline}" if cline else "#")
         handler = _STMT_WRITERS.get(stmt.kind)
         if handler is not None:
             handler(self, stmt)
@@ -1326,8 +1329,9 @@ class PyWriter:
         for name, expr in stmt.outputs.items():
             self._line(f"{self._expr(expr)} = {instance}.{name}")
 
-    def _write_empty(self, _stmt: EmptyStatement) -> None:
-        self._line("pass")
+    def _write_empty(self, stmt: EmptyStatement) -> None:
+        if not stmt.comment:
+            self._line("pass")
 
     def _write_body(self, body: list[Statement]) -> None:
         """Write a statement list, emitting 'pass' if empty."""
