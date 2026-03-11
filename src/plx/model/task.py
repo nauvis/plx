@@ -14,7 +14,6 @@ class PeriodicTask(IRModel):
     name: str = Field(min_length=1)
     priority: int = 0
     interval: str
-    watchdog: str | None = None
     assigned_pous: list[str] = []
 
 
@@ -22,7 +21,6 @@ class ContinuousTask(IRModel):
     kind: Literal["continuous"] = "continuous"
     name: str = Field(min_length=1)
     priority: int = 0
-    watchdog: str | None = None
     assigned_pous: list[str] = []
 
 
@@ -31,7 +29,6 @@ class EventTask(IRModel):
     name: str = Field(min_length=1)
     priority: int = 0
     trigger_variable: str
-    watchdog: str | None = None
     assigned_pous: list[str] = []
 
 
@@ -39,7 +36,6 @@ class StartupTask(IRModel):
     kind: Literal["startup"] = "startup"
     name: str = Field(min_length=1)
     priority: int = 0
-    watchdog: str | None = None
     assigned_pous: list[str] = []
 
 

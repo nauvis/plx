@@ -8,7 +8,6 @@ from pydantic import Field, model_validator
 
 from ._base import IRModel
 
-from .hardware import Controller
 from .pou import POU
 from .task import Task, _coerce_old_task_format
 from .types import TypeDefinition
@@ -48,23 +47,12 @@ class GlobalVariableList(IRModel):
         return self
 
 
-class LibraryReference(IRModel):
-    """A reference to an external library dependency."""
-
-    name: str = Field(min_length=1)
-    version: str | None = None
-    vendor: str | None = None
-
-
 class Project(IRModel):
     name: str = Field(min_length=1)
-    description: str = ""
-    controller: Controller | None = None
     data_types: list[TypeDefinition] = []
     global_variable_lists: list[GlobalVariableList] = []
     pous: list[POU] = []
     tasks: list[Task] = []
-    libraries: list[LibraryReference] = []
     metadata: dict[str, Any] = {}
 
     @model_validator(mode="before")

@@ -89,14 +89,6 @@ class TestTaskConstructor:
         t = task("Main", periodic=timedelta(milliseconds=10))
         assert t.priority == 0
 
-    def test_watchdog(self):
-        t = task("Main", periodic=timedelta(milliseconds=10), watchdog=timedelta(milliseconds=500))
-        assert t.watchdog == "T#500ms"
-
-    def test_watchdog_string(self):
-        t = task("Main", periodic=timedelta(milliseconds=10), watchdog="T#1s")
-        assert t.watchdog == "T#1s"
-
     def test_no_mode_raises(self):
         with pytest.raises(ProjectAssemblyError, match="requires exactly one"):
             task("Bad")

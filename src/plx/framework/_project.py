@@ -44,7 +44,6 @@ class PlxTask:
         interval: str | None = None,
         priority: int = 0,
         trigger_variable: str | None = None,
-        watchdog: str | None = None,
         pous: list[type] | None = None,
     ) -> None:
         self.name = name
@@ -52,7 +51,6 @@ class PlxTask:
         self.interval = interval
         self.priority = priority
         self.trigger_variable = trigger_variable
-        self.watchdog = watchdog
         self._pou_classes: list[type] = list(pous) if pous else []
 
     def compile(self) -> PeriodicTask | ContinuousTask | EventTask | StartupTask:
@@ -77,7 +75,6 @@ class PlxTask:
         common = dict(
             name=self.name,
             priority=self.priority,
-            watchdog=self.watchdog,
             assigned_pous=assigned,
         )
         if self.task_type == TaskType.PERIODIC:
@@ -108,7 +105,6 @@ def task(
     event: str | None = None,
     startup: bool = False,
     priority: int = 0,
-    watchdog: Any = None,
     pous: list[type] | None = None,
 ) -> PlxTask:
     """Create a task definition.
@@ -136,15 +132,12 @@ def task(
             "got multiple of: periodic, continuous, event, startup"
         )
 
-    watchdog_str = _format_interval(watchdog) if watchdog is not None else None
-
     if periodic is not None:
         return PlxTask(
             name,
             task_type=TaskType.PERIODIC,
             interval=_format_interval(periodic),
             priority=priority,
-            watchdog=watchdog_str,
             pous=pous,
         )
     if continuous:
@@ -152,7 +145,6 @@ def task(
             name,
             task_type=TaskType.CONTINUOUS,
             priority=priority,
-            watchdog=watchdog_str,
             pous=pous,
         )
     if event is not None:
@@ -161,7 +153,6 @@ def task(
             task_type=TaskType.EVENT,
             trigger_variable=event,
             priority=priority,
-            watchdog=watchdog_str,
             pous=pous,
         )
     # startup
@@ -169,7 +160,6 @@ def task(
         name,
         task_type=TaskType.STARTUP,
         priority=priority,
-        watchdog=watchdog_str,
         pous=pous,
     )
 

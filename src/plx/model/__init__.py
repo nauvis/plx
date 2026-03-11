@@ -19,11 +19,11 @@ from .expressions import (
     UnaryOp,
     VariableRef,
 )
-from .hardware import (
-    Controller,
-    IODirection,
-    IOPoint,
-    Module,
+from .config import (
+    ChannelDirection,
+    ControllerConfig,
+    HardwareConfig,
+    IOChannel,
 )
 from .pou import (
     POU,
@@ -39,7 +39,6 @@ from .pou import (
 )
 from .project import (
     GlobalVariableList,
-    LibraryReference,
     Project,
 )
 from .sfc import (
@@ -180,13 +179,12 @@ __all__ = [
     "StartupTask",
     "Task",
     "TaskType",
-    # hardware
-    "IODirection",
-    "IOPoint",
-    "Module",
-    "Controller",
+    # hardware config
+    "ChannelDirection",
+    "ControllerConfig",
+    "HardwareConfig",
+    "IOChannel",
     # project
     "GlobalVariableList",
-    "LibraryReference",
     "Project",
 ]
