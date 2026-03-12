@@ -35,6 +35,7 @@ from plx.model.statements import (
     RepeatStatement,
     ReturnStatement,
     Statement,
+    TryCatchStatement,
     WhileStatement,
 )
 
@@ -89,6 +90,7 @@ class AnalysisVisitor:
     def on_if_exit(self, ctx: AnalysisContext, stmt: IfStatement) -> None: ...
     def on_return(self, ctx: AnalysisContext, stmt: ReturnStatement) -> None: ...
     def on_fb_invocation(self, ctx: AnalysisContext, stmt: FBInvocation) -> None: ...
+    def on_try_catch(self, ctx: AnalysisContext, stmt: TryCatchStatement) -> None: ...
     def on_sfc_enter(self, ctx: AnalysisContext, sfc: SFCBody) -> None: ...
     def on_sfc_exit(self, ctx: AnalysisContext, sfc: SFCBody) -> None: ...
     def on_sfc_step(self, ctx: AnalysisContext, step: Step) -> None: ...
@@ -242,6 +244,31 @@ class AnalysisVisitor:
         for arg in stmt.args:
             self._collect_reads(ctx, arg.value)
 
+    def _visit_try_catch(self, ctx: AnalysisContext, stmt: TryCatchStatement) -> None:
+        # try body — treated as normal execution path (not guarded)
+        ctx.current_stmt_path.append("try")
+        for s in stmt.try_body:
+            self._visit_stmt(ctx, s)
+        ctx.current_stmt_path.pop()
+
+        # catch body — conditional on exception, treat as guarded
+        if stmt.catch_body:
+            ctx.nesting_depth += 1
+            ctx.current_stmt_path.append("catch")
+            for s in stmt.catch_body:
+                self._visit_stmt(ctx, s)
+            ctx.current_stmt_path.pop()
+            ctx.nesting_depth -= 1
+
+        # finally body — always runs, treat as normal execution path
+        if stmt.finally_body:
+            ctx.current_stmt_path.append("finally")
+            for s in stmt.finally_body:
+                self._visit_stmt(ctx, s)
+            ctx.current_stmt_path.pop()
+
+        self.on_try_catch(ctx, stmt)
+
     def _visit_noop(self, ctx: AnalysisContext, stmt: Statement) -> None:
         pass
 
@@ -257,9 +284,13 @@ class AnalysisVisitor:
         "return": _visit_return,
         "fb_invocation": _visit_fb_invocation,
         "function_call_stmt": _visit_function_call_stmt,
+        "try_catch": _visit_try_catch,
         "exit": _visit_noop,
         "continue": _visit_noop,
         "empty": _visit_noop,
+        "pragma": _visit_noop,
+        "jump": _visit_noop,
+        "label": _visit_noop,
     }
 
     # ------------------------------------------------------------------

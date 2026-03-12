@@ -63,6 +63,7 @@ from plx.model import (
     Action,
     ActionQualifier,
 )
+from plx.model.statements import JumpStatement, LabelStatement, TryCatchStatement
 from plx.model.sfc import Transition as SFCTransition
 
 
@@ -1029,3 +1030,95 @@ class TestGVLQualifiedOnly:
         )
         st = to_structured_text(proj)
         assert "qualified_only" not in st
+
+
+# -----------------------------------------------------------------------
+# New statement types: latch assignment, TryCatch, Jump, Label
+# -----------------------------------------------------------------------
+
+def _pou_with(*stmts) -> POU:
+    return POU(
+        pou_type=POUType.PROGRAM, name="T",
+        networks=[Network(statements=list(stmts))],
+    )
+
+
+class TestLatchAssignment:
+    def test_set_latch(self):
+        stmt = Assignment(target=_ref("flag"), value=_ref("cond"), latch="S")
+        st = to_structured_text(_pou_with(stmt))
+        assert "flag S= cond;" in st
+
+    def test_reset_latch(self):
+        stmt = Assignment(target=_ref("flag"), value=_ref("cond"), latch="R")
+        st = to_structured_text(_pou_with(stmt))
+        assert "flag R= cond;" in st
+
+    def test_normal_assignment_unaffected(self):
+        stmt = Assignment(target=_ref("x"), value=_lit("42"))
+        st = to_structured_text(_pou_with(stmt))
+        assert "x := 42;" in st
+
+
+class TestTryCatchStatement:
+    def test_try_catch_basic(self):
+        stmt = TryCatchStatement(
+            try_body=[Assignment(target=_ref("x"), value=_lit("1"))],
+            catch_body=[Assignment(target=_ref("x"), value=_lit("0"))],
+        )
+        st = to_structured_text(_pou_with(stmt))
+        assert "__TRY" in st
+        assert "__CATCH" in st
+        assert "__ENDTRY" in st
+
+    def test_try_catch_with_var(self):
+        stmt = TryCatchStatement(
+            try_body=[Assignment(target=_ref("x"), value=_lit("1"))],
+            catch_var="exc",
+            catch_body=[],
+        )
+        st = to_structured_text(_pou_with(stmt))
+        assert "__CATCH(exc)" in st
+
+    def test_try_finally(self):
+        stmt = TryCatchStatement(
+            try_body=[Assignment(target=_ref("x"), value=_lit("1"))],
+            finally_body=[Assignment(target=_ref("done"), value=_lit("TRUE"))],
+        )
+        st = to_structured_text(_pou_with(stmt))
+        assert "__FINALLY" in st
+        assert "__ENDTRY" in st
+
+    def test_try_no_catch_no_finally(self):
+        stmt = TryCatchStatement(
+            try_body=[Assignment(target=_ref("x"), value=_lit("1"))],
+        )
+        st = to_structured_text(_pou_with(stmt))
+        assert "__TRY" in st
+        assert "__CATCH" not in st
+        assert "__FINALLY" not in st
+        assert "__ENDTRY" in st
+
+
+class TestJumpLabel:
+    def test_jump(self):
+        stmt = JumpStatement(label="loop_start")
+        st = to_structured_text(_pou_with(stmt))
+        assert "JMP loop_start;" in st
+
+    def test_label(self):
+        stmt = LabelStatement(name="loop_start")
+        st = to_structured_text(_pou_with(stmt))
+        assert "loop_start:" in st
+
+    def test_jump_and_label_together(self):
+        stmts = [
+            LabelStatement(name="top"),
+            Assignment(target=_ref("x"), value=BinaryExpr(
+                op=BinaryOp.ADD, left=_ref("x"), right=_lit("1"),
+            )),
+            JumpStatement(label="top"),
+        ]
+        st = to_structured_text(_pou_with(*stmts))
+        assert "top:" in st
+        assert "JMP top;" in st

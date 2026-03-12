@@ -27,7 +27,18 @@ from plx.framework import (
     transition,
     Field,
 )
-from plx.model.pou import POU
+from plx.model.pou import Network, POU, POUInterface, POUType
+from plx.model.expressions import VariableRef
+from plx.model.statements import (
+    Assignment,
+    EmptyStatement,
+    JumpStatement,
+    LabelStatement,
+    PragmaStatement,
+    TryCatchStatement,
+)
+from plx.model.types import PrimitiveTypeRef, PrimitiveType
+from plx.model.variables import Variable
 
 
 # ---------------------------------------------------------------------------
@@ -441,3 +452,145 @@ class TestFindingModel:
         j = result.model_dump_json()
         roundtrip = AnalysisResult.model_validate_json(j)
         assert roundtrip == result
+
+
+# ===========================================================================
+# Test: visitor handles newly added statement types
+# ===========================================================================
+
+def _bool_type() -> PrimitiveTypeRef:
+    return PrimitiveTypeRef(type=PrimitiveType.BOOL)
+
+
+def _pou_with_stmts(*stmts, output_vars=()) -> POU:
+    """Build a minimal POU containing the given statements."""
+    return POU(
+        pou_type=POUType.FUNCTION_BLOCK,
+        name="TestFB",
+        interface=POUInterface(
+            output_vars=[
+                Variable(name=name, data_type=_bool_type())
+                for name in output_vars
+            ]
+        ),
+        networks=[Network(statements=list(stmts))],
+    )
+
+
+def _run_visitor(*stmts, output_vars=()) -> AnalysisContext:
+    pou = _pou_with_stmts(*stmts, output_vars=output_vars)
+    visitor = AnalysisVisitor()
+    ctx = visitor._make_context(pou)
+    for i, network in enumerate(pou.networks):
+        ctx.current_network_idx = i
+        visitor._visit_network(ctx, network)
+    return ctx
+
+
+class TestVisitorNewStatements:
+    def test_pragma_no_crash(self):
+        ctx = _run_visitor(PragmaStatement(text="{attribute 'foo'}"))
+        assert ctx.findings == []
+
+    def test_jump_no_crash(self):
+        ctx = _run_visitor(JumpStatement(label="loop_top"))
+        assert ctx.findings == []
+
+    def test_label_no_crash(self):
+        ctx = _run_visitor(LabelStatement(name="loop_top"))
+        assert ctx.findings == []
+
+    def test_try_body_writes_recorded(self):
+        """Assignments inside try body are visible to the visitor."""
+        stmt = TryCatchStatement(
+            try_body=[
+                Assignment(
+                    target=VariableRef(name="flag"),
+                    value=VariableRef(name="flag"),
+                )
+            ],
+        )
+        ctx = _run_visitor(stmt, output_vars=("flag",))
+        assert "flag" in ctx.writes
+
+    def test_try_body_is_unguarded(self):
+        """try body is treated as normal execution — not guarded."""
+        stmt = TryCatchStatement(
+            try_body=[
+                Assignment(
+                    target=VariableRef(name="out"),
+                    value=VariableRef(name="out"),
+                )
+            ],
+        )
+        ctx = _run_visitor(stmt, output_vars=("out",))
+        assert ctx.writes["out"][0].guarded is False
+
+    def test_catch_body_is_guarded(self):
+        """catch body is conditional on exception — treated as guarded."""
+        stmt = TryCatchStatement(
+            try_body=[EmptyStatement()],
+            catch_body=[
+                Assignment(
+                    target=VariableRef(name="out"),
+                    value=VariableRef(name="out"),
+                )
+            ],
+        )
+        ctx = _run_visitor(stmt, output_vars=("out",))
+        assert ctx.writes["out"][0].guarded is True
+
+    def test_finally_body_is_unguarded(self):
+        """finally body always runs — treated as unguarded."""
+        stmt = TryCatchStatement(
+            try_body=[EmptyStatement()],
+            finally_body=[
+                Assignment(
+                    target=VariableRef(name="out"),
+                    value=VariableRef(name="out"),
+                )
+            ],
+        )
+        ctx = _run_visitor(stmt, output_vars=("out",))
+        assert ctx.writes["out"][0].guarded is False
+
+    def test_try_reads_collected(self):
+        stmt = TryCatchStatement(
+            try_body=[
+                Assignment(
+                    target=VariableRef(name="out"),
+                    value=VariableRef(name="sensor"),
+                )
+            ],
+        )
+        ctx = _run_visitor(stmt)
+        assert "sensor" in ctx.reads
+
+    def test_on_try_catch_hook_called(self):
+        hook_calls = []
+
+        class TrackingVisitor(AnalysisVisitor):
+            def on_try_catch(self, ctx, stmt):
+                hook_calls.append(stmt)
+
+        stmt = TryCatchStatement(try_body=[EmptyStatement()])
+        pou = _pou_with_stmts(stmt)
+        TrackingVisitor().analyze_pou(pou)
+        assert len(hook_calls) == 1
+        assert hook_calls[0] is stmt
+
+    def test_unguarded_output_rule_traverses_try_body(self):
+        """UnguardedOutputRule sees assignments inside try body."""
+        stmt = TryCatchStatement(
+            try_body=[
+                Assignment(
+                    target=VariableRef(name="out"),
+                    value=VariableRef(name="out"),
+                )
+            ],
+        )
+        pou = _pou_with_stmts(stmt, output_vars=("out",))
+        rule = UnguardedOutputRule()
+        findings = rule.analyze_pou(pou)
+        # Assignment in try body is unguarded → should produce a finding
+        assert any(f.pou_name == "TestFB" for f in findings)

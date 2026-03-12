@@ -19,12 +19,6 @@ from .expressions import (
     UnaryOp,
     VariableRef,
 )
-from .config import (
-    ChannelDirection,
-    ControllerConfig,
-    HardwareConfig,
-    IOChannel,
-)
 from .pou import (
     POU,
     AccessSpecifier,
@@ -61,10 +55,13 @@ from .statements import (
     FunctionCallStatement,
     IfBranch,
     IfStatement,
+    JumpStatement,
+    LabelStatement,
     PragmaStatement,
     RepeatStatement,
     ReturnStatement,
     Statement,
+    TryCatchStatement,
     WhileStatement,
 )
 from .task import (
@@ -154,6 +151,9 @@ __all__ = [
     "FBInvocation",
     "EmptyStatement",
     "PragmaStatement",
+    "TryCatchStatement",
+    "JumpStatement",
+    "LabelStatement",
     "Statement",
     # sfc
     "ActionQualifier",
@@ -179,11 +179,6 @@ __all__ = [
     "StartupTask",
     "Task",
     "TaskType",
-    # hardware config
-    "ChannelDirection",
-    "ControllerConfig",
-    "HardwareConfig",
-    "IOChannel",
     # project
     "GlobalVariableList",
     "Project",

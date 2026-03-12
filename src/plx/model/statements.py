@@ -17,6 +17,7 @@ class Assignment(IRModel):
     target: Expression
     value: Expression
     ref_assign: bool = False  # True for REF= (reference binding)
+    latch: Literal["", "S", "R"] = ""  # "S" for S= (set/latch), "R" for R= (reset/unlatch)
     comment: str = ""  # Leading comment lines (preserved from source)
 
 
@@ -170,6 +171,33 @@ class PragmaStatement(IRModel):
     comment: str = ""
 
 
+class TryCatchStatement(IRModel):
+    """Beckhoff TwinCAT exception handling: __TRY / __CATCH / __FINALLY / __ENDTRY."""
+
+    kind: Literal["try_catch"] = "try_catch"
+    try_body: list["Statement"]
+    catch_var: str | None = None  # Exception variable in __CATCH(exc)
+    catch_body: list["Statement"] = []
+    finally_body: list["Statement"] = []
+    comment: str = ""
+
+
+class JumpStatement(IRModel):
+    """Unconditional jump to a label: JMP label;"""
+
+    kind: Literal["jump"] = "jump"
+    label: str = Field(min_length=1)
+    comment: str = ""
+
+
+class LabelStatement(IRModel):
+    """A label target: label:"""
+
+    kind: Literal["label"] = "label"
+    name: str = Field(min_length=1)
+    comment: str = ""
+
+
 Statement = Annotated[
     Union[
         Assignment,
@@ -185,6 +213,9 @@ Statement = Annotated[
         FBInvocation,
         EmptyStatement,
         PragmaStatement,
+        TryCatchStatement,
+        JumpStatement,
+        LabelStatement,
     ],
     Field(discriminator="kind"),
 ]
@@ -201,3 +232,6 @@ ReturnStatement.model_rebuild()
 FunctionCallStatement.model_rebuild()
 FBInvocation.model_rebuild()
 PragmaStatement.model_rebuild()
+TryCatchStatement.model_rebuild()
+JumpStatement.model_rebuild()
+LabelStatement.model_rebuild()

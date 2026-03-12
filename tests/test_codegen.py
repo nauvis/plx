@@ -50,8 +50,11 @@ from plx.model.statements import (
     ForStatement,
     FunctionCallStatement,
     IfStatement,
+    JumpStatement,
+    LabelStatement,
     RepeatStatement,
     ReturnStatement,
+    TryCatchStatement,
     WhileStatement,
 )
 from plx.model.task import PeriodicTask
@@ -2523,3 +2526,153 @@ class TestInOutParamsInMethodSignature:
         w._write_method(m)
         out = w.getvalue()
         assert "def Transfer(self, enable: bool, data: MyStruct):" in out
+
+
+# ===========================================================================
+# New statement types: latch assignment, TryCatch, Jump, Label
+# ===========================================================================
+
+class TestLatchAssignmentExport:
+    def test_set_latch_emits_comment(self):
+        w = _make_writer()
+        stmt = Assignment(
+            target=VariableRef(name="flag"),
+            value=VariableRef(name="cond"),
+            latch="S",
+        )
+        w._write_stmt(stmt)
+        out = w.getvalue().strip()
+        assert out == "# flag S= cond"
+
+    def test_reset_latch_emits_comment(self):
+        w = _make_writer()
+        stmt = Assignment(
+            target=VariableRef(name="flag"),
+            value=VariableRef(name="cond"),
+            latch="R",
+        )
+        w._write_stmt(stmt)
+        out = w.getvalue().strip()
+        assert out == "# flag R= cond"
+
+    def test_normal_assignment_unaffected(self):
+        w = _make_writer()
+        stmt = Assignment(
+            target=VariableRef(name="x"),
+            value=LiteralExpr(value="42"),
+        )
+        w._write_stmt(stmt)
+        assert w.getvalue().strip() == "x = 42"
+
+
+class TestTryCatchExport:
+    def test_try_catch_emits_comment_block(self):
+        w = _make_writer()
+        stmt = TryCatchStatement(
+            try_body=[Assignment(target=VariableRef(name="x"), value=LiteralExpr(value="1"))],
+            catch_body=[Assignment(target=VariableRef(name="x"), value=LiteralExpr(value="0"))],
+        )
+        w._write_stmt(stmt)
+        out = w.getvalue()
+        assert "# __TRY" in out
+        assert "# __CATCH" in out
+        assert "# __ENDTRY" in out
+        # Body statements are still emitted (not commented out)
+        assert "x = 1" in out
+        assert "x = 0" in out
+
+    def test_try_catch_with_var(self):
+        w = _make_writer()
+        stmt = TryCatchStatement(
+            try_body=[EmptyStatement()],
+            catch_var="exc",
+            catch_body=[],
+        )
+        w._write_stmt(stmt)
+        assert "# __CATCH(exc)" in w.getvalue()
+
+    def test_try_finally(self):
+        w = _make_writer()
+        stmt = TryCatchStatement(
+            try_body=[EmptyStatement()],
+            finally_body=[Assignment(target=VariableRef(name="done"), value=LiteralExpr(value="TRUE"))],
+        )
+        w._write_stmt(stmt)
+        out = w.getvalue()
+        assert "# __FINALLY" in out
+        assert "done = True" in out
+
+    def test_try_no_catch_no_finally(self):
+        w = _make_writer()
+        stmt = TryCatchStatement(try_body=[EmptyStatement()])
+        w._write_stmt(stmt)
+        out = w.getvalue()
+        assert "# __TRY" in out
+        assert "__CATCH" not in out
+        assert "__FINALLY" not in out
+        assert "# __ENDTRY" in out
+
+
+class TestJumpLabelExport:
+    def test_jump_emits_comment(self):
+        w = _make_writer()
+        w._write_stmt(JumpStatement(label="loop_start"))
+        assert w.getvalue().strip() == "# JMP loop_start"
+
+    def test_label_emits_comment(self):
+        w = _make_writer()
+        w._write_stmt(LabelStatement(name="loop_start"))
+        assert w.getvalue().strip() == "# loop_start:"
+
+
+class TestNewStatementIRModel:
+    def test_latch_defaults_to_empty(self):
+        stmt = Assignment(
+            target=VariableRef(name="x"),
+            value=LiteralExpr(value="1"),
+        )
+        assert stmt.latch == ""
+
+    def test_latch_accepts_s_and_r(self):
+        s_stmt = Assignment(target=VariableRef(name="x"), value=LiteralExpr(value="TRUE"), latch="S")
+        r_stmt = Assignment(target=VariableRef(name="x"), value=LiteralExpr(value="FALSE"), latch="R")
+        assert s_stmt.latch == "S"
+        assert r_stmt.latch == "R"
+
+    def test_try_catch_construction(self):
+        stmt = TryCatchStatement(
+            try_body=[EmptyStatement()],
+            catch_var="exc",
+            catch_body=[EmptyStatement()],
+            finally_body=[EmptyStatement()],
+        )
+        assert stmt.kind == "try_catch"
+        assert stmt.catch_var == "exc"
+        assert len(stmt.try_body) == 1
+        assert len(stmt.catch_body) == 1
+        assert len(stmt.finally_body) == 1
+
+    def test_jump_construction(self):
+        stmt = JumpStatement(label="target")
+        assert stmt.kind == "jump"
+        assert stmt.label == "target"
+
+    def test_label_construction(self):
+        stmt = LabelStatement(name="target")
+        assert stmt.kind == "label"
+        assert stmt.name == "target"
+
+    def test_new_types_in_statement_union(self):
+        """New types round-trip through the Statement discriminated union."""
+        import json
+        from plx.model.statements import Statement
+        from pydantic import TypeAdapter
+        ta = TypeAdapter(Statement)
+        for data in [
+            {"kind": "jump", "label": "lbl"},
+            {"kind": "label", "name": "lbl"},
+            {"kind": "try_catch", "try_body": []},
+        ]:
+            stmt = ta.validate_python(data)
+            restored = ta.validate_json(ta.dump_json(stmt))
+            assert restored == stmt

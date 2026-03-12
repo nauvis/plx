@@ -50,10 +50,13 @@ from plx.model.statements import (
     ForStatement,
     FunctionCallStatement,
     IfStatement,
+    JumpStatement,
+    LabelStatement,
     PragmaStatement,
     RepeatStatement,
     ReturnStatement,
     Statement,
+    TryCatchStatement,
     WhileStatement,
 )
 from plx.model.types import (
@@ -486,7 +489,12 @@ class STWriter:
             self._line(f"// Unsupported statement: {kind}")
 
     def _write_assignment(self, stmt: Assignment) -> None:
-        op = "REF=" if stmt.ref_assign else ":="
+        if stmt.ref_assign:
+            op = "REF="
+        elif stmt.latch:
+            op = f"{stmt.latch}="
+        else:
+            op = ":="
         self._line(f"{self._expr(stmt.target)} {op} {self._expr(stmt.value)};")
 
     def _write_if(self, stmt: IfStatement) -> None:
@@ -603,6 +611,35 @@ class STWriter:
 
     def _write_pragma(self, stmt: PragmaStatement) -> None:
         self._line(stmt.text)
+
+    def _write_try_catch(self, stmt: TryCatchStatement) -> None:
+        self._line("__TRY")
+        self._indent_inc()
+        for s in stmt.try_body:
+            self._write_stmt(s)
+        self._indent_dec()
+        if stmt.catch_body or stmt.catch_var is not None:
+            catch_header = "__CATCH"
+            if stmt.catch_var is not None:
+                catch_header += f"({stmt.catch_var})"
+            self._line(catch_header)
+            self._indent_inc()
+            for s in stmt.catch_body:
+                self._write_stmt(s)
+            self._indent_dec()
+        if stmt.finally_body:
+            self._line("__FINALLY")
+            self._indent_inc()
+            for s in stmt.finally_body:
+                self._write_stmt(s)
+            self._indent_dec()
+        self._line("__ENDTRY")
+
+    def _write_jump(self, stmt: JumpStatement) -> None:
+        self._line(f"JMP {stmt.label};")
+
+    def _write_label(self, stmt: LabelStatement) -> None:
+        self._line(f"{stmt.name}:")
 
     # ======================================================================
     # Expressions
@@ -901,6 +938,9 @@ _STMT_WRITERS = {
     "fb_invocation": STWriter._write_fb_invocation,
     "empty": STWriter._write_empty,
     "pragma": STWriter._write_pragma,
+    "try_catch": STWriter._write_try_catch,
+    "jump": STWriter._write_jump,
+    "label": STWriter._write_label,
 }
 
 _EXPR_WRITERS = {

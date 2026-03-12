@@ -49,9 +49,12 @@ from plx.model.statements import (
     ForStatement,
     FunctionCallStatement,
     IfStatement,
+    JumpStatement,
+    LabelStatement,
     RepeatStatement,
     ReturnStatement,
     Statement,
+    TryCatchStatement,
     WhileStatement,
 )
 from plx.model.task import (
@@ -1177,6 +1180,10 @@ class PyWriter:
                 and stmt.target.name == self._return_var):
             self._line(f"return {self._expr(stmt.value)}")
             return
+        # S=/R= latch assignments have no Python framework equivalent
+        if stmt.latch:
+            self._line(f"# {self._expr(stmt.target)} {stmt.latch}= {self._expr(stmt.value)}")
+            return
         # Recover augmented assignment: ``x = x + y`` → ``x += y``
         if isinstance(stmt.value, BinaryExpr):
             aug = self._AUGOP.get(stmt.value.op)
@@ -1332,6 +1339,36 @@ class PyWriter:
     def _write_empty(self, stmt: EmptyStatement) -> None:
         if not stmt.comment:
             self._line("pass")
+
+    def _write_try_catch(self, stmt: TryCatchStatement) -> None:
+        # No Python framework equivalent — emit as ST-style comment block
+        self._line("# __TRY")
+        self._indent_inc()
+        for s in stmt.try_body:
+            self._write_stmt(s)
+        self._indent_dec()
+        if stmt.catch_body or stmt.catch_var is not None:
+            catch_header = "# __CATCH"
+            if stmt.catch_var is not None:
+                catch_header += f"({stmt.catch_var})"
+            self._line(catch_header)
+            self._indent_inc()
+            for s in stmt.catch_body:
+                self._write_stmt(s)
+            self._indent_dec()
+        if stmt.finally_body:
+            self._line("# __FINALLY")
+            self._indent_inc()
+            for s in stmt.finally_body:
+                self._write_stmt(s)
+            self._indent_dec()
+        self._line("# __ENDTRY")
+
+    def _write_jump(self, stmt: JumpStatement) -> None:
+        self._line(f"# JMP {stmt.label}")
+
+    def _write_label(self, stmt: LabelStatement) -> None:
+        self._line(f"# {stmt.name}:")
 
     def _write_body(self, body: list[Statement]) -> None:
         """Write a statement list, emitting 'pass' if empty."""
@@ -1593,6 +1630,9 @@ _STMT_WRITERS = {
     "function_call_stmt": PyWriter._write_function_call_stmt,
     "fb_invocation": PyWriter._write_fb_invocation,
     "empty": PyWriter._write_empty,
+    "try_catch": PyWriter._write_try_catch,
+    "jump": PyWriter._write_jump,
+    "label": PyWriter._write_label,
 }
 
 _EXPR_WRITERS = {
