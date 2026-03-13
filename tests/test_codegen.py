@@ -149,23 +149,23 @@ class TestFormatInitialValue:
 
     def test_fb_init_simple(self):
         result = _format_initial_value("(Name := 'Pull Wheel', LogStateChanges := TRUE)")
-        assert result == "dict(Name='Pull Wheel', LogStateChanges=True)"
+        assert result == '{"Name": \'Pull Wheel\', "LogStateChanges": True}'
 
     def test_fb_init_numeric(self):
         result = _format_initial_value("(nValue := 42, fGain := 3.14)")
-        assert result == "dict(nValue=42, fGain=3.14)"
+        assert result == '{"nValue": 42, "fGain": 3.14}'
 
     def test_fb_init_time(self):
         result = _format_initial_value("(PT := T#5S, bEnabled := TRUE)")
-        assert result == "dict(PT=timedelta(seconds=5), bEnabled=True)"
+        assert result == '{"PT": timedelta(seconds=5), "bEnabled": True}'
 
     def test_fb_init_nested(self):
         result = _format_initial_value("(nValue := 42, stConfig := (nParam := 1))")
-        assert result == "dict(nValue=42, stConfig=dict(nParam=1))"
+        assert result == '{"nValue": 42, "stConfig": {"nParam": 1}}'
 
     def test_fb_init_enum(self):
         result = _format_initial_value("(eMode := E_Mode#Auto)")
-        assert result == "dict(eMode=E_Mode.Auto)"
+        assert result == '{"eMode": E_Mode.Auto}'
 
     def test_fb_init_round_trip(self):
         """IEC init → Python dict → IEC init round-trips correctly."""
@@ -176,7 +176,7 @@ class TestFormatInitialValue:
         assert _format_initial(d) == iec
 
     def test_fb_init_static_var_output(self):
-        """FB instance with init renders as dict(), not a quoted string."""
+        """FB instance with init renders as Field(initial={...})."""
         w = _make_writer()
         v = Variable(
             name="PullWheels",
@@ -186,7 +186,7 @@ class TestFormatInitialValue:
         w._self_vars = set()
         w._write_static_var(v)
         out = w.getvalue().strip()
-        assert out == "PullWheels: FB_PullWheel = dict(Name='Pull Wheel', LogStateChanges=True)"
+        assert out == "PullWheels: FB_PullWheel = Field(initial={\"Name\": 'Pull Wheel', \"LogStateChanges\": True})"
 
 
 # ===========================================================================
@@ -196,46 +196,46 @@ class TestFormatInitialValue:
 class TestTypeRef:
     def test_primitive(self):
         w = _make_writer()
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.BOOL)) == "BOOL"
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.INT)) == "INT"
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.REAL)) == "REAL"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.BOOL)) == "bool"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.INT)) == "int"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.REAL)) == "real"
 
     def test_primitive_python_aliases(self):
         w = _make_writer()
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.DINT)) == "DINT"
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.BOOL)) == "BOOL"
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.REAL)) == "REAL"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.DINT)) == "dint"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.BOOL)) == "bool"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.REAL)) == "real"
 
-    def test_primitive_uppercase(self):
+    def test_primitive_lowercase(self):
         w = _make_writer()
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.SINT)) == "SINT"
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.LINT)) == "LINT"
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.LREAL)) == "LREAL"
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.UDINT)) == "UDINT"
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.UINT)) == "UINT"
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.BYTE)) == "BYTE"
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.WORD)) == "WORD"
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.DWORD)) == "DWORD"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.SINT)) == "sint"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.LINT)) == "lint"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.LREAL)) == "lreal"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.UDINT)) == "udint"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.UINT)) == "uint"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.BYTE)) == "byte"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.WORD)) == "word"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.DWORD)) == "dword"
 
     def test_string_with_max_length(self):
         w = _make_writer()
-        assert w._type_ref(StringTypeRef(wide=False, max_length=255)) == "STRING(255)"
+        assert w._type_ref(StringTypeRef(wide=False, max_length=255)) == "string(255)"
 
     def test_string_non_default_unchanged(self):
         w = _make_writer()
-        assert w._type_ref(StringTypeRef(wide=False, max_length=80)) == "STRING(80)"
+        assert w._type_ref(StringTypeRef(wide=False, max_length=80)) == "string(80)"
 
     def test_string_no_length(self):
         w = _make_writer()
-        assert w._type_ref(StringTypeRef()) == "STRING"
+        assert w._type_ref(StringTypeRef()) == "string"
 
     def test_string_with_length(self):
         w = _make_writer()
-        assert w._type_ref(StringTypeRef(max_length=80)) == "STRING(80)"
+        assert w._type_ref(StringTypeRef(max_length=80)) == "string(80)"
 
     def test_wstring(self):
         w = _make_writer()
-        assert w._type_ref(StringTypeRef(wide=True, max_length=100)) == "WSTRING(100)"
+        assert w._type_ref(StringTypeRef(wide=True, max_length=100)) == "wstring(100)"
 
     def test_named(self):
         w = _make_writer()
@@ -247,7 +247,7 @@ class TestTypeRef:
             element_type=PrimitiveTypeRef(type=PrimitiveType.INT),
             dimensions=[DimensionRange(lower=0, upper=9)],
         )
-        assert w._type_ref(tr) == "ARRAY(INT, 10)"
+        assert w._type_ref(tr) == "array(int, 10)"
 
     def test_array_one_based(self):
         w = _make_writer()
@@ -255,7 +255,7 @@ class TestTypeRef:
             element_type=PrimitiveTypeRef(type=PrimitiveType.INT),
             dimensions=[DimensionRange(lower=1, upper=10)],
         )
-        assert w._type_ref(tr) == "ARRAY(INT, (1, 10))"
+        assert w._type_ref(tr) == "array(int, (1, 10))"
 
     def test_array_with_dint(self):
         w = _make_writer()
@@ -263,7 +263,7 @@ class TestTypeRef:
             element_type=PrimitiveTypeRef(type=PrimitiveType.DINT),
             dimensions=[DimensionRange(lower=0, upper=9)],
         )
-        assert w._type_ref(tr) == "ARRAY(DINT, 10)"
+        assert w._type_ref(tr) == "array(dint, 10)"
 
     def test_array_expression_upper_bound(self):
         w = _make_writer()
@@ -277,7 +277,7 @@ class TestTypeRef:
                 ),
             )],
         )
-        assert w._type_ref(tr) == "ARRAY(I_Module, (1, Params.MAX_MODULES))"
+        assert w._type_ref(tr) == "array(I_Module, (1, Params.MAX_MODULES))"
 
     def test_array_expression_both_bounds(self):
         w = _make_writer()
@@ -288,22 +288,22 @@ class TestTypeRef:
                 upper=VariableRef(name="MAX_IDX"),
             )],
         )
-        assert w._type_ref(tr) == "ARRAY(INT, (MIN_IDX, MAX_IDX))"
+        assert w._type_ref(tr) == "array(int, (MIN_IDX, MAX_IDX))"
 
     def test_pointer(self):
         w = _make_writer()
         tr = PointerTypeRef(target_type=PrimitiveTypeRef(type=PrimitiveType.INT))
-        assert w._type_ref(tr) == "POINTER_TO(INT)"
+        assert w._type_ref(tr) == "pointer_to(int)"
 
     def test_pointer_with_real(self):
         w = _make_writer()
         tr = PointerTypeRef(target_type=PrimitiveTypeRef(type=PrimitiveType.REAL))
-        assert w._type_ref(tr) == "POINTER_TO(REAL)"
+        assert w._type_ref(tr) == "pointer_to(real)"
 
     def test_reference(self):
         w = _make_writer()
         tr = ReferenceTypeRef(target_type=PrimitiveTypeRef(type=PrimitiveType.REAL))
-        assert w._type_ref(tr) == "REFERENCE_TO(REAL)"
+        assert w._type_ref(tr) == "reference_to(real)"
 
 
 # ===========================================================================
@@ -826,8 +826,8 @@ class TestTypeDefinitions:
         out = w.getvalue().strip()
         assert "@struct" in out
         assert "class MotorData:" in out
-        assert "speed: REAL" in out
-        assert "running: BOOL = False" in out
+        assert "speed: real" in out
+        assert "running: bool = False" in out
 
     def test_enum(self):
         td = EnumType(
@@ -910,8 +910,8 @@ class TestGlobalVarLists:
         out = w.getvalue().strip()
         assert "@global_vars" in out
         assert "class SystemIO:" in out
-        assert "speed: REAL = 0.0" in out
-        assert "running: BOOL" in out
+        assert "speed: real = 0.0" in out
+        assert "running: bool" in out
 
     def test_gvl_with_complex_vars(self):
         gvl = GlobalVariableList(
@@ -927,7 +927,7 @@ class TestGlobalVarLists:
         w = _make_writer()
         w._write_global_variable_list(gvl)
         out = w.getvalue().strip()
-        assert "valve: BOOL = Field(retain=True)" in out
+        assert "valve: bool = Field(retain=True)" in out
 
     def test_gvl_with_description(self):
         gvl = GlobalVariableList(
@@ -981,8 +981,8 @@ class TestPOUEmission:
         out = w.getvalue().strip()
         assert "@fb" in out
         assert "class SimpleFB:" in out
-        assert "sensor: Input[BOOL]" in out
-        assert "valve: Output[BOOL]" in out
+        assert "sensor: Input[bool]" in out
+        assert "valve: Output[bool]" in out
         assert "def logic(self):" in out
         assert "self.valve = self.sensor" in out
 
@@ -1021,7 +1021,7 @@ class TestPOUEmission:
         w._write_pou(pou)
         out = w.getvalue().strip()
         assert "@function" in out
-        assert "def logic(self) -> REAL:" in out
+        assert "def logic(self) -> real:" in out
         assert "return self.x + 1.0" in out
 
     def test_fb_extends(self):
@@ -1051,7 +1051,7 @@ class TestPOUEmission:
         w = _make_writer()
         w._write_pou(pou)
         out = w.getvalue().strip()
-        assert "timer: TON" in out
+        assert "timer: ton" in out
 
     def test_method(self):
         pou = POU(
@@ -1076,7 +1076,7 @@ class TestPOUEmission:
         w._write_pou(pou)
         out = w.getvalue().strip()
         assert "@method" in out
-        assert "def Calculate(self, x: REAL) -> REAL:" in out
+        assert "def Calculate(self, x: real) -> real:" in out
 
     def test_private_method(self):
         pou = POU(
@@ -1269,7 +1269,8 @@ class TestFullProject:
         proj = Project(name="Empty")
         out = generate(proj)
         assert "from plx.framework import *" in out
-        assert 'proj = project("Empty")' in out
+        assert 'project("Empty"' in out
+        assert 'packages=["."]' in out
 
     def test_project_with_pou(self):
         proj = Project(
@@ -1295,7 +1296,7 @@ class TestFullProject:
         assert "from plx.framework import *" in out
         assert "@fb" in out
         assert "class Motor:" in out
-        assert "pous=[Motor]" in out
+        assert 'packages=["."]' in out
 
     def test_project_with_tasks(self):
         proj = Project(
@@ -1348,7 +1349,7 @@ class TestFullProject:
         assert "class SensorData:" in out
         assert "@enumeration" in out
         assert "class State:" in out
-        assert "data_types=[SensorData, State]" in out
+        assert 'packages=["."]' in out
 
     def test_project_with_global_vars(self):
         proj = Project(
@@ -1366,7 +1367,7 @@ class TestFullProject:
         out = generate(proj)
         assert "@global_vars" in out
         assert "class SystemIO:" in out
-        assert "global_var_lists=[SystemIO]" in out
+        assert 'packages=["."]' in out
 
     def test_pou_ordering(self):
         """FUNCTIONs before FUNCTION_BLOCKs before PROGRAMs."""
@@ -1436,8 +1437,8 @@ class TestRoundTrip:
 
         @fb
         class RoundTripFB:
-            sensor: Input[BOOL]
-            valve: Output[BOOL]
+            sensor: Input[bool]
+            valve: Output[bool]
 
             def logic(self):
                 self.valve = self.sensor
@@ -1451,20 +1452,20 @@ class TestRoundTrip:
 
         # Verify key elements
         assert "class RoundTripFB:" in code
-        assert "sensor: Input[BOOL]" in code
-        assert "valve: Output[BOOL]" in code
+        assert "sensor: Input[bool]" in code
+        assert "valve: Output[bool]" in code
         assert "self.valve = self.sensor" in code
 
     def test_function_round_trip(self):
         from plx.framework._decorators import function
         from plx.framework._descriptors import Input
-        from plx.framework._types import REAL
+        from plx.framework._plc_types import real
 
         @function
         class AddOne:
-            x: Input[REAL]
+            x: Input[real]
 
-            def logic(self) -> REAL:
+            def logic(self) -> real:
                 return self.x + 1.0
 
         pou_ir = AddOne.compile()
@@ -1472,7 +1473,7 @@ class TestRoundTrip:
         code = generate(proj_ir)
 
         compile(code, "<generated>", "exec")
-        assert "def logic(self) -> REAL:" in code
+        assert "def logic(self) -> real:" in code
 
     def test_if_else_round_trip(self):
         from plx.framework._decorators import fb
@@ -1481,7 +1482,7 @@ class TestRoundTrip:
 
         @fb
         class IfElseFB:
-            enable: Input[BOOL]
+            enable: Input[bool]
             count: Output[DINT]
 
             def logic(self):
@@ -1519,12 +1520,12 @@ class TestRoundTrip:
 
     def test_data_types_round_trip(self):
         from plx.framework._data_types import enumeration, struct
-        from plx.framework._types import BOOL, REAL
+        from plx.framework._plc_types import real
 
         @struct
         class MotorData:
-            speed: REAL
-            running: BOOL = False
+            speed: real
+            running: bool = False
 
         @enumeration
         class Mode:
@@ -1539,17 +1540,17 @@ class TestRoundTrip:
         compile(code, "<generated>", "exec")
 
         assert "class MotorData:" in code
-        assert "speed: REAL" in code
+        assert "speed: real" in code
         assert "class Mode:" in code
 
     def test_global_vars_round_trip(self):
         from plx.framework._global_vars import global_vars
-        from plx.framework._types import BOOL, REAL
+        from plx.framework._plc_types import real
 
         @global_vars
         class IO:
-            speed: REAL = 0.0
-            running: BOOL
+            speed: real = 0.0
+            running: bool
 
         proj_ir = Project(
             name="GVLTest",
@@ -1563,14 +1564,15 @@ class TestRoundTrip:
     def test_project_assembly_round_trip(self):
         from plx.framework._decorators import fb, program
         from plx.framework._descriptors import Input, Output
-        from plx.framework._project import project, task
+        from plx.framework._project import project
+        from plx.framework._task import task
         from datetime import timedelta
         from plx.framework._types import BOOL
 
         @fb
         class MotorCtrl:
-            cmd: Input[BOOL]
-            out: Output[BOOL]
+            cmd: Input[bool]
+            out: Output[bool]
 
             def logic(self):
                 self.out = self.cmd
@@ -1612,10 +1614,10 @@ class TestAnnotationSyntaxEmission:
         w = _make_writer()
         w._write_pou(pou)
         out = w.getvalue()
-        assert "sensor: Input[BOOL]" in out
-        assert "valve: Output[BOOL]" in out
-        assert "ref: InOut[REAL]" in out
-        assert "count: DINT = 0" in out
+        assert "sensor: Input[bool]" in out
+        assert "valve: Output[bool]" in out
+        assert "ref: InOut[real]" in out
+        assert "count: dint = 0" in out
 
     def test_metadata_uses_field_syntax(self):
         """Variables with description/retain should use annotation + Field() syntax."""
@@ -1632,9 +1634,9 @@ class TestAnnotationSyntaxEmission:
         w = _make_writer()
         w._write_pou(pou)
         out = w.getvalue()
-        assert 'sensor: Input[BOOL] = Field(description="Main sensor")' in out
-        assert "valve: Output[BOOL] = Field(retain=True)" in out
-        assert "count: DINT" in out
+        assert 'sensor: Input[bool] = Field(description="Main sensor")' in out
+        assert "valve: Output[bool] = Field(retain=True)" in out
+        assert "count: dint" in out
 
     def test_standard_fb_shorthand_preserved(self):
         """Standard FB types (TON, etc.) should still use annotation shorthand."""
@@ -1649,7 +1651,7 @@ class TestAnnotationSyntaxEmission:
         w = _make_writer()
         w._write_pou(pou)
         out = w.getvalue()
-        assert "timer: TON" in out
+        assert "timer: ton" in out
 
     def test_static_var_no_initial_uses_annotation(self):
         """Static var without initial value uses bare annotation."""
@@ -1664,7 +1666,7 @@ class TestAnnotationSyntaxEmission:
         w = _make_writer()
         w._write_pou(pou)
         out = w.getvalue()
-        assert "speed: REAL" in out
+        assert "speed: real" in out
 
     def test_input_with_initial_value(self):
         """Input var with initial value uses annotation syntax with default."""
@@ -1679,7 +1681,7 @@ class TestAnnotationSyntaxEmission:
         w = _make_writer()
         w._write_pou(pou)
         out = w.getvalue()
-        assert "speed: Input[REAL] = 100.0" in out
+        assert "speed: Input[real] = 100.0" in out
 
     def test_constant_no_redundant_flag(self):
         """Constant[T] wrapper should not repeat constant=True in Field()."""
@@ -1698,7 +1700,7 @@ class TestAnnotationSyntaxEmission:
         w._write_pou(pou)
         out = w.getvalue()
         # Simple form — no Field() needed since constant is implicit from the wrapper
-        assert "SEALER_ALARM_COUNT: Constant[INT] = 6" in out
+        assert "SEALER_ALARM_COUNT: Constant[int] = 6" in out
         assert "constant=True" not in out
 
     def test_constant_with_description_no_redundant_flag(self):
@@ -1717,7 +1719,7 @@ class TestAnnotationSyntaxEmission:
         w = _make_writer()
         w._write_pou(pou)
         out = w.getvalue()
-        assert 'FAULTID: Constant[INT] = Field(initial=1, description="Fault number")' in out
+        assert 'FAULTID: Constant[int] = Field(initial=1, description="Fault number")' in out
         assert "constant=True" not in out
 
     def test_constant_bare_no_initial(self):
@@ -1726,7 +1728,7 @@ class TestAnnotationSyntaxEmission:
         v = Variable(name="MAX", data_type=PrimitiveTypeRef(type=PrimitiveType.INT), constant=True)
         w._write_annotation_var(v, "Constant")
         out = w.getvalue().strip()
-        assert out == "MAX: Constant[INT]"
+        assert out == "MAX: Constant[int]"
 
     def test_static_constant_flag_preserved(self):
         """Static var with constant=True still emits the flag (no wrapper to imply it)."""
@@ -1748,7 +1750,8 @@ class TestGenerateFiles:
         proj = Project(name="Empty")
         files = generate_files(proj)
         assert "project.py" in files
-        assert 'project("Empty")' in files["project.py"]
+        assert 'project("Empty"' in files["project.py"]
+        assert 'packages=["."]' in files["project.py"]
 
     def test_one_file_per_pou(self):
         proj = Project(
@@ -1784,9 +1787,8 @@ class TestGenerateFiles:
         assert "from plx.framework import *" in files["Main.py"]
         assert "class Main:" in files["Main.py"]
 
-        # project.py imports from siblings
-        assert "from .Motor import Motor" in files["project.py"]
-        assert "from .Main import Main" in files["project.py"]
+        # project.py uses packages discovery, no explicit imports
+        assert 'packages=["."]' in files["project.py"]
 
     def test_one_file_per_data_type(self):
         proj = Project(
@@ -1808,9 +1810,8 @@ class TestGenerateFiles:
         assert "@struct" in files["SensorData.py"]
         assert "@enumeration" in files["State.py"]
 
-        # project.py imports data types
-        assert "from .SensorData import SensorData" in files["project.py"]
-        assert "from .State import State" in files["project.py"]
+        # project.py uses packages discovery
+        assert 'packages=["."]' in files["project.py"]
 
     def test_one_file_per_gvl(self):
         proj = Project(
@@ -1828,7 +1829,8 @@ class TestGenerateFiles:
         files = generate_files(proj)
         assert "SystemIO.py" in files
         assert "@global_vars" in files["SystemIO.py"]
-        assert "from .SystemIO import SystemIO" in files["project.py"]
+        # project.py uses packages discovery
+        assert 'packages=["."]' in files["project.py"]
 
     def test_pou_imports_data_type_dep(self):
         """A POU that references a struct type should import it."""
@@ -1944,7 +1946,7 @@ class TestPropertyExport:
             networks=[Network(statements=[EmptyStatement()])],
         )
         code = generate(Project(name="Test", pous=[pou]))
-        assert "@fb_property(REAL)" in code
+        assert "@fb_property(real)" in code
         assert "def speed(self):" in code
         assert "return self._speed" in code
         assert "@speed.setter" not in code
@@ -1978,10 +1980,10 @@ class TestPropertyExport:
             networks=[Network(statements=[EmptyStatement()])],
         )
         code = generate(Project(name="Test", pous=[pou]))
-        assert "@fb_property(REAL)" in code
+        assert "@fb_property(real)" in code
         assert "def level(self):" in code
         assert "@level.setter" in code
-        assert "def level(self, level: REAL):" in code
+        assert "def level(self, level: real):" in code
 
     def test_property_abstract(self):
         pou = POU(
@@ -2057,8 +2059,8 @@ class TestInterfaceExport:
         assert "@interface" in code
         assert "class IMoveable:" in code
         assert "@method" in code
-        assert "def move_to(self, target: REAL) -> BOOL: ..." in code
-        assert "@fb_property(REAL)" in code
+        assert "def move_to(self, target: real) -> bool: ..." in code
+        assert "@fb_property(real)" in code
         assert "def position(self): ..." in code
 
     def test_interface_extends(self):
@@ -2096,8 +2098,8 @@ class TestInterfaceExport:
         )
         proj = Project(name="Test", pous=[iface, fb_pou])
         files = generate_files(proj)
-        # Interface should appear in project.py imports
-        assert "from .IMoveable import IMoveable" in files["project.py"]
+        # project.py uses packages discovery
+        assert 'packages=["."]' in files["project.py"]
         # FB should import the interface it implements
         assert "from .IMoveable import IMoveable" in files["Motor.py"]
 
@@ -2532,7 +2534,7 @@ class TestArrayEmptyDimensions:
             dimensions=[DimensionRange(lower=0, upper=-1)],
         )
         result = w._type_ref(tr)
-        assert result == "ARRAY(SomeType)"
+        assert result == "array(SomeType)"
 
     def test_normal_array_unchanged(self):
         """Normal arrays still emit size."""
@@ -2542,7 +2544,7 @@ class TestArrayEmptyDimensions:
             dimensions=[DimensionRange(lower=0, upper=9)],
         )
         result = w._type_ref(tr)
-        assert result == "ARRAY(INT, 10)"
+        assert result == "array(int, 10)"
 
     def test_explicit_bounds_unchanged(self):
         """ARRAY[1..10] emits explicit bounds."""
@@ -2552,7 +2554,7 @@ class TestArrayEmptyDimensions:
             dimensions=[DimensionRange(lower=1, upper=10)],
         )
         result = w._type_ref(tr)
-        assert result == "ARRAY(REAL, (1, 10))"
+        assert result == "array(real, (1, 10))"
 
 
 class TestInOutParamsInMethodSignature:
@@ -2583,7 +2585,7 @@ class TestInOutParamsInMethodSignature:
         w = _make_writer()
         w._write_pou(pou)
         out = w.getvalue()
-        assert "def Process(self, cmd: INT, buffer: DataBuffer):" in out
+        assert "def Process(self, cmd: int, buffer: DataBuffer):" in out
         # InOut should NOT appear as local declaration
         assert "InOut[DataBuffer]" not in out
 
@@ -2605,7 +2607,7 @@ class TestInOutParamsInMethodSignature:
         w._self_vars = set()
         w._write_method(m)
         out = w.getvalue()
-        assert "def Transfer(self, enable: BOOL, data: MyStruct):" in out
+        assert "def Transfer(self, enable: bool, data: MyStruct):" in out
 
 
 # ===========================================================================

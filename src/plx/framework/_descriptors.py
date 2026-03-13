@@ -354,7 +354,10 @@ def _unwrap_forward_ref(inner_type: object, declaring_cls: type) -> object:
     globalns = getattr(mod, '__dict__', {}) if mod else {}
     try:
         return eval(inner_type.__forward_arg__, globalns)
-    except Exception:
+    except (NameError, AttributeError):
+        # Forward ref can't be resolved — the name isn't in scope yet.
+        # Fall back to the raw string so _resolve_type_ref() can handle
+        # it as a NamedTypeRef.
         return inner_type.__forward_arg__
 
 
@@ -540,3 +543,16 @@ SR = "SR"
 RS = "RS"
 
 assert {TON, TOF, TP, RTO, R_TRIG, F_TRIG, CTU, CTD, CTUD, SR, RS} == STANDARD_FB_TYPES
+
+# Lowercase aliases — Pythonic names for standard FB types
+ton = TON
+tof = TOF
+tp = TP
+rto = RTO
+r_trig = R_TRIG
+f_trig = F_TRIG
+ctu = CTU
+ctd = CTD
+ctud = CTUD
+sr = SR
+rs = RS

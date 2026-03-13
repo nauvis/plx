@@ -86,6 +86,65 @@ from plx.framework._constants import STANDARD_FB_TYPES
 
 
 # ---------------------------------------------------------------------------
+# Primitive type → Python name mapping
+# ---------------------------------------------------------------------------
+# The framework supports lowercase PLC type classes (sint, dint, real, etc.)
+# and Python builtins (bool).  The exporter emits these instead of IEC
+# uppercase names so generated code reads as natural Python.
+
+_PRIMITIVE_PY_NAME: dict[PrimitiveType, str] = {
+    # Boolean → Python builtin
+    PrimitiveType.BOOL: "bool",
+    # Signed integers → PLC type classes
+    PrimitiveType.SINT: "sint",
+    PrimitiveType.INT: "int",
+    PrimitiveType.DINT: "dint",
+    PrimitiveType.LINT: "lint",
+    # Unsigned integers → PLC type classes
+    PrimitiveType.USINT: "usint",
+    PrimitiveType.UINT: "uint",
+    PrimitiveType.UDINT: "udint",
+    PrimitiveType.ULINT: "ulint",
+    # Floating point → PLC type classes
+    PrimitiveType.REAL: "real",
+    PrimitiveType.LREAL: "lreal",
+    # Bit-strings → PLC type classes
+    PrimitiveType.BYTE: "byte",
+    PrimitiveType.WORD: "word",
+    PrimitiveType.DWORD: "dword",
+    PrimitiveType.LWORD: "lword",
+    # Duration (no PLC class yet — lowercase IEC name)
+    PrimitiveType.TIME: "time",
+    PrimitiveType.LTIME: "ltime",
+    # Date/time (no PLC class yet — lowercase IEC name)
+    PrimitiveType.DATE: "date",
+    PrimitiveType.LDATE: "ldate",
+    PrimitiveType.TOD: "tod",
+    PrimitiveType.LTOD: "ltod",
+    PrimitiveType.DT: "dt",
+    PrimitiveType.LDT: "ldt",
+    # Character (no PLC class yet — lowercase IEC name)
+    PrimitiveType.CHAR: "char",
+    PrimitiveType.WCHAR: "wchar",
+}
+
+# Standard FB types → lowercase Python names
+_NAMED_TYPE_PY_NAME: dict[str, str] = {
+    "TON": "ton",
+    "TOF": "tof",
+    "TP": "tp",
+    "RTO": "rto",
+    "R_TRIG": "r_trig",
+    "F_TRIG": "f_trig",
+    "CTU": "ctu",
+    "CTD": "ctd",
+    "CTUD": "ctud",
+    "SR": "sr",
+    "RS": "rs",
+}
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -108,6 +167,7 @@ def generate_files(project: Project) -> dict[str, str]:
     w = PyWriter(project)
 
     def _prefixed(folder: str, name: str) -> str:
+        folder = _sanitize_folder(folder)
         return f"{folder}/{name}" if folder else name
 
     # Data types — one file per type
@@ -146,27 +206,28 @@ def generate_files(project: Project) -> dict[str, str]:
             fw._write_pou(pou)
         files[_prefixed(pou.folder, f"{pou.name}.py")] = fw.getvalue()
 
-    # project.py — imports + task definitions + project() call
+    # project.py — task definitions + project() with packages discovery
     pw = PyWriter()
     pw._line("from plx.framework import *")
 
-    # Import all definitions from sibling files
+    # Only import programs referenced by tasks (needed for task pous= args)
     def _module_path(folder: str, name: str) -> str:
+        folder = _sanitize_folder(folder)
         if folder:
             return "." + folder.replace("/", ".") + "." + name
         return "." + name
 
-    all_names: list[str] = []
-    for td in project.data_types:
-        if isinstance(td, (StructType, EnumType)):
-            pw._line(f"from {_module_path(td.folder, td.name)} import {td.name}")
-            all_names.append(td.name)
-    for gvl in project.global_variable_lists:
-        pw._line(f"from {_module_path(gvl.folder, gvl.name)} import {gvl.name}")
-        all_names.append(gvl.name)
-    for pou in project.pous:
-        pw._line(f"from {_module_path(pou.folder, pou.name)} import {pou.name}")
-        all_names.append(pou.name)
+    task_pou_names: set[str] = set()
+    for t in project.tasks:
+        task_pou_names.update(t.assigned_pous)
+
+    if task_pou_names:
+        # Find the POU objects to get their folder paths
+        pou_by_name = {p.name: p for p in project.pous}
+        for name in sorted(task_pou_names):
+            pou = pou_by_name.get(name)
+            if pou:
+                pw._line(f"from {_module_path(pou.folder, pou.name)} import {pou.name}")
 
     pw._line()
     pw._write_project_assembly(project)
@@ -370,9 +431,10 @@ def _format_initial_value(value: str) -> str | None:
 
 
 def _try_format_fb_init(value: str) -> str | None:
-    """Convert IEC FB init ``(A := 1, B := TRUE)`` to ``dict(A=1, B=True)``.
+    """Convert IEC FB init ``(A := 1, B := TRUE)`` to Python dict literal.
 
-    Returns None if the value doesn't match the pattern.
+    Returns a string like ``{"Name": "Axis", "Flag": True}`` which callers
+    wrap in ``Field(initial=...)``.  Returns None if the value doesn't match.
     """
     stripped = value.strip()
     if not (stripped.startswith("(") and stripped.endswith(")")):
@@ -398,9 +460,14 @@ def _try_format_fb_init(value: str) -> str | None:
             return None
         # Recursively format the value
         py_val = _format_initial_value(val)
-        py_params.append(f"{name}={py_val}")
+        py_params.append(f'"{name}": {py_val}')
 
-    return f"dict({', '.join(py_params)})"
+    return "{" + ", ".join(py_params) + "}"
+
+
+def _is_dict_literal(formatted: str) -> bool:
+    """Check if a formatted initial value is a dict literal (FB/struct init)."""
+    return formatted.startswith("{")
 
 
 def _split_init_params(text: str) -> list[str]:
@@ -623,7 +690,13 @@ class PyWriter:
             field_args = self._build_field_kwargs(v)
             self._line(f"{v.name}: {type_str} = Field({field_args})")
         elif v.initial_value is not None:
-            self._line(f"{v.name}: {type_str} = {_format_initial_value(v.initial_value)}")
+            formatted = _format_initial_value(v.initial_value)
+            if formatted is not None and _is_dict_literal(formatted):
+                self._line(f"{v.name}: {type_str} = Field(initial={formatted})")
+            elif formatted is not None:
+                self._line(f"{v.name}: {type_str} = {formatted}")
+            else:
+                self._line(f"{v.name}: {type_str} = Field(initial={repr(v.initial_value)})")
         else:
             self._line(f"{v.name}: {type_str}")
 
@@ -848,7 +921,10 @@ class PyWriter:
             self._line(f"{v.name}: {wrapper}[{type_str}] = Field({field_args})")
         elif v.initial_value is not None:
             formatted = _format_initial_value(v.initial_value)
-            if formatted is not None:
+            if formatted is not None and _is_dict_literal(formatted):
+                # Structured FB/struct init → must use Field()
+                self._line(f"{v.name}: {wrapper}[{type_str}] = Field(initial={formatted})")
+            elif formatted is not None:
                 self._line(f"{v.name}: {wrapper}[{type_str}] = {formatted}")
             else:
                 self._line(f"{v.name}: {wrapper}[{type_str}] = Field(initial={repr(v.initial_value)})")
@@ -858,9 +934,9 @@ class PyWriter:
     def _write_static_var(self, v: Variable) -> None:
         """Emit a static variable, using shorthand for standard FB types."""
         if isinstance(v.data_type, NamedTypeRef) and v.data_type.name in STANDARD_FB_TYPES:
-            # Standard FB instance: timer: TON
+            # Standard FB instance: timer: ton
             if not self._has_metadata(v) and v.initial_value is None:
-                self._line(f"{v.name}: {v.data_type.name}")
+                self._line(f"{v.name}: {_NAMED_TYPE_PY_NAME[v.data_type.name]}")
                 return
         # With metadata → use Field()
         if self._has_metadata(v):
@@ -872,7 +948,10 @@ class PyWriter:
         type_str = self._type_ref(v.data_type)
         if v.initial_value is not None:
             formatted = _format_initial_value(v.initial_value)
-            if formatted is not None:
+            if formatted is not None and _is_dict_literal(formatted):
+                # Structured FB/struct init → must use Field()
+                self._line(f"{v.name}: {type_str} = Field(initial={formatted})")
+            elif formatted is not None:
                 self._line(f"{v.name}: {type_str} = {formatted}")
             else:
                 self._line(f"{v.name}: {type_str} = Field(initial={repr(v.initial_value)})")
@@ -1132,20 +1211,20 @@ class PyWriter:
 
     def _type_ref(self, tr: TypeRef) -> str:
         if isinstance(tr, PrimitiveTypeRef):
-            return tr.type.value
+            return _PRIMITIVE_PY_NAME[tr.type]
         if isinstance(tr, StringTypeRef):
-            base = "WSTRING" if tr.wide else "STRING"
+            base = "wstring" if tr.wide else "string"
             if tr.max_length is not None:
                 return f"{base}({tr.max_length})"
             return base
         if isinstance(tr, NamedTypeRef):
-            return tr.name
+            return _NAMED_TYPE_PY_NAME.get(tr.name, tr.name)
         if isinstance(tr, ArrayTypeRef):
             return self._array_type_ref(tr)
         if isinstance(tr, PointerTypeRef):
-            return f"POINTER_TO({self._type_ref(tr.target_type)})"
+            return f"pointer_to({self._type_ref(tr.target_type)})"
         if isinstance(tr, ReferenceTypeRef):
-            return f"REFERENCE_TO({self._type_ref(tr.target_type)})"
+            return f"reference_to({self._type_ref(tr.target_type)})"
         return "???"
 
     def _array_type_ref(self, tr: ArrayTypeRef) -> str:
@@ -1167,15 +1246,18 @@ class PyWriter:
             else:
                 # Expression-based bounds — emit without self. prefix since
                 # array dimensions reference GVL constants, not instance vars
-                saved = self._self_vars
+                saved_vars = self._self_vars
+                saved_unresolved = self._has_unresolved_parent
                 self._self_vars = set()
+                self._has_unresolved_parent = False
                 lower_str = str(d.lower) if lower_is_int else self._expr(d.lower)
                 upper_str = str(d.upper) if upper_is_int else self._expr(d.upper)
-                self._self_vars = saved
+                self._self_vars = saved_vars
+                self._has_unresolved_parent = saved_unresolved
                 dims.append(f"({lower_str}, {upper_str})")
         if not dims:
-            return f"ARRAY({elem})"
-        return f"ARRAY({elem}, {', '.join(dims)})"
+            return f"array({elem})"
+        return f"array({elem}, {', '.join(dims)})"
 
     # ======================================================================
     # Statements
@@ -1630,32 +1712,16 @@ class PyWriter:
             task_var_names.append(var_name)
             self._write_task(t, var_name)
 
-        # project() call
-        kwargs: list[str] = []
-
-        pou_names = [p.name for p in proj.pous if p.pou_type != POUType.INTERFACE]
-        if pou_names:
-            kwargs.append(f"pous=[{', '.join(pou_names)}]")
-
-        dt_names = [td.name for td in proj.data_types
-                    if isinstance(td, (StructType, EnumType))]
-        if dt_names:
-            kwargs.append(f"data_types=[{', '.join(dt_names)}]")
-
-        gvl_names = [gvl.name for gvl in proj.global_variable_lists]
-        if gvl_names:
-            kwargs.append(f"global_var_lists=[{', '.join(gvl_names)}]")
+        # project() call — use packages=["."] for auto-discovery
+        kwargs: list[str] = ['packages=["."]']
 
         if task_var_names:
             kwargs.append(f"tasks=[{', '.join(task_var_names)}]")
 
-        if kwargs:
-            args_str = ",\n    ".join(kwargs)
-            self._line(f'proj = project("{proj.name}",')
-            self._line(f"    {args_str},")
-            self._line(")")
-        else:
-            self._line(f'proj = project("{proj.name}")')
+        args_str = ",\n    ".join(kwargs)
+        self._line(f'proj = project("{proj.name}",')
+        self._line(f"    {args_str},")
+        self._line(")")
 
     def _write_task(self, t: Task, var_name: str) -> None:
         kwargs: list[str] = []
@@ -1883,6 +1949,18 @@ def _sanitize_identifier(name: str) -> str:
     return result
 
 
+def _sanitize_folder(folder: str) -> str:
+    """Sanitize a folder path so each segment is a valid Python identifier.
+
+    Beckhoff FolderPath can contain spaces (e.g. ``"Machine/HMI Connections"``),
+    which are invalid in Python module paths.  Replaces non-identifier characters
+    with underscores in each path segment.
+    """
+    if not folder:
+        return folder
+    return "/".join(_sanitize_identifier(seg) for seg in folder.split("/"))
+
+
 def _collect_named_refs(tr: TypeRef) -> set[str]:
     """Collect all NamedTypeRef names from a TypeRef tree."""
     names: set[str] = set()
@@ -1906,6 +1984,7 @@ def _collect_pou_deps(pou: POU, project: Project) -> dict[str, list[str]]:
     """
     # Build lookup of what's defined where
     def _mod(folder: str, name: str) -> str:
+        folder = _sanitize_folder(folder)
         if folder:
             return folder.replace("/", ".") + "." + name
         return name
