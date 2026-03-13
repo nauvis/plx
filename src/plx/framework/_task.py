@@ -15,7 +15,6 @@ from plx.model.task import (
     EventTask,
     PeriodicTask,
     StartupTask,
-    TaskType,
 )
 
 from datetime import timedelta
@@ -32,14 +31,14 @@ class PlxTask:
         self,
         name: str,
         *,
-        task_type: TaskType,
+        kind: str,
         interval: str | None = None,
         priority: int = 0,
         trigger_variable: str | None = None,
         pous: list[type] | None = None,
     ) -> None:
         self.name = name
-        self.task_type = task_type
+        self.kind = kind
         self.interval = interval
         self.priority = priority
         self.trigger_variable = trigger_variable
@@ -69,11 +68,11 @@ class PlxTask:
             priority=self.priority,
             assigned_pous=assigned,
         )
-        if self.task_type == TaskType.PERIODIC:
+        if self.kind == "periodic":
             return PeriodicTask(interval=self.interval, **common)
-        if self.task_type == TaskType.EVENT:
+        if self.kind == "event":
             return EventTask(trigger_variable=self.trigger_variable, **common)
-        if self.task_type == TaskType.CONTINUOUS:
+        if self.kind == "continuous":
             return ContinuousTask(**common)
         return StartupTask(**common)
 
@@ -106,8 +105,8 @@ def task(
 
     Examples::
 
-        task("MainTask", periodic=T(ms=10), pous=[FastLoop], priority=1)
-        task("SlowTask", periodic=T(ms=100), pous=[SlowLoop], priority=5)
+        task("MainTask", periodic=timedelta(milliseconds=10), pous=[FastLoop], priority=1)
+        task("SlowTask", periodic=timedelta(milliseconds=100), pous=[SlowLoop], priority=5)
         task("Background", continuous=True, pous=[Monitoring])
         task("Init", startup=True, pous=[StartupProgram])
         task("OnAlarm", event="AlarmTrigger", pous=[AlarmHandler])
@@ -127,7 +126,7 @@ def task(
     if periodic is not None:
         return PlxTask(
             name,
-            task_type=TaskType.PERIODIC,
+            kind="periodic",
             interval=_format_interval(periodic),
             priority=priority,
             pous=pous,
@@ -135,14 +134,14 @@ def task(
     if continuous:
         return PlxTask(
             name,
-            task_type=TaskType.CONTINUOUS,
+            kind="continuous",
             priority=priority,
             pous=pous,
         )
     if event is not None:
         return PlxTask(
             name,
-            task_type=TaskType.EVENT,
+            kind="event",
             trigger_variable=event,
             priority=priority,
             pous=pous,
@@ -150,7 +149,7 @@ def task(
     # startup
     return PlxTask(
         name,
-        task_type=TaskType.STARTUP,
+        kind="startup",
         priority=priority,
         pous=pous,
     )

@@ -1225,7 +1225,7 @@ class PyWriter:
             return f"pointer_to({self._type_ref(tr.target_type)})"
         if isinstance(tr, ReferenceTypeRef):
             return f"reference_to({self._type_ref(tr.target_type)})"
-        return "???"
+        raise TypeError(f"Unhandled TypeRef kind: {type(tr).__name__}")
 
     def _array_type_ref(self, tr: ArrayTypeRef) -> str:
         elem = self._type_ref(tr.element_type)

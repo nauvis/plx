@@ -7,10 +7,10 @@ plx uses AST transformation to compile Python `if`/`for`/`while`/`and`/`or`/`not
 ## Quick start
 
 ```bash
-pip install plx
+pip install plx-controls
 ```
 
-Requires Python 3.13+.
+Requires Python 3.11+.
 
 ### Your first function block
 
@@ -46,7 +46,7 @@ Use Python builtins (`bool`, `int`, `float`, `str`) or lowercase PLC types (`sin
 
 ```python
 from plx.framework import (
-    TIME, T,
+    TIME,
     fb, Input, Output, Field,
     delayed,
 )
@@ -55,7 +55,7 @@ from plx.framework import (
 class ValveCtrl:
     cmd_open: Input[bool] = Field(description="Command to open")
     feedback: Input[bool] = Field(description="Open limit switch")
-    fault_time: Input[TIME] = Field(initial=T(3), description="Fault timeout")
+    fault_time: Input[TIME] = Field(initial="T#3s", description="Fault timeout")
 
     valve_out: Output[bool] = Field(description="Solenoid output")
     is_open: Output[bool] = Field(description="Confirmed open")
@@ -230,10 +230,10 @@ class FillAndMix:
 ### Task scheduling and project assembly
 
 ```python
-from plx.framework import project, task, T
+from plx.framework import project, task, timedelta
 
-main = task("MainTask", periodic=T(ms=10), pous=[BatchMix])
-fast = task("FastIO",   periodic=T(ms=1),  pous=[IOHandler])
+main = task("MainTask", periodic=timedelta(milliseconds=10), pous=[BatchMix])
+fast = task("FastIO",   periodic=timedelta(milliseconds=1),  pous=[IOHandler])
 
 proj = project(
     "MyPlant",
@@ -305,9 +305,6 @@ from plx.framework import (
     # Type constructors
     ARRAY, STRING, WSTRING, POINTER_TO, REFERENCE_TO,
 
-    # Duration literals
-    T, LT,   # T(5), T(ms=500), T(minutes=1, seconds=30)
-
     # Variable wrappers
     Input, Output, InOut, Static, Temp, Constant, External,
     Field,  # metadata: Field(initial=, description=, address=, retain=, persistent=, constant=)
@@ -325,13 +322,17 @@ from plx.framework import (
     global_vars,
 
     # Timing / edge detection (compile-time sentinels)
-    delayed,    # TON — on-delay timer
-    rising,     # R_TRIG — rising edge
-    falling,    # F_TRIG — falling edge
-    sustained,  # TOF — off-delay timer
-    pulse,      # TP — pulse timer
-    count_up,   # CTU
-    count_down, # CTD
+    delayed,        # TON — on-delay timer
+    rising,         # R_TRIG — rising edge
+    falling,        # F_TRIG — falling edge
+    sustained,      # TOF — off-delay timer
+    pulse,          # TP — pulse timer
+    retentive,      # RTO — retentive timer
+    count_up,       # CTU
+    count_down,     # CTD
+    count_up_down,  # CTUD
+    set_dominant,   # SR — set-dominant bistable
+    reset_dominant, # RS — reset-dominant bistable
 
     # System flags
     first_scan,
@@ -445,6 +446,7 @@ Compile-time sentinels that expand to FB instances. The compiler creates and man
 | `falling(signal)` | F_TRIG | Falling edge | BOOL (.Q) |
 | `count_up(signal, preset=N)` | CTU | Count up | BOOL (.Q) |
 | `count_down(signal, preset=N)` | CTD | Count down | BOOL (.Q) |
+| `count_up_down(up, down, preset=N)` | CTUD | Count up/down | BOOL (.QU) |
 | `set_dominant(set, reset)` | SR | Set-dominant bistable | BOOL (.Q) |
 | `reset_dominant(set, reset)` | RS | Reset-dominant bistable | BOOL (.Q) |
 | `first_scan()` | *(system flag)* | True on first scan only | BOOL |
@@ -502,8 +504,7 @@ Duration can be specified as `seconds=N`, `ms=N`, or `duration=timedelta(...)`.
 | `@function` | FUNCTION | Stateless, return type from `def logic(self) -> REAL:` |
 | `@interface` | INTERFACE | Method signatures only (Beckhoff only) |
 | `@method` / `@method(access=PRIVATE)` | METHOD | On FBs, with access specifier |
-| `@property` | PROPERTY | Native Python property with `-> TYPE` return annotation |
-| `@fb_property(REAL)` | PROPERTY | Advanced: access specifiers, abstract/final flags |
+| `@fb_property(REAL)` | PROPERTY | Getter/setter with access specifiers, abstract/final flags |
 | `@sfc` | SFC body | Sequential Function Chart |
 
 ### Data types
@@ -545,11 +546,11 @@ pip install -e ".[dev]"
 pytest
 ```
 
-2175 tests across 53 test files.
+2296 tests across 54 test files.
 
 ## Tech stack
 
-- Python 3.13+
+- Python 3.11+
 - Pydantic v2 (models, validation, serialization)
 - Zero runtime dependencies beyond Pydantic
 

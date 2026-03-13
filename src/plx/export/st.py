@@ -457,7 +457,7 @@ class STWriter:
             return f"POINTER TO {self._type_ref(tr.target_type)}"
         if isinstance(tr, ReferenceTypeRef):
             return f"REFERENCE TO {self._type_ref(tr.target_type)}"
-        return "???"
+        raise TypeError(f"Unhandled TypeRef kind: {type(tr).__name__}")
 
     def _dim_range(self, d: DimensionRange) -> str:
         def _bound(b: int | Expression) -> str:
@@ -486,10 +486,9 @@ class STWriter:
                 self._line(f"// {cline}" if cline else "//")
         kind = stmt.kind
         handler = _STMT_WRITERS.get(kind)
-        if handler is not None:
-            handler(self, stmt)
-        else:
-            self._line(f"// Unsupported statement: {kind}")
+        if handler is None:
+            raise TypeError(f"Unhandled statement kind: {kind!r}")
+        handler(self, stmt)
 
     def _write_assignment(self, stmt: Assignment) -> None:
         if stmt.ref_assign:

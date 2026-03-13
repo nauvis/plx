@@ -43,7 +43,7 @@ class StartupTask(IRModel):
 # Backward-compatible discriminated union
 # ---------------------------------------------------------------------------
 
-# Mapping from old TaskType enum values to new kind values
+# Mapping from old task_type field values to new kind discriminator values
 _TASK_TYPE_TO_KIND = {
     "PERIODIC": "periodic",
     "CONTINUOUS": "continuous",
@@ -59,7 +59,7 @@ def _coerce_old_task_format(data: Any) -> Any:
     task_type = data.get("task_type")
     if task_type is None:
         return data
-    # Extract the string value from TaskType enum or raw string
+    # Extract the string value from enum or raw string
     tt_str = task_type.value if hasattr(task_type, "value") else str(task_type)
     kind = _TASK_TYPE_TO_KIND.get(tt_str)
     if kind is None:
@@ -85,19 +85,3 @@ Task = Annotated[
     Union[PeriodicTask, ContinuousTask, EventTask, StartupTask],
     Field(discriminator="kind"),
 ]
-
-
-# ---------------------------------------------------------------------------
-# Deprecated TaskType — kept for backward compatibility
-# ---------------------------------------------------------------------------
-
-from enum import Enum  # noqa: E402
-
-
-class TaskType(str, Enum):
-    """Deprecated: use PeriodicTask/ContinuousTask/EventTask/StartupTask."""
-
-    CONTINUOUS = "CONTINUOUS"
-    PERIODIC = "PERIODIC"
-    EVENT = "EVENT"
-    STARTUP = "STARTUP"

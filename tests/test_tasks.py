@@ -22,7 +22,6 @@ from plx.model.task import (
     EventTask,
     PeriodicTask,
     StartupTask,
-    TaskType,
 )
 from plx.model.project import Project
 
@@ -60,7 +59,7 @@ class TestTaskConstructor:
     def test_periodic_with_time_literal(self):
         t = task("Main", periodic=timedelta(milliseconds=10), pous=[_FastLoop])
         assert isinstance(t, PlxTask)
-        assert t.task_type == TaskType.PERIODIC
+        assert t.kind == "periodic"
         assert t.interval == "T#10ms"
 
     def test_periodic_with_string(self):
@@ -69,17 +68,17 @@ class TestTaskConstructor:
 
     def test_continuous(self):
         t = task("Background", continuous=True)
-        assert t.task_type == TaskType.CONTINUOUS
+        assert t.kind == "continuous"
         assert t.interval is None
 
     def test_event(self):
         t = task("OnAlarm", event="AlarmTrigger")
-        assert t.task_type == TaskType.EVENT
+        assert t.kind == "event"
         assert t.trigger_variable == "AlarmTrigger"
 
     def test_startup(self):
         t = task("Init", startup=True)
-        assert t.task_type == TaskType.STARTUP
+        assert t.kind == "startup"
 
     def test_priority(self):
         t = task("Main", periodic=timedelta(milliseconds=10), priority=3)

@@ -70,7 +70,6 @@ from .task import (
     PeriodicTask,
     StartupTask,
     Task,
-    TaskType,
 )
 from .types import (
     AliasType,
@@ -178,7 +177,6 @@ __all__ = [
     "EventTask",
     "StartupTask",
     "Task",
-    "TaskType",
     # project
     "GlobalVariableList",
     "Project",
