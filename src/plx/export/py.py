@@ -91,7 +91,7 @@ from plx.framework._constants import STANDARD_FB_TYPES
 
 def generate(project: Project) -> str:
     """Generate Python framework code from a Universal IR Project as a single string."""
-    w = PyWriter()
+    w = PyWriter(project)
     w.write_project(project)
     return w.getvalue()
 
@@ -105,12 +105,12 @@ def generate_files(project: Project) -> dict[str, str]:
     to support round-trip export.
     """
     files: dict[str, str] = {}
-    w = PyWriter()
+    w = PyWriter(project)
 
     # Data types — one file per type
     for td in project.data_types:
         if isinstance(td, (StructType, EnumType, UnionType, AliasType, SubrangeType)):
-            fw = PyWriter()
+            fw = PyWriter(project)
             fw._line("from plx.framework import *")
             fw._line()
             fw._write_type_definition(td)
@@ -118,7 +118,7 @@ def generate_files(project: Project) -> dict[str, str]:
 
     # Global variable lists — one file per GVL
     for gvl in project.global_variable_lists:
-        fw = PyWriter()
+        fw = PyWriter(project)
         fw._line("from plx.framework import *")
         fw._line()
         fw._write_global_variable_list(gvl)
@@ -126,7 +126,7 @@ def generate_files(project: Project) -> dict[str, str]:
 
     # POUs — one file per POU (methods/actions/properties inline)
     for pou in project.pous:
-        fw = PyWriter()
+        fw = PyWriter(project)
         fw._line("from plx.framework import *")
 
         # Import any types/GVLs/FBs this POU might reference
@@ -305,8 +305,13 @@ def _parse_iec_time(value: str) -> str | None:
     return f"timedelta({', '.join(kwargs)})"
 
 
-def _format_initial_value(value: str) -> str:
-    """Convert an IEC initial value string to Python literal."""
+def _format_initial_value(value: str) -> str | None:
+    """Convert an IEC initial value string to a Python literal.
+
+    Returns ``None`` for values that have no valid Python representation
+    (function calls, complex expressions).  Callers should fall back to
+    ``Field(initial=...)`` when this returns ``None``.
+    """
     if value == "TRUE":
         return "True"
     if value == "FALSE":
@@ -344,7 +349,13 @@ def _format_initial_value(value: str) -> str:
     if fb_init is not None:
         return fb_init
 
-    return repr(value)
+    # Empty array/struct initializer
+    if value in ("[]", "{}"):
+        return repr(value)
+
+    # Not representable as a Python literal (function calls, complex
+    # expressions, etc.) — return None so callers use Field(initial=...).
+    return None
 
 
 def _try_format_fb_init(value: str) -> str | None:
@@ -801,7 +812,11 @@ class PyWriter:
         """Build Field() argument string from variable metadata."""
         kwargs: list[str] = []
         if v.initial_value is not None:
-            kwargs.append(f"initial={_format_initial_value(v.initial_value)}")
+            formatted = _format_initial_value(v.initial_value)
+            if formatted is not None:
+                kwargs.append(f"initial={formatted}")
+            else:
+                kwargs.append(f"initial={repr(v.initial_value)}")
         if v.description:
             kwargs.append(f'description="{v.description}"')
         if v.retain:
@@ -821,7 +836,11 @@ class PyWriter:
             field_args = self._build_field_kwargs(v, skip_constant=skip_constant)
             self._line(f"{v.name}: {wrapper}[{type_str}] = Field({field_args})")
         elif v.initial_value is not None:
-            self._line(f"{v.name}: {wrapper}[{type_str}] = {_format_initial_value(v.initial_value)}")
+            formatted = _format_initial_value(v.initial_value)
+            if formatted is not None:
+                self._line(f"{v.name}: {wrapper}[{type_str}] = {formatted}")
+            else:
+                self._line(f"{v.name}: {wrapper}[{type_str}] = Field(initial={repr(v.initial_value)})")
         else:
             self._line(f"{v.name}: {wrapper}[{type_str}]")
 
@@ -841,7 +860,11 @@ class PyWriter:
         # Simple annotation
         type_str = self._type_ref(v.data_type)
         if v.initial_value is not None:
-            self._line(f"{v.name}: {type_str} = {_format_initial_value(v.initial_value)}")
+            formatted = _format_initial_value(v.initial_value)
+            if formatted is not None:
+                self._line(f"{v.name}: {type_str} = {formatted}")
+            else:
+                self._line(f"{v.name}: {type_str} = Field(initial={repr(v.initial_value)})")
         else:
             self._line(f"{v.name}: {type_str}")
 
@@ -855,6 +878,13 @@ class PyWriter:
         # Method scope includes parent self_vars + own vars
         saved_self_vars = self._self_vars
         self._self_vars = saved_self_vars | method_self_vars
+
+        # Add method input/inout params and temp vars to non-self names
+        saved_non_self = self._non_self_names
+        method_non_self = {v.name for v in m.interface.input_vars}
+        method_non_self |= {v.name for v in m.interface.inout_vars}
+        method_non_self |= {v.name for v in m.interface.temp_vars}
+        self._non_self_names = saved_non_self | method_non_self
 
         # Decorator
         if m.access != AccessSpecifier.PUBLIC:
@@ -878,7 +908,7 @@ class PyWriter:
         for v in m.interface.output_vars:
             self._write_annotation_var(v, "Output")
         for v in m.interface.static_vars:
-            self._write_static_var(v)
+            self._write_annotation_var(v, "Static")
         for v in m.interface.temp_vars:
             self._write_annotation_var(v, "Temp")
 
@@ -903,6 +933,7 @@ class PyWriter:
 
         self._indent_dec()
         self._self_vars = saved_self_vars
+        self._non_self_names = saved_non_self
 
     def _write_property(self, prop: Property) -> None:
         """Emit a property as valid @fb_property code."""
@@ -1251,16 +1282,25 @@ class PyWriter:
 
     def _write_for(self, stmt: ForStatement) -> None:
         from_str = self._expr(stmt.from_expr)
-        to_str = self._expr(stmt.to_expr)
 
-        # Reverse the compiler's to - 1 transform: IR stores exclusive upper bound
-        # Actually, IEC FOR is inclusive, and the framework compiler emits
-        # to_expr as the user's inclusive bound. We need range(from, to + 1).
+        # IEC FOR is inclusive; Python range() is exclusive. Pre-compute
+        # the +1 when the upper bound is an integer literal so we emit
+        # clean ``range(1, 6)`` instead of ``range(1, 5 + 1)``.
+        if (isinstance(stmt.to_expr, LiteralExpr)
+                and stmt.to_expr.data_type is None):
+            try:
+                to_val = int(stmt.to_expr.value)
+                to_str = str(to_val + 1)
+            except ValueError:
+                to_str = f"{self._expr(stmt.to_expr)} + 1"
+        else:
+            to_str = f"{self._expr(stmt.to_expr)} + 1"
+
         if stmt.by_expr is not None:
             by_str = self._expr(stmt.by_expr)
-            self._line(f"for {stmt.loop_var} in range({from_str}, {to_str} + 1, {by_str}):")
+            self._line(f"for {stmt.loop_var} in range({from_str}, {to_str}, {by_str}):")
         else:
-            self._line(f"for {stmt.loop_var} in range({from_str}, {to_str} + 1):")
+            self._line(f"for {stmt.loop_var} in range({from_str}, {to_str}):")
 
         self._indent_inc()
         self._write_body(stmt.body)
@@ -1304,8 +1344,26 @@ class PyWriter:
             name = f"self.{name[6:]}"
         else:
             name = _FUNC_REMAP.get(name, name)
+            name = self._qualify_function_name(name)
         args = self._call_args_str(stmt.args)
         self._line(f"{name}({args})")
+
+    def _qualify_function_name(self, name: str) -> str:
+        """Add self. prefix to function/method names that need it."""
+        # Dotted name: Instance.Method() — qualify the first part
+        if "." in name:
+            first, rest = name.split(".", 1)
+            if first in self._self_vars:
+                return f"self.{name}"
+            if self._has_unresolved_parent and first not in self._non_self_names:
+                return f"self.{name}"
+            return name
+        # Simple name: own/inherited method
+        if name in self._self_methods:
+            return f"self.{name}"
+        if self._has_unresolved_parent and name not in self._non_self_names:
+            return f"self.{name}"
+        return name
 
     def _write_fb_invocation(self, stmt: FBInvocation) -> None:
         # Emit: self.instance(IN=val, PT=val)
@@ -1676,6 +1734,87 @@ def _build_self_vars(iface: POUInterface) -> set[str]:
         names.add(v.name)
     for v in iface.external_vars:
         names.add(v.name)
+    return names
+
+
+def _build_inherited_self_context(
+    parent_name: str, all_pous: list[POU],
+) -> tuple[set[str], set[str], bool]:
+    """Walk the inheritance chain and collect parent vars + method names.
+
+    Returns (inherited_vars, inherited_methods, fully_resolved).
+    ``fully_resolved`` is False if the chain hits a POU not in the project
+    (e.g. a library FB).
+    """
+    inherited_vars: set[str] = set()
+    inherited_methods: set[str] = set()
+    pou_map = {p.name: p for p in all_pous}
+    current = parent_name
+    while current:
+        parent = pou_map.get(current)
+        if parent is None:
+            return inherited_vars, inherited_methods, False
+        inherited_vars |= _build_self_vars(parent.interface)
+        inherited_methods |= {m.name for m in parent.methods}
+        current = parent.extends
+    return inherited_vars, inherited_methods, True
+
+
+# Well-known IEC 61131-3 / Beckhoff built-in functions that should never get
+# a self. prefix. This is intentionally non-exhaustive — when the parent is
+# fully resolved, the heuristic is not needed.
+_KNOWN_GLOBAL_FUNCTIONS: frozenset[str] = frozenset({
+    # IEC standard functions
+    "ABS", "SQRT", "LN", "LOG", "EXP", "SIN", "COS", "TAN",
+    "ASIN", "ACOS", "ATAN", "ATAN2",
+    "CEIL", "FLOOR", "TRUNC", "ROUND",
+    "MIN", "MAX", "LIMIT", "SEL", "MUX",
+    "SHL", "SHR", "ROL", "ROR",
+    "LEN", "LEFT", "RIGHT", "MID", "FIND", "REPLACE", "INSERT", "DELETE",
+    "CONCAT", "SIZEOF", "ADR", "ADRINST",
+    "MEMSET", "MEMCPY", "MEMMOVE",
+    "AND", "OR", "XOR", "NOT",
+    # Python builtins used in plx
+    "abs", "min", "max", "len", "round", "range", "print",
+    # Common Beckhoff system functions
+    "F_GetActualDcTime64", "F_CreateAllEventsInClass", "F_GetMaxSeverityRaised",
+    "F_RaiseAlarmWithStringParameters", "F_UnitModeToString",
+})
+
+
+def _build_non_self_names(pou: POU, project: Project | None) -> set[str]:
+    """Build the set of names that should NOT get a self. prefix.
+
+    Used as a negative filter when the POU has an unresolved parent.
+    Includes: temp vars, known global functions, type/POU/GVL names
+    from the project, IEC primitive type names, and enum type names.
+    """
+    names: set[str] = set(_KNOWN_GLOBAL_FUNCTIONS)
+
+    # Temp vars from the POU's own interface
+    for v in pou.interface.temp_vars:
+        names.add(v.name)
+
+    # IEC primitive type names
+    for pt in PrimitiveType:
+        names.add(pt.value)
+
+    # Standard FB type names
+    names |= set(STANDARD_FB_TYPES)
+
+    if project is not None:
+        # POU names, data type names, GVL names
+        for p in project.pous:
+            names.add(p.name)
+        for td in project.data_types:
+            if isinstance(td, (StructType, EnumType)):
+                names.add(td.name)
+                # Enum members are accessed via EnumType.MEMBER so the type
+                # name itself is non-self, but members don't appear as
+                # standalone VariableRefs.
+        for gvl in project.global_variable_lists:
+            names.add(gvl.name)
+
     return names
 
 

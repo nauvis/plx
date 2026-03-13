@@ -609,7 +609,7 @@ class TestStatements:
         )
         w._write_stmt(stmt)
         out = w.getvalue().strip()
-        assert "for i in range(0, 9 + 1):" in out
+        assert "for i in range(0, 10):" in out
 
     def test_while(self):
         w = _make_writer(self_vars={"running"})
