@@ -128,7 +128,6 @@ def generate_files(project: Project) -> dict[str, str]:
     for pou in project.pous:
         fw = PyWriter()
         fw._line("from plx.framework import *")
-        fw._line("import math")
 
         # Import any types/GVLs/FBs this POU might reference
         deps = _collect_pou_deps(pou, project)
@@ -420,12 +419,16 @@ def _split_init_params(text: str) -> list[str]:
 class PyWriter:
     """Walks IR models and emits Python framework code into an internal buffer."""
 
-    def __init__(self) -> None:
+    def __init__(self, project: Project | None = None) -> None:
         self._buf = StringIO()
         self._indent = 0
         self._indent_str = "    "
         self._self_vars: set[str] = set()
+        self._self_methods: set[str] = set()
+        self._non_self_names: set[str] = set()
+        self._has_unresolved_parent: bool = False
         self._return_var: str | None = None  # property/function name → return rewrite
+        self._project = project
 
     def getvalue(self) -> str:
         return self._buf.getvalue().rstrip("\n") + "\n"
@@ -453,7 +456,6 @@ class PyWriter:
 
     def write_project(self, proj: Project) -> None:
         self._line("from plx.framework import *")
-        self._line("import math")
         self._line()
 
         # Collect POU names for identifier reference
@@ -615,8 +617,25 @@ class PyWriter:
                 self._line(f"# {line}" if line else "#")
 
     def _write_pou(self, pou: POU) -> None:
-        # Build self_vars set
+        # Build self_vars set from own interface + inherited vars
         self._self_vars = _build_self_vars(pou.interface)
+        self._self_methods = {m.name for m in pou.methods}
+        self._has_unresolved_parent = False
+
+        if pou.extends and self._project is not None:
+            inherited_vars, inherited_methods, resolved = _build_inherited_self_context(
+                pou.extends, self._project.pous,
+            )
+            self._self_vars |= inherited_vars
+            self._self_methods |= inherited_methods
+            if not resolved:
+                self._has_unresolved_parent = True
+        elif pou.extends:
+            # No project context — assume unresolved
+            self._has_unresolved_parent = True
+
+        # Build non-self names for unresolved parent heuristic
+        self._non_self_names = _build_non_self_names(pou, self._project)
 
         if pou.sfc_body is not None:
             self._write_sfc_pou(pou)
@@ -1069,54 +1088,14 @@ class PyWriter:
     # Type references
     # ======================================================================
 
-    # Map IEC primitive types to lowercase Python names.
-    # Must mirror _PYTHON_ANNOTATION_MAP in _compiler_core.py so that
-    # exported code round-trips cleanly through the compiler.
-    _PYTHON_TYPE_NAMES = {
-        # Python builtins
-        PrimitiveType.BOOL: "bool",
-        PrimitiveType.DINT: "int",
-        PrimitiveType.REAL: "float",
-        # Integer types
-        PrimitiveType.SINT: "sint",
-        PrimitiveType.INT: "int",
-        PrimitiveType.LINT: "lint",
-        PrimitiveType.USINT: "usint",
-        PrimitiveType.UINT: "uint",
-        PrimitiveType.UDINT: "udint",
-        PrimitiveType.ULINT: "ulint",
-        PrimitiveType.LREAL: "lreal",
-        # Bit-string types
-        PrimitiveType.BYTE: "byte",
-        PrimitiveType.WORD: "word",
-        PrimitiveType.DWORD: "dword",
-        PrimitiveType.LWORD: "lword",
-        # Time types
-        PrimitiveType.TIME: "time",
-        PrimitiveType.LTIME: "ltime",
-        # Date types
-        PrimitiveType.DATE: "date",
-        PrimitiveType.LDATE: "ldate",
-        PrimitiveType.TOD: "tod",
-        PrimitiveType.LTOD: "ltod",
-        PrimitiveType.DT: "dt",
-        PrimitiveType.LDT: "ldt",
-        # Character types
-        PrimitiveType.CHAR: "char",
-        PrimitiveType.WCHAR: "wchar",
-    }
-
     def _type_ref(self, tr: TypeRef) -> str:
         if isinstance(tr, PrimitiveTypeRef):
-            return self._PYTHON_TYPE_NAMES.get(tr.type, tr.type.value)
+            return tr.type.value
         if isinstance(tr, StringTypeRef):
-            # STRING[255] → str (default max-length string)
-            if not tr.wide and tr.max_length == 255:
-                return "str"
             base = "WSTRING" if tr.wide else "STRING"
             if tr.max_length is not None:
                 return f"{base}({tr.max_length})"
-            return f"{base}()"
+            return base
         if isinstance(tr, NamedTypeRef):
             return tr.name
         if isinstance(tr, ArrayTypeRef):
@@ -1131,15 +1110,23 @@ class PyWriter:
         elem = self._type_ref(tr.element_type)
         dims: list[str] = []
         for d in tr.dimensions:
-            if d.lower == 0 and d.upper == -1:
-                # Variable-length array (ARRAY[*] OF T)
-                continue
-            elif d.lower == 0:
-                # Simple size: ARRAY(INT, 10) for 0..9
-                dims.append(str(d.upper + 1))
+            lower_is_int = isinstance(d.lower, int)
+            upper_is_int = isinstance(d.upper, int)
+            if lower_is_int and upper_is_int:
+                if d.lower == 0 and d.upper == -1:
+                    # Variable-length array (ARRAY[*] OF T)
+                    continue
+                elif d.lower == 0:
+                    # Simple size: ARRAY(INT, 10) for 0..9
+                    dims.append(str(d.upper + 1))
+                else:
+                    # Explicit bounds: ARRAY(INT, (1, 10))
+                    dims.append(f"({d.lower}, {d.upper})")
             else:
-                # Explicit bounds: ARRAY(INT, (1, 10))
-                dims.append(f"({d.lower}, {d.upper})")
+                # Expression-based bounds — emit tuple with expression text
+                lower_str = str(d.lower) if lower_is_int else self._expr(d.lower)
+                upper_str = str(d.upper) if upper_is_int else self._expr(d.upper)
+                dims.append(f"({lower_str}, {upper_str})")
         if not dims:
             return f"ARRAY({elem})"
         return f"ARRAY({elem}, {', '.join(dims)})"
@@ -1317,7 +1304,7 @@ class PyWriter:
             name = f"self.{name[6:]}"
         else:
             name = _FUNC_REMAP.get(name, name)
-        args = ", ".join(self._call_arg(a) for a in stmt.args)
+        args = self._call_args_str(stmt.args)
         self._line(f"{name}({args})")
 
     def _write_fb_invocation(self, stmt: FBInvocation) -> None:
@@ -1427,6 +1414,11 @@ class PyWriter:
             return "self"
         if expr.name in self._self_vars:
             return f"self.{expr.name}"
+        # For FBs with unresolved parents (library inheritance), assume
+        # unknown names are inherited instance vars unless they're clearly
+        # non-self (temp vars, type names, global functions, etc.)
+        if self._has_unresolved_parent and expr.name not in self._non_self_names:
+            return f"self.{expr.name}"
         return expr.name
 
     def _expr_binary(self, expr: BinaryExpr, parent_prec: int) -> str:
@@ -1479,7 +1471,7 @@ class PyWriter:
             name = f"self.{name[6:]}"
         else:
             name = _FUNC_REMAP.get(name, name)
-        args = ", ".join(self._call_arg(a) for a in expr.args)
+        args = self._call_args_str(expr.args)
         return f"{name}({args})"
 
     def _try_reconstruct_fstring(self, expr: FunctionCallExpr) -> str | None:
@@ -1542,10 +1534,16 @@ class PyWriter:
             return "first_scan()"
         return f"# unknown flag: {expr.flag}"
 
-    def _call_arg(self, arg) -> str:
-        if arg.name is not None:
-            return f"{arg.name}={self._expr(arg.value)}"
-        return self._expr(arg.value)
+    def _call_args_str(self, args: list) -> str:
+        """Render call args with positional args before named args.
+
+        ST allows positional args after named args; Python does not.
+        """
+        positional = [a for a in args if a.name is None]
+        named = [a for a in args if a.name is not None]
+        parts = [self._expr(a.value) for a in positional]
+        parts += [f"{a.name}={self._expr(a.value)}" for a in named]
+        return ", ".join(parts)
 
     # ======================================================================
     # Project assembly

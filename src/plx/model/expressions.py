@@ -160,7 +160,16 @@ Expression = Annotated[
     Field(discriminator="kind"),
 ]
 
-# Rebuild models with recursive Expression references.
+# ---------------------------------------------------------------------------
+# Rebuild all models that use recursive Expression or TypeRef references.
+#
+# DimensionRange (in types.py) uses ``int | Expression`` for bounds, so
+# types.py cannot call model_rebuild() at module level — Expression isn't
+# defined yet.  We rebuild everything here where both TypeRef and
+# Expression are available.
+# ---------------------------------------------------------------------------
+
+# Expression models (recursive Expression references)
 BinaryExpr.model_rebuild()
 UnaryExpr.model_rebuild()
 CallArg.model_rebuild()
@@ -171,3 +180,20 @@ BitAccessExpr.model_rebuild()
 TypeConversionExpr.model_rebuild()
 SubstringExpr.model_rebuild()
 SystemFlagExpr.model_rebuild()
+
+# Type models (recursive TypeRef + Expression in DimensionRange)
+from .types import (
+    AliasType,
+    ArrayTypeRef,
+    DimensionRange,
+    PointerTypeRef,
+    ReferenceTypeRef,
+    StructMember,
+)
+
+DimensionRange.model_rebuild()
+ArrayTypeRef.model_rebuild()
+PointerTypeRef.model_rebuild()
+ReferenceTypeRef.model_rebuild()
+StructMember.model_rebuild()
+AliasType.model_rebuild()

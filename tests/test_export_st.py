@@ -137,6 +137,26 @@ class TestTypeRef:
         st = to_structured_text(pou)
         assert "a : ARRAY[0..9] OF INT;" in st
 
+    def test_array_expression_bounds(self):
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK, name="T",
+            interface=POUInterface(static_vars=[
+                Variable(name="modules", data_type=ArrayTypeRef(
+                    element_type=NamedTypeRef(name="I_Module"),
+                    dimensions=[DimensionRange(
+                        lower=1,
+                        upper=MemberAccessExpr(
+                            struct=VariableRef(name="Params"),
+                            member="MAX_MODULES",
+                        ),
+                    )],
+                )),
+            ]),
+            networks=[],
+        )
+        st = to_structured_text(pou)
+        assert "modules : ARRAY[1..Params.MAX_MODULES] OF I_Module;" in st
+
     def test_pointer(self):
         pou = POU(
             pou_type=POUType.FUNCTION_BLOCK, name="T",

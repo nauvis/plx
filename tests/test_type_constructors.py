@@ -153,6 +153,83 @@ class TestARRAY:
 
 
 # ---------------------------------------------------------------------------
+# DimensionRange with expression bounds
+# ---------------------------------------------------------------------------
+
+class TestDimensionRangeExpressionBounds:
+    def test_expression_upper_bound(self):
+        from plx.model.expressions import MemberAccessExpr, VariableRef
+        dr = DimensionRange(
+            lower=1,
+            upper=MemberAccessExpr(
+                struct=VariableRef(name="Params"),
+                member="MAX_SIZE",
+            ),
+        )
+        assert dr.lower == 1
+        assert isinstance(dr.upper, MemberAccessExpr)
+        assert dr.upper.member == "MAX_SIZE"
+
+    def test_expression_both_bounds(self):
+        from plx.model.expressions import VariableRef
+        dr = DimensionRange(
+            lower=VariableRef(name="MIN_IDX"),
+            upper=VariableRef(name="MAX_IDX"),
+        )
+        assert isinstance(dr.lower, VariableRef)
+        assert isinstance(dr.upper, VariableRef)
+
+    def test_expression_bound_skips_validation(self):
+        """Expression bounds should not trigger numeric validation."""
+        from plx.model.expressions import VariableRef
+        # This would fail with int bounds (lower=10 > upper=1) but
+        # expression bounds skip numeric validation
+        dr = DimensionRange(
+            lower=10,
+            upper=VariableRef(name="SOME_CONST"),
+        )
+        assert dr.lower == 10
+
+    def test_int_bounds_still_validated(self):
+        """Pure integer bounds should still be validated."""
+        with pytest.raises(ValueError, match="lower.*must be <= upper"):
+            DimensionRange(lower=10, upper=5)
+
+    def test_array_type_ref_with_expression_bounds(self):
+        from plx.model.expressions import MemberAccessExpr, VariableRef
+        arr = ArrayTypeRef(
+            element_type=NamedTypeRef(name="I_PackML_BaseModule"),
+            dimensions=[DimensionRange(
+                lower=1,
+                upper=MemberAccessExpr(
+                    struct=VariableRef(name="Parameters_PackML_Base"),
+                    member="MAX_NO_OF_SUBMODULES",
+                ),
+            )],
+        )
+        assert len(arr.dimensions) == 1
+        assert isinstance(arr.dimensions[0].upper, MemberAccessExpr)
+
+    def test_json_round_trip(self):
+        from plx.model.expressions import MemberAccessExpr, VariableRef
+        arr = ArrayTypeRef(
+            element_type=NamedTypeRef(name="MyType"),
+            dimensions=[DimensionRange(
+                lower=1,
+                upper=MemberAccessExpr(
+                    struct=VariableRef(name="GVL"),
+                    member="MAX",
+                ),
+            )],
+        )
+        json_str = arr.model_dump_json()
+        arr2 = ArrayTypeRef.model_validate_json(json_str)
+        assert isinstance(arr2.dimensions[0].upper, MemberAccessExpr)
+        assert arr2.dimensions[0].upper.member == "MAX"
+        assert arr2.dimensions[0].lower == 1
+
+
+# ---------------------------------------------------------------------------
 # STRING / WSTRING
 # ---------------------------------------------------------------------------
 

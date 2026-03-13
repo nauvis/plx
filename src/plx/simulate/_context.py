@@ -171,6 +171,10 @@ class SimulationContext:
         """Build nested list from ArrayTypeRef dimensions."""
         def _build(dims, idx):
             dim = dims[idx]
+            if not isinstance(dim.lower, int) or not isinstance(dim.upper, int):
+                raise SimulationError(
+                    f"Cannot simulate array with expression-based bounds"
+                )
             size = dim.upper - dim.lower + 1
             if idx == len(dims) - 1:
                 # Innermost dimension — allocate element defaults

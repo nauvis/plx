@@ -170,6 +170,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from enum import IntEnum
 from typing import Annotated
+import math
 
 __all__ = [
     # PLC data type classes (lowercase, with overflow semantics)
@@ -303,4 +304,5 @@ __all__ = [
     "dataclass",
     "IntEnum",
     "Annotated",
+    "math",
 ]

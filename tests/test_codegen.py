@@ -196,38 +196,38 @@ class TestFormatInitialValue:
 class TestTypeRef:
     def test_primitive(self):
         w = _make_writer()
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.BOOL)) == "bool"
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.INT)) == "int"
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.REAL)) == "float"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.BOOL)) == "BOOL"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.INT)) == "INT"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.REAL)) == "REAL"
 
     def test_primitive_python_aliases(self):
         w = _make_writer()
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.DINT)) == "int"
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.BOOL)) == "bool"
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.REAL)) == "float"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.DINT)) == "DINT"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.BOOL)) == "BOOL"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.REAL)) == "REAL"
 
-    def test_primitive_lowercase(self):
+    def test_primitive_uppercase(self):
         w = _make_writer()
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.SINT)) == "sint"
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.LINT)) == "lint"
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.LREAL)) == "lreal"
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.UDINT)) == "udint"
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.UINT)) == "uint"
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.BYTE)) == "byte"
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.WORD)) == "word"
-        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.DWORD)) == "dword"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.SINT)) == "SINT"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.LINT)) == "LINT"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.LREAL)) == "LREAL"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.UDINT)) == "UDINT"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.UINT)) == "UINT"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.BYTE)) == "BYTE"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.WORD)) == "WORD"
+        assert w._type_ref(PrimitiveTypeRef(type=PrimitiveType.DWORD)) == "DWORD"
 
-    def test_string_default_as_str(self):
+    def test_string_with_max_length(self):
         w = _make_writer()
-        assert w._type_ref(StringTypeRef(wide=False, max_length=255)) == "str"
+        assert w._type_ref(StringTypeRef(wide=False, max_length=255)) == "STRING(255)"
 
     def test_string_non_default_unchanged(self):
         w = _make_writer()
         assert w._type_ref(StringTypeRef(wide=False, max_length=80)) == "STRING(80)"
 
-    def test_string_default(self):
+    def test_string_no_length(self):
         w = _make_writer()
-        assert w._type_ref(StringTypeRef()) == "STRING()"
+        assert w._type_ref(StringTypeRef()) == "STRING"
 
     def test_string_with_length(self):
         w = _make_writer()
@@ -247,7 +247,7 @@ class TestTypeRef:
             element_type=PrimitiveTypeRef(type=PrimitiveType.INT),
             dimensions=[DimensionRange(lower=0, upper=9)],
         )
-        assert w._type_ref(tr) == "ARRAY(int, 10)"
+        assert w._type_ref(tr) == "ARRAY(INT, 10)"
 
     def test_array_one_based(self):
         w = _make_writer()
@@ -255,30 +255,55 @@ class TestTypeRef:
             element_type=PrimitiveTypeRef(type=PrimitiveType.INT),
             dimensions=[DimensionRange(lower=1, upper=10)],
         )
-        assert w._type_ref(tr) == "ARRAY(int, (1, 10))"
+        assert w._type_ref(tr) == "ARRAY(INT, (1, 10))"
 
-    def test_array_with_python_types(self):
+    def test_array_with_dint(self):
         w = _make_writer()
         tr = ArrayTypeRef(
             element_type=PrimitiveTypeRef(type=PrimitiveType.DINT),
             dimensions=[DimensionRange(lower=0, upper=9)],
         )
-        assert w._type_ref(tr) == "ARRAY(int, 10)"
+        assert w._type_ref(tr) == "ARRAY(DINT, 10)"
+
+    def test_array_expression_upper_bound(self):
+        w = _make_writer()
+        tr = ArrayTypeRef(
+            element_type=NamedTypeRef(name="I_Module"),
+            dimensions=[DimensionRange(
+                lower=1,
+                upper=MemberAccessExpr(
+                    struct=VariableRef(name="Params"),
+                    member="MAX_MODULES",
+                ),
+            )],
+        )
+        assert w._type_ref(tr) == "ARRAY(I_Module, (1, Params.MAX_MODULES))"
+
+    def test_array_expression_both_bounds(self):
+        w = _make_writer()
+        tr = ArrayTypeRef(
+            element_type=PrimitiveTypeRef(type=PrimitiveType.INT),
+            dimensions=[DimensionRange(
+                lower=VariableRef(name="MIN_IDX"),
+                upper=VariableRef(name="MAX_IDX"),
+            )],
+        )
+        assert w._type_ref(tr) == "ARRAY(INT, (MIN_IDX, MAX_IDX))"
 
     def test_pointer(self):
         w = _make_writer()
         tr = PointerTypeRef(target_type=PrimitiveTypeRef(type=PrimitiveType.INT))
-        assert w._type_ref(tr) == "POINTER_TO(int)"
+        assert w._type_ref(tr) == "POINTER_TO(INT)"
 
-    def test_pointer_with_python_types(self):
+    def test_pointer_with_real(self):
         w = _make_writer()
         tr = PointerTypeRef(target_type=PrimitiveTypeRef(type=PrimitiveType.REAL))
-        assert w._type_ref(tr) == "POINTER_TO(float)"
+        assert w._type_ref(tr) == "POINTER_TO(REAL)"
 
     def test_reference(self):
         w = _make_writer()
         tr = ReferenceTypeRef(target_type=PrimitiveTypeRef(type=PrimitiveType.REAL))
-        assert w._type_ref(tr) == "REFERENCE_TO(float)"
+        assert w._type_ref(tr) == "REFERENCE_TO(REAL)"
 
 
 # ===========================================================================
@@ -672,6 +697,61 @@ class TestStatements:
         w._write_stmt(stmt)
         assert w.getvalue().strip() == "abs(42)"
 
+    def test_function_call_stmt_positional_after_named(self):
+        """ST allows positional args after named — Python does not.
+
+        MoveRelative(Distance := Length, FALSE)
+        must emit: MoveRelative(False, Distance=Length)
+        """
+        w = _make_writer()
+        stmt = FunctionCallStatement(
+            function_name="MoveRelative",
+            args=[
+                CallArg(name="Distance", value=VariableRef(name="Length")),
+                CallArg(value=LiteralExpr(value="FALSE")),
+            ],
+        )
+        w._write_stmt(stmt)
+        assert w.getvalue().strip() == "MoveRelative(False, Distance=Length)"
+
+    def test_function_call_expr_positional_after_named(self):
+        """Same reordering for function call expressions."""
+        w = _make_writer()
+        expr = FunctionCallExpr(
+            function_name="Compute",
+            args=[
+                CallArg(name="X", value=LiteralExpr(value="1")),
+                CallArg(name="Y", value=LiteralExpr(value="2")),
+                CallArg(value=LiteralExpr(value="3")),
+            ],
+        )
+        assert w._expr(expr) == "Compute(3, X=1, Y=2)"
+
+    def test_function_call_all_positional_unchanged(self):
+        """All positional args should remain in original order."""
+        w = _make_writer()
+        expr = FunctionCallExpr(
+            function_name="ADD",
+            args=[
+                CallArg(value=VariableRef(name="a")),
+                CallArg(value=VariableRef(name="b")),
+                CallArg(value=VariableRef(name="c")),
+            ],
+        )
+        assert w._expr(expr) == "ADD(a, b, c)"
+
+    def test_function_call_all_named_unchanged(self):
+        """All named args should remain in original order."""
+        w = _make_writer()
+        expr = FunctionCallExpr(
+            function_name="Move",
+            args=[
+                CallArg(name="X", value=LiteralExpr(value="1")),
+                CallArg(name="Y", value=LiteralExpr(value="2")),
+            ],
+        )
+        assert w._expr(expr) == "Move(X=1, Y=2)"
+
     def test_return(self):
         w = _make_writer()
         stmt = ReturnStatement(value=LiteralExpr(value="42"))
@@ -746,8 +826,8 @@ class TestTypeDefinitions:
         out = w.getvalue().strip()
         assert "@struct" in out
         assert "class MotorData:" in out
-        assert "speed: float" in out
-        assert "running: bool = False" in out
+        assert "speed: REAL" in out
+        assert "running: BOOL = False" in out
 
     def test_enum(self):
         td = EnumType(
@@ -830,8 +910,8 @@ class TestGlobalVarLists:
         out = w.getvalue().strip()
         assert "@global_vars" in out
         assert "class SystemIO:" in out
-        assert "speed: float = 0.0" in out
-        assert "running: bool" in out
+        assert "speed: REAL = 0.0" in out
+        assert "running: BOOL" in out
 
     def test_gvl_with_complex_vars(self):
         gvl = GlobalVariableList(
@@ -847,7 +927,7 @@ class TestGlobalVarLists:
         w = _make_writer()
         w._write_global_variable_list(gvl)
         out = w.getvalue().strip()
-        assert "valve: bool = Field(retain=True)" in out
+        assert "valve: BOOL = Field(retain=True)" in out
 
     def test_gvl_with_description(self):
         gvl = GlobalVariableList(
@@ -901,8 +981,8 @@ class TestPOUEmission:
         out = w.getvalue().strip()
         assert "@fb" in out
         assert "class SimpleFB:" in out
-        assert "sensor: Input[bool]" in out
-        assert "valve: Output[bool]" in out
+        assert "sensor: Input[BOOL]" in out
+        assert "valve: Output[BOOL]" in out
         assert "def logic(self):" in out
         assert "self.valve = self.sensor" in out
 
@@ -941,7 +1021,7 @@ class TestPOUEmission:
         w._write_pou(pou)
         out = w.getvalue().strip()
         assert "@function" in out
-        assert "def logic(self) -> float:" in out
+        assert "def logic(self) -> REAL:" in out
         assert "return self.x + 1.0" in out
 
     def test_fb_extends(self):
@@ -996,7 +1076,7 @@ class TestPOUEmission:
         w._write_pou(pou)
         out = w.getvalue().strip()
         assert "@method" in out
-        assert "def Calculate(self, x: float) -> float:" in out
+        assert "def Calculate(self, x: REAL) -> REAL:" in out
 
     def test_private_method(self):
         pou = POU(
@@ -1371,8 +1451,8 @@ class TestRoundTrip:
 
         # Verify key elements
         assert "class RoundTripFB:" in code
-        assert "sensor: Input[bool]" in code
-        assert "valve: Output[bool]" in code
+        assert "sensor: Input[BOOL]" in code
+        assert "valve: Output[BOOL]" in code
         assert "self.valve = self.sensor" in code
 
     def test_function_round_trip(self):
@@ -1392,7 +1472,7 @@ class TestRoundTrip:
         code = generate(proj_ir)
 
         compile(code, "<generated>", "exec")
-        assert "def logic(self) -> float:" in code
+        assert "def logic(self) -> REAL:" in code
 
     def test_if_else_round_trip(self):
         from plx.framework._decorators import fb
@@ -1459,7 +1539,7 @@ class TestRoundTrip:
         compile(code, "<generated>", "exec")
 
         assert "class MotorData:" in code
-        assert "speed: float" in code
+        assert "speed: REAL" in code
         assert "class Mode:" in code
 
     def test_global_vars_round_trip(self):
@@ -1532,10 +1612,10 @@ class TestAnnotationSyntaxEmission:
         w = _make_writer()
         w._write_pou(pou)
         out = w.getvalue()
-        assert "sensor: Input[bool]" in out
-        assert "valve: Output[bool]" in out
-        assert "ref: InOut[float]" in out
-        assert "count: int = 0" in out
+        assert "sensor: Input[BOOL]" in out
+        assert "valve: Output[BOOL]" in out
+        assert "ref: InOut[REAL]" in out
+        assert "count: DINT = 0" in out
 
     def test_metadata_uses_field_syntax(self):
         """Variables with description/retain should use annotation + Field() syntax."""
@@ -1552,9 +1632,9 @@ class TestAnnotationSyntaxEmission:
         w = _make_writer()
         w._write_pou(pou)
         out = w.getvalue()
-        assert 'sensor: Input[bool] = Field(description="Main sensor")' in out
-        assert "valve: Output[bool] = Field(retain=True)" in out
-        assert "count: int" in out
+        assert 'sensor: Input[BOOL] = Field(description="Main sensor")' in out
+        assert "valve: Output[BOOL] = Field(retain=True)" in out
+        assert "count: DINT" in out
 
     def test_standard_fb_shorthand_preserved(self):
         """Standard FB types (TON, etc.) should still use annotation shorthand."""
@@ -1584,7 +1664,7 @@ class TestAnnotationSyntaxEmission:
         w = _make_writer()
         w._write_pou(pou)
         out = w.getvalue()
-        assert "speed: float" in out
+        assert "speed: REAL" in out
 
     def test_input_with_initial_value(self):
         """Input var with initial value uses annotation syntax with default."""
@@ -1599,7 +1679,7 @@ class TestAnnotationSyntaxEmission:
         w = _make_writer()
         w._write_pou(pou)
         out = w.getvalue()
-        assert "speed: Input[float] = 100.0" in out
+        assert "speed: Input[REAL] = 100.0" in out
 
     def test_constant_no_redundant_flag(self):
         """Constant[T] wrapper should not repeat constant=True in Field()."""
@@ -1618,7 +1698,7 @@ class TestAnnotationSyntaxEmission:
         w._write_pou(pou)
         out = w.getvalue()
         # Simple form — no Field() needed since constant is implicit from the wrapper
-        assert "SEALER_ALARM_COUNT: Constant[int] = 6" in out
+        assert "SEALER_ALARM_COUNT: Constant[INT] = 6" in out
         assert "constant=True" not in out
 
     def test_constant_with_description_no_redundant_flag(self):
@@ -1637,7 +1717,7 @@ class TestAnnotationSyntaxEmission:
         w = _make_writer()
         w._write_pou(pou)
         out = w.getvalue()
-        assert 'FAULTID: Constant[int] = Field(initial=1, description="Fault number")' in out
+        assert 'FAULTID: Constant[INT] = Field(initial=1, description="Fault number")' in out
         assert "constant=True" not in out
 
     def test_constant_bare_no_initial(self):
@@ -1646,7 +1726,7 @@ class TestAnnotationSyntaxEmission:
         v = Variable(name="MAX", data_type=PrimitiveTypeRef(type=PrimitiveType.INT), constant=True)
         w._write_annotation_var(v, "Constant")
         out = w.getvalue().strip()
-        assert out == "MAX: Constant[int]"
+        assert out == "MAX: Constant[INT]"
 
     def test_static_constant_flag_preserved(self):
         """Static var with constant=True still emits the flag (no wrapper to imply it)."""
@@ -1864,7 +1944,7 @@ class TestPropertyExport:
             networks=[Network(statements=[EmptyStatement()])],
         )
         code = generate(Project(name="Test", pous=[pou]))
-        assert "@fb_property(float)" in code
+        assert "@fb_property(REAL)" in code
         assert "def speed(self):" in code
         assert "return self._speed" in code
         assert "@speed.setter" not in code
@@ -1898,10 +1978,10 @@ class TestPropertyExport:
             networks=[Network(statements=[EmptyStatement()])],
         )
         code = generate(Project(name="Test", pous=[pou]))
-        assert "@fb_property(float)" in code
+        assert "@fb_property(REAL)" in code
         assert "def level(self):" in code
         assert "@level.setter" in code
-        assert "def level(self, level: float):" in code
+        assert "def level(self, level: REAL):" in code
 
     def test_property_abstract(self):
         pou = POU(
@@ -1977,8 +2057,8 @@ class TestInterfaceExport:
         assert "@interface" in code
         assert "class IMoveable:" in code
         assert "@method" in code
-        assert "def move_to(self, target: float) -> bool: ..." in code
-        assert "@fb_property(float)" in code
+        assert "def move_to(self, target: REAL) -> BOOL: ..." in code
+        assert "@fb_property(REAL)" in code
         assert "def position(self): ..." in code
 
     def test_interface_extends(self):
@@ -2462,7 +2542,7 @@ class TestArrayEmptyDimensions:
             dimensions=[DimensionRange(lower=0, upper=9)],
         )
         result = w._type_ref(tr)
-        assert result == "ARRAY(int, 10)"
+        assert result == "ARRAY(INT, 10)"
 
     def test_explicit_bounds_unchanged(self):
         """ARRAY[1..10] emits explicit bounds."""
@@ -2472,7 +2552,7 @@ class TestArrayEmptyDimensions:
             dimensions=[DimensionRange(lower=1, upper=10)],
         )
         result = w._type_ref(tr)
-        assert result == "ARRAY(float, (1, 10))"
+        assert result == "ARRAY(REAL, (1, 10))"
 
 
 class TestInOutParamsInMethodSignature:
@@ -2503,7 +2583,7 @@ class TestInOutParamsInMethodSignature:
         w = _make_writer()
         w._write_pou(pou)
         out = w.getvalue()
-        assert "def Process(self, cmd: int, buffer: DataBuffer):" in out
+        assert "def Process(self, cmd: INT, buffer: DataBuffer):" in out
         # InOut should NOT appear as local declaration
         assert "InOut[DataBuffer]" not in out
 
@@ -2525,7 +2605,7 @@ class TestInOutParamsInMethodSignature:
         w._self_vars = set()
         w._write_method(m)
         out = w.getvalue()
-        assert "def Transfer(self, enable: bool, data: MyStruct):" in out
+        assert "def Transfer(self, enable: BOOL, data: MyStruct):" in out
 
 
 # ===========================================================================

@@ -459,9 +459,12 @@ class STWriter:
             return f"REFERENCE TO {self._type_ref(tr.target_type)}"
         return "???"
 
-    @staticmethod
-    def _dim_range(d: DimensionRange) -> str:
-        return f"{d.lower}..{d.upper}"
+    def _dim_range(self, d: DimensionRange) -> str:
+        def _bound(b: int | Expression) -> str:
+            if isinstance(b, int):
+                return str(b)
+            return format_expression(b)
+        return f"{_bound(d.lower)}..{_bound(d.upper)}"
 
     # ======================================================================
     # Networks / statements

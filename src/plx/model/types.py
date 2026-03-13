@@ -104,18 +104,25 @@ class NamedTypeRef(IRModel):
 
 
 class DimensionRange(IRModel):
-    """Array dimension bounds (inclusive)."""
+    """Array dimension bounds (inclusive).
 
-    lower: int = 0
-    upper: int
+    Bounds can be integer literals or Expression nodes (for symbolic
+    bounds like ``GVL_Params.MAX_SIZE``).  When bounds are expressions,
+    numeric validation is skipped.
+    """
+
+    lower: int | Expression = 0
+    upper: int | Expression
 
     @model_validator(mode="after")
     def _bounds_check(self):
-        # upper == -1 is a sentinel for variable-length arrays (ARRAY[*] OF T)
-        if self.upper != -1 and self.lower > self.upper:
-            raise ValueError(
-                f"lower ({self.lower}) must be <= upper ({self.upper})"
-            )
+        # Only validate when both bounds are integers
+        if isinstance(self.lower, int) and isinstance(self.upper, int):
+            # upper == -1 is a sentinel for variable-length arrays (ARRAY[*] OF T)
+            if self.upper != -1 and self.lower > self.upper:
+                raise ValueError(
+                    f"lower ({self.lower}) must be <= upper ({self.upper})"
+                )
         return self
 
 
@@ -125,10 +132,6 @@ class ArrayTypeRef(IRModel):
     kind: Literal["array"] = "array"
     element_type: TypeRef
     dimensions: list[DimensionRange]
-
-    # Note: dimensions may be empty when the parser encounters symbolic
-    # bounds (e.g. Param.START..Param.END) that can't be resolved to
-    # integer literals at parse time.
 
 
 class PointerTypeRef(IRModel):
@@ -296,9 +299,8 @@ TypeDefinition = Annotated[
 # ---------------------------------------------------------------------------
 # Rebuild models with recursive TypeRef references
 # ---------------------------------------------------------------------------
-
-ArrayTypeRef.model_rebuild()
-PointerTypeRef.model_rebuild()
-ReferenceTypeRef.model_rebuild()
-StructMember.model_rebuild()
-AliasType.model_rebuild()
+# DimensionRange uses ``int | Expression`` for bounds. Expression is defined
+# in expressions.py, which imports from this module.  All model_rebuild()
+# calls are therefore deferred to the bottom of expressions.py where both
+# TypeRef and Expression are available.
+# ---------------------------------------------------------------------------
