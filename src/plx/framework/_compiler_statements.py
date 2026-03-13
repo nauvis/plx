@@ -35,7 +35,6 @@ from plx.model.statements import (
     WhileStatement,
 )
 from plx.model.types import (
-    NamedTypeRef,
     PrimitiveType,
     PrimitiveTypeRef,
     StringTypeRef,
@@ -48,7 +47,6 @@ from ._compiler_core import (
     SENTINEL_REGISTRY,
     _PYTHON_BUILTIN_MAP,
     _REJECTED_AUGOP_MESSAGES,
-    _REJECTED_BINOP_MESSAGES,
     _REJECTED_BUILTINS,
     _BINOP_MAP,
     _infer_type,
@@ -58,8 +56,6 @@ from ._descriptors import VarDirection
 
 if TYPE_CHECKING:
     from ._compiler import ASTCompiler
-
-from ._compiler_core import CompileContext
 
 
 def _is_negative_step(node: ast.expr) -> bool:

@@ -123,7 +123,9 @@ def fb_property(
         return decorator
 
     raise CompileError(
-        "@fb_property requires a type argument: @fb_property(REAL)"
+        "@fb_property requires a type argument, e.g. @fb_property(REAL). "
+        "Bare @fb_property is not supported — the property's IEC data type "
+        "must be specified explicitly."
     )
 
 

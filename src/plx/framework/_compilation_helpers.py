@@ -157,6 +157,9 @@ def _discover_enums(func: Any) -> dict[str, dict[str, int]]:
             try:
                 obj = cell.cell_contents
             except ValueError:
+                # Uninitialized closure cell — the variable was declared in
+                # an enclosing scope but hasn't been assigned yet (e.g. a
+                # class being defined in a closure).  Safe to skip.
                 continue
             if isinstance(obj, CompiledEnum):
                 known[name] = obj._enum_values

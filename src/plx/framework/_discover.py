@@ -8,15 +8,15 @@ the decorator didn't set one explicitly.
 
 from __future__ import annotations
 
-import dataclasses
 import importlib
 import pkgutil
 import sys
+import warnings
 from enum import IntEnum
 from types import ModuleType
 from typing import Any
 
-from ._project import PlxTask
+from ._task import PlxTask
 from ._protocols import CompiledDataType, CompiledGlobalVarList, CompiledPOU
 
 
@@ -86,8 +86,11 @@ def _walk_package(package_name: str) -> list[ModuleType]:
         try:
             mod = importlib.import_module(modname)
             modules.append(mod)
-        except Exception:
-            # Skip modules that fail to import
+        except Exception as exc:
+            warnings.warn(
+                f"plx discover: failed to import {modname}: {exc}",
+                stacklevel=2,
+            )
             continue
 
     return modules
@@ -157,12 +160,6 @@ def discover(*package_names: str) -> DiscoveryResult:
                 elif isinstance(obj, type) and issubclass(obj, IntEnum) and obj is not IntEnum:
                     from ._data_types import _ensure_enum_compiled
                     _ensure_enum_compiled(obj)
-                    seen_ids.add(obj_id)
-                    _set_inferred_folder(obj._compiled_type, obj, pkg_name)
-                    result.data_types.append(obj)
-                elif isinstance(obj, type) and dataclasses.is_dataclass(obj) and not getattr(obj, "__plx_struct__", False):
-                    from ._data_types import _ensure_struct_compiled
-                    _ensure_struct_compiled(obj)
                     seen_ids.add(obj_id)
                     _set_inferred_folder(obj._compiled_type, obj, pkg_name)
                     result.data_types.append(obj)

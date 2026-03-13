@@ -35,12 +35,18 @@ from ._types import (
     # timedelta → IEC conversion helpers
     timedelta_to_iec,
     timedelta_to_ir,
-    # Type constructors
+    # Type constructors (uppercase — backwards compat)
     ARRAY,
     STRING,
     WSTRING,
     POINTER_TO,
     REFERENCE_TO,
+    # Type constructors (lowercase aliases)
+    array,
+    string,
+    wstring,
+    pointer_to,
+    reference_to,
     # System flag sentinels
     first_scan,
 )
@@ -72,7 +78,7 @@ from ._descriptors import (
     Constant,
     External,
     Field,
-    # IEC 61131-3 standard function block types
+    # IEC 61131-3 standard function block types (uppercase — backwards compat)
     TON,
     TOF,
     TP,
@@ -84,6 +90,18 @@ from ._descriptors import (
     CTUD,
     SR,
     RS,
+    # Standard FB types (lowercase aliases)
+    ton,
+    tof,
+    tp,
+    rto,
+    r_trig,
+    f_trig,
+    ctu,
+    ctd,
+    ctud,
+    sr,
+    rs,
 )
 
 from ._decorators import (
@@ -153,10 +171,8 @@ from plx.export.py import (
     generate_files,
 )
 
-from ._project import (
-    project,
-    task,
-)
+from ._project import project
+from ._task import task
 
 from ._vendor import (
     CompileResult,
@@ -219,12 +235,18 @@ __all__ = [
     # timedelta → IEC conversion helpers
     "timedelta_to_iec",
     "timedelta_to_ir",
-    # Type constructors
+    # Type constructors (uppercase — backwards compat)
     "ARRAY",
     "STRING",
     "WSTRING",
     "POINTER_TO",
     "REFERENCE_TO",
+    # Type constructors (lowercase aliases)
+    "array",
+    "string",
+    "wstring",
+    "pointer_to",
+    "reference_to",
     # Variable annotation wrappers
     "Input",
     "Output",
@@ -234,7 +256,7 @@ __all__ = [
     "Constant",
     "External",
     "Field",
-    # IEC 61131-3 standard function block types
+    # IEC 61131-3 standard function block types (uppercase — backwards compat)
     "TON",
     "TOF",
     "TP",
@@ -246,6 +268,18 @@ __all__ = [
     "CTUD",
     "SR",
     "RS",
+    # Standard FB types (lowercase aliases)
+    "ton",
+    "tof",
+    "tp",
+    "rto",
+    "r_trig",
+    "f_trig",
+    "ctu",
+    "ctd",
+    "ctud",
+    "sr",
+    "rs",
     # POU decorators
     "fb",
     "program",

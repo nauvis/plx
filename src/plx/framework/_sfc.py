@@ -168,7 +168,11 @@ class _StepActionDecorator:
         resets: str | None = None,
     ) -> Any:
         if func is not None and callable(func):
-            # Bare @STEP.action — func is the decorated function
+            # Bare @STEP.action — func is the decorated function.
+            # The callable() check is required here (unlike other decorators)
+            # because the first positional arg is overloaded: it's either the
+            # decorated function (bare usage) or a qualifier string like "L"
+            # when called as @STEP.action("L", duration=...).  See line 179.
             func._plx_marker = _ActionMarker(
                 step_desc=self._step_desc,
                 qualifier=ActionQualifier("N"),

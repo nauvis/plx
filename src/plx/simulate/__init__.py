@@ -121,11 +121,10 @@ def _resolve_typedef(dt: Any) -> StructType | EnumType:
         return dt
     if isinstance(dt, CompiledDataType):
         return dt._compiled_type
-    # Auto-compile bare IntEnum/dataclass that hasn't been compiled yet
+    # Auto-compile bare IntEnum that hasn't been compiled yet
     if isinstance(dt, type):
-        from plx.framework._data_types import _ensure_enum_compiled, _ensure_struct_compiled
+        from plx.framework._data_types import _ensure_enum_compiled
         _ensure_enum_compiled(dt)
-        _ensure_struct_compiled(dt)
         if isinstance(dt, CompiledDataType):
             return dt._compiled_type
     raise TypeError(

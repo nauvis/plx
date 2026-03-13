@@ -1,6 +1,5 @@
 """Tests for project assembly: data types, GVLs, transitive deps, auto-compilation."""
 
-import dataclasses
 from enum import IntEnum
 
 import pytest
@@ -10,7 +9,8 @@ from plx.framework._decorators import fb, function, program
 from plx.framework._descriptors import Input, Output, Static, Field
 from plx.framework._errors import ProjectAssemblyError
 from plx.framework._global_vars import global_vars
-from plx.framework._project import PlxProject, project, _resolve_transitive_deps, _format_interval
+from plx.framework._project import PlxProject, project, _resolve_transitive_deps
+from plx.framework._task import _format_interval
 from datetime import timedelta
 from plx.framework._types import ARRAY, BOOL, DINT, INT, REAL, STRING
 from plx.model.pou import POUType
@@ -166,7 +166,7 @@ class TestProjectGVLs:
 
 class TestFullProject:
     def test_all_sections(self):
-        from plx.framework._project import task
+        from plx.framework._task import task
 
         ir = project(
             "FullProject",
@@ -257,17 +257,6 @@ class TestAutoCompilation:
         ir = project("P", data_types=[Color]).compile()
         assert len(ir.data_types) == 1
         assert ir.data_types[0].name == "Color"
-
-    def test_dataclass_auto_compiled(self):
-        """Dataclass without @struct should be auto-compiled."""
-        @dataclasses.dataclass
-        class Point:
-            x: float = 0.0
-            y: float = 0.0
-
-        ir = project("P", data_types=[Point]).compile()
-        assert len(ir.data_types) == 1
-        assert ir.data_types[0].name == "Point"
 
     def test_already_decorated_not_double_compiled(self):
         """@enumeration classes should compile fine without double-compilation."""

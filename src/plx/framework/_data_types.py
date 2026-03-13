@@ -29,7 +29,6 @@ Examples::
 
 from __future__ import annotations
 
-import dataclasses
 from enum import IntEnum
 from typing import Any
 
@@ -88,7 +87,7 @@ def struct(cls: type | None = None, *, folder: str = "") -> Any:
         cls.__plx_struct__ = True
         register_type(cls)
 
-        @classmethod  # type: ignore[misc]
+        @classmethod  # type: ignore[misc]  — mypy can't verify dynamic classmethod assignment
         def compile(klass: type) -> StructType:
             return klass._compiled_type
 
@@ -160,7 +159,7 @@ def enumeration(
         cls.__plx_enum__ = True
         register_type(cls)
 
-        @classmethod  # type: ignore[misc]
+        @classmethod  # type: ignore[misc]  — mypy can't verify dynamic classmethod assignment
         def compile(klass: type) -> EnumType:
             return klass._compiled_type
 
@@ -179,10 +178,8 @@ def enumeration(
 # ---------------------------------------------------------------------------
 
 def _is_struct(obj: object) -> bool:
-    """Check if *obj* is a @struct-decorated class or a dataclass."""
-    return getattr(obj, "__plx_struct__", False) or (
-        isinstance(obj, type) and dataclasses.is_dataclass(obj)
-    )
+    """Check if *obj* is a @struct-decorated class."""
+    return getattr(obj, "__plx_struct__", False)
 
 
 def _is_enumeration(obj: object) -> bool:
@@ -213,22 +210,3 @@ def _ensure_enum_compiled(cls: type) -> None:
     cls.compile = classmethod(lambda klass: klass._compiled_type)
 
 
-def _ensure_struct_compiled(cls: type) -> None:
-    """If cls is a dataclass without plx markers, compile it on the fly."""
-    if not dataclasses.is_dataclass(cls):
-        return
-    if hasattr(cls, "__plx_struct__"):
-        return  # already compiled
-    members: list[StructMember] = []
-    for f in dataclasses.fields(cls):
-        data_type = _resolve_type_ref(f.type)
-        initial = None
-        if f.default is not dataclasses.MISSING:
-            initial = _format_initial(f.default)
-        members.append(StructMember(name=f.name, data_type=data_type, initial_value=initial))
-    if not members:
-        return
-    cls._compiled_type = StructType(name=cls.__name__, members=members)
-    cls.__plx_struct__ = True
-    register_type(cls)
-    cls.compile = classmethod(lambda klass: klass._compiled_type)

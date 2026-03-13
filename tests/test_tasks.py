@@ -16,7 +16,7 @@ from plx.framework import (
     task,
     Field,
 )
-from plx.framework._project import PlxTask
+from plx.framework._task import PlxTask
 from plx.model.task import (
     ContinuousTask,
     EventTask,

@@ -145,16 +145,16 @@ def _resolve_type_ref(type_arg: PrimitiveType | TypeRef | type | str) -> TypeRef
     )):
         return type_arg
     # IntEnum subclasses → auto-compile and return NamedTypeRef
+    # Late imports: _types.py and _data_types.py are mutually recursive.
+    # _resolve_type_ref() may trigger _ensure_enum_compiled(), which in
+    # turn calls _resolve_type_ref() for nested member types.  Late
+    # imports here (rather than top-level) are the correct pattern to
+    # break the import cycle while preserving the auto-compilation
+    # convenience for IntEnum subclasses.
     from enum import IntEnum
     if isinstance(type_arg, type) and issubclass(type_arg, IntEnum) and type_arg is not IntEnum:
         from ._data_types import _ensure_enum_compiled
         _ensure_enum_compiled(type_arg)
-        return NamedTypeRef(name=type_arg.__name__)
-    # dataclass → auto-compile and return NamedTypeRef
-    import dataclasses
-    if isinstance(type_arg, type) and dataclasses.is_dataclass(type_arg):
-        from ._data_types import _ensure_struct_compiled
-        _ensure_struct_compiled(type_arg)
         return NamedTypeRef(name=type_arg.__name__)
     # @struct / @enumeration decorated classes have _compiled_type
     from ._protocols import CompiledDataType, CompiledPOU
@@ -235,6 +235,17 @@ def POINTER_TO(target: PrimitiveType | TypeRef | type | str) -> PointerTypeRef:
 def REFERENCE_TO(target: PrimitiveType | TypeRef | type | str) -> ReferenceTypeRef:
     """Create a REFERENCE TO type reference."""
     return ReferenceTypeRef(target_type=_resolve_type_ref(target))
+
+
+# ---------------------------------------------------------------------------
+# Lowercase aliases — Pythonic names for type constructors
+# ---------------------------------------------------------------------------
+
+array = ARRAY
+string = STRING
+wstring = WSTRING
+pointer_to = POINTER_TO
+reference_to = REFERENCE_TO
 
 
 # ---------------------------------------------------------------------------

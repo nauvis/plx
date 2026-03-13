@@ -103,7 +103,7 @@ def global_vars(
         cls._compiled_gvl = compiled
         cls.__plx_global_vars__ = True
 
-        @classmethod  # type: ignore[misc]
+        @classmethod  # type: ignore[misc]  — mypy can't verify dynamic classmethod assignment
         def compile(klass: type) -> GlobalVariableList:
             return klass._compiled_gvl
 

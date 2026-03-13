@@ -88,16 +88,14 @@ def method(
                 self.speed = 0.0
     """
     marker = _MethodMarker(access=access)
+
+    def _apply(fn: Any) -> Any:
+        fn._plx_marker = marker
+        return fn
+
     if func is not None:
-        # Used as @method (no parentheses)
-        func._plx_marker = marker
-        return func
-    else:
-        # Used as @method() or @method(access=PRIVATE)
-        def decorator(fn: Any) -> Any:
-            fn._plx_marker = marker
-            return fn
-        return decorator
+        return _apply(func)
+    return _apply
 
 
 def _is_method(obj: object) -> bool:
@@ -255,8 +253,12 @@ def _extract_comments(source: str) -> dict[int, str]:
             text = tok.string[1:].strip()  # strip '#' + whitespace
             if text:
                 comments[tok.start[0]] = text
-    except tokenize.TokenError:
-        pass
+    except tokenize.TokenError as exc:
+        import warnings
+        warnings.warn(
+            f"plx: failed to tokenize source for comment extraction: {exc}",
+            stacklevel=2,
+        )
     return comments
 
 
@@ -619,8 +621,10 @@ def function(cls: type = None, *, language: str | None = None, folder: str = "")
 # @interface decorator
 # ---------------------------------------------------------------------------
 
-def interface(cls: type) -> type:
+def interface(cls: type = None, *, folder: str = "") -> Any:
     """Decorate a class as an IEC 61131-3 INTERFACE.
+
+    Can be used as ``@interface`` or ``@interface(folder="...")``.
 
     Methods decorated with ``@method`` are collected as signatures only
     (parameters + return type, no body compilation).  Supports ``extends``
@@ -638,82 +642,88 @@ def interface(cls: type) -> type:
             @method
             def reset(self): ...
     """
-    # Determine extends from parent interfaces
-    extends: str | None = None
-    for base in cls.__mro__[1:]:
-        if base is object:
-            continue
-        if getattr(base, "__plx_interface__", False):
-            extends = base._compiled_pou.name
-            break
+    def _apply(cls: type) -> type:
+        # Determine extends from parent interfaces
+        extends: str | None = None
+        for base in cls.__mro__[1:]:
+            if base is object:
+                continue
+            if getattr(base, "__plx_interface__", False):
+                extends = base._compiled_pou.name
+                break
 
-    # Collect @method-decorated functions as signatures only
-    method_irs: list[Method] = []
-    for method_name, method_func, method_access in _collect_methods(cls):
-        # Extract parameters and return type — no body compilation
-        func_def, _, _ = _parse_function_source(
-            method_func,
-            f"{cls.__name__}.{method_name}()",
-            validate_self_only=False,
+        # Collect @method-decorated functions as signatures only
+        method_irs: list[Method] = []
+        for method_name, method_func, method_access in _collect_methods(cls):
+            # Extract parameters and return type — no body compilation
+            func_def, _, _ = _parse_function_source(
+                method_func,
+                f"{cls.__name__}.{method_name}()",
+                validate_self_only=False,
+            )
+
+            method_input_vars: list[Variable] = []
+            for arg in func_def.args.args:
+                if arg.arg == "self":
+                    continue
+                if arg.annotation is None:
+                    raise CompileError(
+                        f"Interface method parameter '{arg.arg}' in "
+                        f"{cls.__name__}.{method_name}() must have a type annotation"
+                    )
+                type_ref = resolve_annotation(
+                    arg.annotation,
+                    location_hint=f"{cls.__name__}.{method_name}()",
+                )
+                method_input_vars.append(Variable(name=arg.arg, data_type=type_ref))
+
+            return_type_val: TypeRef | None = None
+            if func_def.returns is not None:
+                return_type_val = resolve_annotation(
+                    func_def.returns,
+                    location_hint=f"{cls.__name__}.{method_name}()",
+                )
+
+            method_irs.append(Method(
+                name=method_name,
+                return_type=return_type_val,
+                access=method_access,
+                interface=POUInterface(input_vars=method_input_vars),
+            ))
+
+        # Collect @fb_property signatures
+        property_irs = []
+        for prop_name, marker in _collect_properties(cls):
+            from plx.model.pou import Property as PropertyModel
+            property_irs.append(PropertyModel(
+                name=prop_name,
+                data_type=marker.data_type,
+                access=marker.access,
+                abstract=marker.abstract,
+                final=marker.final,
+            ))
+
+        pou = POU(
+            pou_type=POUType.INTERFACE,
+            name=cls.__name__,
+            folder=folder,
+            extends=extends,
+            methods=method_irs,
+            properties=property_irs,
         )
 
-        method_input_vars: list[Variable] = []
-        for arg in func_def.args.args:
-            if arg.arg == "self":
-                continue
-            if arg.annotation is None:
-                raise CompileError(
-                    f"Interface method parameter '{arg.arg}' in "
-                    f"{cls.__name__}.{method_name}() must have a type annotation"
-                )
-            type_ref = resolve_annotation(
-                arg.annotation,
-                location_hint=f"{cls.__name__}.{method_name}()",
-            )
-            method_input_vars.append(Variable(name=arg.arg, data_type=type_ref))
+        cls._compiled_pou = pou
+        cls.__plx_interface__ = True
+        register_pou(cls)
 
-        return_type: TypeRef | None = None
-        if func_def.returns is not None:
-            return_type = resolve_annotation(
-                func_def.returns,
-                location_hint=f"{cls.__name__}.{method_name}()",
-            )
+        @classmethod
+        def compile(klass: type) -> POU:
+            return klass._compiled_pou
 
-        method_irs.append(Method(
-            name=method_name,
-            return_type=return_type,
-            access=method_access,
-            interface=POUInterface(input_vars=method_input_vars),
-        ))
+        cls.compile = compile
 
-    # Collect @fb_property signatures
-    property_irs = []
-    for prop_name, marker in _collect_properties(cls):
-        from plx.model.pou import Property as PropertyModel
-        property_irs.append(PropertyModel(
-            name=prop_name,
-            data_type=marker.data_type,
-            access=marker.access,
-            abstract=marker.abstract,
-            final=marker.final,
-        ))
+        return cls
 
-    pou = POU(
-        pou_type=POUType.INTERFACE,
-        name=cls.__name__,
-        extends=extends,
-        methods=method_irs,
-        properties=property_irs,
-    )
-
-    cls._compiled_pou = pou
-    cls.__plx_interface__ = True
-    register_pou(cls)
-
-    @classmethod
-    def compile(klass: type) -> POU:
-        return klass._compiled_pou
-
-    cls.compile = compile
-
-    return cls
+    if cls is not None:
+        return _apply(cls)
+    return _apply

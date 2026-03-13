@@ -134,27 +134,6 @@ class TestReExports:
         from typing import Annotated as std_ann
         assert ann is std_ann
 
-    def test_dataclass_works_as_struct(self):
-        """@dataclass classes should work as data_types in project()."""
-        @dataclass
-        class Point:
-            x: float = 0.0
-            y: float = 0.0
-
-        @fb
-        class Mover:
-            pos: Point
-            speed: Output[float]
-
-            def logic(self):
-                self.speed = 1.0
-
-        proj = project("Test", pous=[Mover], data_types=[Point])
-        ir = proj.compile()
-        # Point should be in data_types
-        type_names = [dt.name for dt in ir.data_types]
-        assert "Point" in type_names
-
     def test_intenum_works_as_enumeration(self):
         """IntEnum classes should work as data_types in project()."""
         class Color(IntEnum):

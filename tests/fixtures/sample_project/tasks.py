@@ -2,7 +2,7 @@
 
 from datetime import timedelta
 
-from plx.framework._project import task
+from plx.framework._task import task
 
 from . import MainProgram
 

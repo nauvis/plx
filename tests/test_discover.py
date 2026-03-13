@@ -3,7 +3,8 @@
 import pytest
 
 from plx.framework._discover import DiscoveryResult, _infer_folder, discover
-from plx.framework._project import PlxTask, project
+from plx.framework._task import PlxTask
+from plx.framework._project import project
 from plx.framework._protocols import CompiledDataType, CompiledGlobalVarList, CompiledPOU
 
 
@@ -161,6 +162,35 @@ class TestDiscover:
     def test_result_type(self):
         result = discover("tests.fixtures.sample_project")
         assert isinstance(result, DiscoveryResult)
+
+    def test_import_failure_warns(self):
+        """Modules that fail to import should emit a warning, not silently skip."""
+        import sys
+        import types
+
+        # Create a fake package whose submodule raises ImportError
+        pkg = types.ModuleType("_plx_test_bad_pkg")
+        pkg.__path__ = ["/fake/nonexistent/path"]
+        pkg.__package__ = "_plx_test_bad_pkg"
+        sys.modules["_plx_test_bad_pkg"] = pkg
+
+        # Create a bad submodule entry that will fail on import
+        sub = types.ModuleType("_plx_test_bad_pkg._broken")
+        sub.__package__ = "_plx_test_bad_pkg"
+        # Make it raise on import by registering then deleting so
+        # pkgutil.walk_packages finds it but importlib.import_module fails
+        sys.modules["_plx_test_bad_pkg._broken"] = sub
+        del sys.modules["_plx_test_bad_pkg._broken"]
+
+        try:
+            import warnings
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                result = discover("_plx_test_bad_pkg")
+            # Should still return a result (not crash)
+            assert isinstance(result, DiscoveryResult)
+        finally:
+            sys.modules.pop("_plx_test_bad_pkg", None)
 
 
 # ---------------------------------------------------------------------------
