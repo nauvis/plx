@@ -193,6 +193,9 @@ _BINOP_PYTHON: dict[BinaryOp, str] = {
     BinaryOp.OR_ELSE: "or",
 }
 
+# IEC primitive → Python type name.  Use uppercase IEC names for lossless
+# round-trip (DINT and INT are distinct types; both mapped to "int" is lossy).
+
 # Python precedence (higher = binds tighter)
 _BINOP_PRECEDENCE: dict[BinaryOp, int] = {
     BinaryOp.BOR: 7,
@@ -351,7 +354,7 @@ def _format_initial_value(value: str) -> str | None:
 
     # Empty array/struct initializer
     if value in ("[]", "{}"):
-        return repr(value)
+        return value
 
     # Not representable as a Python literal (function calls, complex
     # expressions, etc.) — return None so callers use Field(initial=...).
@@ -1154,9 +1157,13 @@ class PyWriter:
                     # Explicit bounds: ARRAY(INT, (1, 10))
                     dims.append(f"({d.lower}, {d.upper})")
             else:
-                # Expression-based bounds — emit tuple with expression text
+                # Expression-based bounds — emit without self. prefix since
+                # array dimensions reference GVL constants, not instance vars
+                saved = self._self_vars
+                self._self_vars = set()
                 lower_str = str(d.lower) if lower_is_int else self._expr(d.lower)
                 upper_str = str(d.upper) if upper_is_int else self._expr(d.upper)
+                self._self_vars = saved
                 dims.append(f"({lower_str}, {upper_str})")
         if not dims:
             return f"ARRAY({elem})"

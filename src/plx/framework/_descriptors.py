@@ -302,7 +302,7 @@ def _field_to_variable(
     the default supplies the initial value.
     """
     if field.initial_value is None and default is not None and not isinstance(default, FieldDescriptor):
-        if isinstance(default, (bool, int, float, str, timedelta)):
+        if isinstance(default, (bool, int, float, str, timedelta, dict)):
             field = FieldDescriptor(
                 initial_value=_format_initial(default),
                 description=field.description,
@@ -415,7 +415,7 @@ def _resolve_declaration(
         )
 
     # No field — skip non-value defaults (step objects, etc.)
-    if default is not None and not isinstance(default, (bool, int, float, str, timedelta)):
+    if default is not None and not isinstance(default, (bool, int, float, str, timedelta, dict)):
         return None
 
     initial_value = _format_initial(default)
