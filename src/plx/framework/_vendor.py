@@ -82,12 +82,16 @@ class PortabilityWarning:
     Unlike ``VendorValidationError`` (which rejects the project),
     portability warnings indicate that compilation will succeed but
     round-trip fidelity or semantics may differ on the target vendor.
+
+    When ``round_trippable`` is False, the expansion is lossy — the
+    original construct cannot be recovered on re-import.
     """
 
-    category: str       # "fb_translation", "oop_flattening"
+    category: str       # "fb_translation", "oop_flattening", "instruction_expansion"
     pou_name: str       # which POU triggered it
     message: str        # human-readable description
     details: dict[str, Any] = field(default_factory=dict)
+    round_trippable: bool = True  # False for lossy expansions (e.g. RTO → TON + latch)
 
 
 class CompileResult:
@@ -330,7 +334,14 @@ _FB_TRANSLATION_WARNINGS: dict[str, dict[Vendor, str]] = {
     "RTO": {
         Vendor.BECKHOFF: (
             "RTO (retentive on-delay timer) has no native Beckhoff equivalent "
-            "and must be synthesized from TON + latch logic. "
+            "and will be synthesized from TON + latch logic. "
+            "This expansion will not round-trip as RTO on re-import. "
+            "Use retentive() sentinel for portable code."
+        ),
+        Vendor.SIEMENS: (
+            "RTO (retentive on-delay timer) has no native Siemens equivalent "
+            "and will be synthesized from TON + latch logic. "
+            "This expansion will not round-trip as RTO on re-import. "
             "Use retentive() sentinel for portable code."
         ),
     },
@@ -432,6 +443,10 @@ def _collect_fb_types(project: Project) -> dict[str, set[str]]:
 # Warning checks — append to _WARNINGS to register
 # ---------------------------------------------------------------------------
 
+# FB types whose instruction expansion is not round-trippable.
+_NON_ROUND_TRIPPABLE_FBS: set[str] = {"RTO"}
+
+
 def _check_fb_translation(
     project: Project,
     target: Vendor,
@@ -448,6 +463,7 @@ def _check_fb_translation(
                     pou_name=pou_name,
                     message=vendor_msgs[target],
                     details={"fb_type": fb_type, "target": target.value},
+                    round_trippable=fb_type not in _NON_ROUND_TRIPPABLE_FBS,
                 ))
 
 

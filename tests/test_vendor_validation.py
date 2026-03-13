@@ -495,14 +495,18 @@ class TestPortabilityWarnings:
         assert w.pou_name == "_FBWithRTO"
         assert "RTO" in w.message
         assert w.details["fb_type"] == "RTO"
+        assert w.round_trippable is False
 
     def test_rto_no_warning_for_ab(self):
         result = project("P", pous=[_FBWithRTO]).compile(target=Vendor.AB)
         assert result.warnings == []
 
-    def test_rto_no_warning_for_siemens(self):
+    def test_rto_warns_for_siemens(self):
         result = project("P", pous=[_FBWithRTO]).compile(target=Vendor.SIEMENS)
-        assert result.warnings == []
+        fb_warnings = [w for w in result.warnings if w.category == "fb_translation"]
+        assert len(fb_warnings) == 1
+        assert fb_warnings[0].details["fb_type"] == "RTO"
+        assert fb_warnings[0].round_trippable is False
 
     def test_sr_warns_for_ab(self):
         result = project("P", pous=[_FBWithSR]).compile(target=Vendor.AB)
