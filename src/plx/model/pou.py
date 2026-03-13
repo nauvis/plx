@@ -45,6 +45,7 @@ class Language(str, Enum):
     LD = "LD"
     FBD = "FBD"
     SFC = "SFC"
+    CFC = "CFC"  # Beckhoff-specific (Continuous Function Chart)
 
 
 class Network(IRModel):
