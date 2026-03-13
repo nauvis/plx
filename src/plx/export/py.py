@@ -107,6 +107,9 @@ def generate_files(project: Project) -> dict[str, str]:
     files: dict[str, str] = {}
     w = PyWriter(project)
 
+    def _prefixed(folder: str, name: str) -> str:
+        return f"{folder}/{name}" if folder else name
+
     # Data types — one file per type
     for td in project.data_types:
         if isinstance(td, (StructType, EnumType, UnionType, AliasType, SubrangeType)):
@@ -114,7 +117,7 @@ def generate_files(project: Project) -> dict[str, str]:
             fw._line("from plx.framework import *")
             fw._line()
             fw._write_type_definition(td)
-            files[f"{td.name}.py"] = fw.getvalue()
+            files[_prefixed(td.folder, f"{td.name}.py")] = fw.getvalue()
 
     # Global variable lists — one file per GVL
     for gvl in project.global_variable_lists:
@@ -122,7 +125,7 @@ def generate_files(project: Project) -> dict[str, str]:
         fw._line("from plx.framework import *")
         fw._line()
         fw._write_global_variable_list(gvl)
-        files[f"{gvl.name}.py"] = fw.getvalue()
+        files[_prefixed(gvl.folder, f"{gvl.name}.py")] = fw.getvalue()
 
     # POUs — one file per POU (methods/actions/properties inline)
     for pou in project.pous:
@@ -141,23 +144,28 @@ def generate_files(project: Project) -> dict[str, str]:
             fw._write_interface(pou)
         else:
             fw._write_pou(pou)
-        files[f"{pou.name}.py"] = fw.getvalue()
+        files[_prefixed(pou.folder, f"{pou.name}.py")] = fw.getvalue()
 
     # project.py — imports + task definitions + project() call
     pw = PyWriter()
     pw._line("from plx.framework import *")
 
     # Import all definitions from sibling files
+    def _module_path(folder: str, name: str) -> str:
+        if folder:
+            return "." + folder.replace("/", ".") + "." + name
+        return "." + name
+
     all_names: list[str] = []
     for td in project.data_types:
         if isinstance(td, (StructType, EnumType)):
-            pw._line(f"from .{td.name} import {td.name}")
+            pw._line(f"from {_module_path(td.folder, td.name)} import {td.name}")
             all_names.append(td.name)
     for gvl in project.global_variable_lists:
-        pw._line(f"from .{gvl.name} import {gvl.name}")
+        pw._line(f"from {_module_path(gvl.folder, gvl.name)} import {gvl.name}")
         all_names.append(gvl.name)
     for pou in project.pous:
-        pw._line(f"from .{pou.name} import {pou.name}")
+        pw._line(f"from {_module_path(pou.folder, pou.name)} import {pou.name}")
         all_names.append(pou.name)
 
     pw._line()
@@ -1897,15 +1905,20 @@ def _collect_pou_deps(pou: POU, project: Project) -> dict[str, list[str]]:
     (data types, GVLs, other POUs).
     """
     # Build lookup of what's defined where
-    project_names: dict[str, str] = {}  # name → module_name (file stem)
+    def _mod(folder: str, name: str) -> str:
+        if folder:
+            return folder.replace("/", ".") + "." + name
+        return name
+
+    project_names: dict[str, str] = {}  # name → module_path (dotted)
     for td in project.data_types:
         if isinstance(td, (StructType, EnumType, UnionType, AliasType, SubrangeType)):
-            project_names[td.name] = td.name
+            project_names[td.name] = _mod(td.folder, td.name)
     for gvl in project.global_variable_lists:
-        project_names[gvl.name] = gvl.name
+        project_names[gvl.name] = _mod(gvl.folder, gvl.name)
     for p in project.pous:
         if p.name != pou.name:
-            project_names[p.name] = p.name
+            project_names[p.name] = _mod(p.folder, p.name)
 
     # Collect all NamedTypeRef references from this POU's interface
     referenced: set[str] = set()
