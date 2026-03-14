@@ -462,7 +462,7 @@ Duration can be specified as `seconds=N`, `ms=N`, or `duration=timedelta(...)`.
 | `x: InOut[INT]` | VAR_IN_OUT | Pass by reference |
 | `x: Static[int]` | VAR_STAT / VAR | Persists across scans |
 | `x: Temp[float]` | VAR_TEMP | Reinitialized each scan |
-| `x: Constant[int] = 42` | VAR CONSTANT | Read-only constant |
+| `x: int = Field(initial=42, constant=True)` | VAR CONSTANT | Read-only constant |
 | `x: External[int]` | VAR_EXTERNAL | Reference to global variable |
 | `timer: TON` | VAR (FB instance) | Bare FB type annotation → static FB instance |
 | `speed: float = 0.0` | VAR (inferred) | Bare annotation → static variable |

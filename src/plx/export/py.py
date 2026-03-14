@@ -887,15 +887,14 @@ class PyWriter:
             any_emitted = True
         return any_emitted
 
-    def _has_metadata(self, v: Variable, *, skip_constant: bool = False) -> bool:
+    def _has_metadata(self, v: Variable) -> bool:
         """Check if a variable has metadata beyond initial value."""
-        constant_flag = v.constant and not skip_constant
         return bool(
-            v.description or v.retain or v.persistent or constant_flag
+            v.description or v.retain or v.persistent or v.constant
             or v.metadata.get("hardware") or v.metadata.get("external")
         )
 
-    def _build_field_kwargs(self, v: Variable, *, skip_constant: bool = False) -> str:
+    def _build_field_kwargs(self, v: Variable) -> str:
         """Build Field() argument string from variable metadata."""
         kwargs: list[str] = []
         if v.initial_value is not None:
@@ -910,7 +909,7 @@ class PyWriter:
             kwargs.append("retain=True")
         if v.persistent:
             kwargs.append("persistent=True")
-        if v.constant and not skip_constant:
+        if v.constant:
             kwargs.append("constant=True")
         hw = v.metadata.get("hardware")
         if hw:
@@ -927,10 +926,8 @@ class PyWriter:
     def _write_annotation_var(self, v: Variable, wrapper: str) -> None:
         """Emit annotation syntax, using Field() when metadata is present."""
         type_str = self._type_ref(v.data_type)
-        # Constant[T] already implies constant=True — don't repeat it in Field()
-        skip_constant = wrapper == "Constant"
-        if self._has_metadata(v, skip_constant=skip_constant):
-            field_args = self._build_field_kwargs(v, skip_constant=skip_constant)
+        if self._has_metadata(v):
+            field_args = self._build_field_kwargs(v)
             self._line(f"{v.name}: {wrapper}[{type_str}] = Field({field_args})")
         elif v.initial_value is not None:
             formatted = _format_initial_value(v.initial_value)

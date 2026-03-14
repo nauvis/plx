@@ -8,7 +8,7 @@ and ``Field()`` for metadata::
         speed: Output[float] = Field(initial=60.0, retain=True)
         accumulator: float = 0.0      # bare annotation = static
         scratch: Temp[int]
-        PI: Constant[float] = 3.14
+        PI: float = Field(initial=3.14, constant=True)
         timer: TON
 """
 
