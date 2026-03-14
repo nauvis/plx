@@ -896,12 +896,6 @@ class ExecutionEngine:
         value = self._eval(expr.source)
         return coerce_type(value, expr.target_type)
 
-    def _eval_substring(self, expr: SubstringExpr) -> object:
-        s = str(self._eval(expr.string))
-        start = int(self._eval(expr.start)) if expr.start is not None else None
-        end = int(self._eval(expr.end)) if expr.end is not None else None
-        return s[start:end]
-
     def _eval_system_flag(self, expr: SystemFlagExpr) -> object:
         if expr.flag == SystemFlag.FIRST_SCAN:
             return self.state.get("__system_first_scan", False)

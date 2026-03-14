@@ -271,18 +271,7 @@ def REFERENCE_TO(target: PrimitiveType | TypeRef | type | str) -> ReferenceTypeR
     return ReferenceTypeRef(target_type=_resolve_type_ref(target))
 
 
-# Lowercase aliases for type constructors
-array = ARRAY
-string = STRING
-wstring = WSTRING
-pointer_to = POINTER_TO
-reference_to = REFERENCE_TO
-
-
-# ---------------------------------------------------------------------------
 # Lowercase aliases — Pythonic names for type constructors
-# ---------------------------------------------------------------------------
-
 array = ARRAY
 string = STRING
 wstring = WSTRING

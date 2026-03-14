@@ -1757,12 +1757,6 @@ class PyWriter:
         return self._expr(expr.source, _prec)
 
     def _expr_substring(self, expr: SubstringExpr, _prec: int) -> str:
-        s = self._expr(expr.string)
-        start = self._expr(expr.start) if expr.start is not None else ""
-        end = self._expr(expr.end) if expr.end is not None else ""
-        return f"{s}[{start}:{end}]"
-
-    def _expr_substring(self, expr: SubstringExpr, _prec: int) -> str:
         s = self._expr(expr.string, 10)
         if expr.single_char:
             return f"{s}[{self._expr(expr.start)}]"
