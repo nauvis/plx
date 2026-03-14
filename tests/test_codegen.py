@@ -1638,6 +1638,86 @@ class TestAnnotationSyntaxEmission:
         assert "valve: Output[bool] = Field(retain=True)" in out
         assert "count: dint" in out
 
+    def test_hardware_metadata_emits_field(self):
+        """Variables with hardware metadata should use Field() syntax."""
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="HardwareFB",
+            interface=POUInterface(
+                input_vars=[Variable(name="sensor", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL), metadata={"hardware": "input"})],
+                output_vars=[Variable(name="motor", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL), metadata={"hardware": "output"})],
+            ),
+            networks=[Network(statements=[EmptyStatement()])],
+        )
+        w = _make_writer()
+        w._write_pou(pou)
+        out = w.getvalue()
+        assert 'sensor: Input[bool] = Field(hardware="input")' in out
+        assert 'motor: Output[bool] = Field(hardware="output")' in out
+
+    def test_external_readwrite_emits_true(self):
+        """external="readwrite" should emit external=True in Field()."""
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="ExternalFB",
+            interface=POUInterface(
+                static_vars=[Variable(name="speed", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL), metadata={"external": "readwrite"})],
+            ),
+            networks=[Network(statements=[EmptyStatement()])],
+        )
+        w = _make_writer()
+        w._write_pou(pou)
+        out = w.getvalue()
+        assert "speed: real = Field(external=True)" in out
+
+    def test_external_read_emits_string(self):
+        """external="read" should emit external="read" in Field()."""
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="ReadOnlyFB",
+            interface=POUInterface(
+                static_vars=[Variable(name="speed", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL), metadata={"external": "read"})],
+            ),
+            networks=[Network(statements=[EmptyStatement()])],
+        )
+        w = _make_writer()
+        w._write_pou(pou)
+        out = w.getvalue()
+        assert 'speed: real = Field(external="read")' in out
+
+    def test_hardware_and_external_together(self):
+        """Both hardware and external on the same variable."""
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="FullFB",
+            interface=POUInterface(
+                output_vars=[Variable(name="motor", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL), metadata={"hardware": "output", "external": "readwrite"})],
+            ),
+            networks=[Network(statements=[EmptyStatement()])],
+        )
+        w = _make_writer()
+        w._write_pou(pou)
+        out = w.getvalue()
+        assert 'motor: Output[bool] = Field(hardware="output", external=True)' in out
+
+    def test_gvl_hardware_metadata(self):
+        """GVL variables with hardware metadata should use Field() syntax."""
+        from plx.model.project import GlobalVariableList
+        gvl = GlobalVariableList(
+            name="IO",
+            variables=[
+                Variable(name="sensor", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL), metadata={"hardware": "input"}),
+                Variable(name="motor", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL), metadata={"hardware": "output", "external": "readwrite"}),
+                Variable(name="plain", data_type=PrimitiveTypeRef(type=PrimitiveType.DINT)),
+            ],
+        )
+        w = _make_writer()
+        w._write_global_variable_list(gvl)
+        out = w.getvalue()
+        assert 'sensor: bool = Field(hardware="input")' in out
+        assert 'motor: bool = Field(hardware="output", external=True)' in out
+        assert "plain: dint" in out
+
     def test_standard_fb_shorthand_preserved(self):
         """Standard FB types (TON, etc.) should still use annotation shorthand."""
         pou = POU(

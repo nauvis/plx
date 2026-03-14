@@ -98,7 +98,7 @@ class VarDescriptor:
     """
 
     __slots__ = ("direction", "data_type", "initial_value", "description",
-                 "retain", "persistent", "constant")
+                 "retain", "persistent", "constant", "hardware", "external")
 
     def __init__(
         self,
@@ -109,6 +109,8 @@ class VarDescriptor:
         retain: bool = False,
         persistent: bool = False,
         constant: bool = False,
+        hardware: str | None = None,
+        external: str | None = None,
     ) -> None:
         self.direction = direction
         self.data_type = data_type
@@ -117,6 +119,8 @@ class VarDescriptor:
         self.retain = retain
         self.persistent = persistent
         self.constant = constant
+        self.hardware = hardware
+        self.external = external
 
 
 # ---------------------------------------------------------------------------
@@ -135,6 +139,8 @@ class FieldDescriptor:
         "retain",
         "persistent",
         "constant",
+        "hardware",
+        "external",
     )
 
     def __init__(
@@ -145,12 +151,33 @@ class FieldDescriptor:
         retain: bool = False,
         persistent: bool = False,
         constant: bool = False,
+        hardware: str | None = None,
+        external: bool | str | None = None,
     ) -> None:
         self.initial_value = initial_value
         self.description = description
         self.retain = retain
         self.persistent = persistent
         self.constant = constant
+        self.hardware = hardware
+        self.external = _normalize_external(external)
+
+
+_VALID_HARDWARE = {"input", "output", "memory"}
+_VALID_EXTERNAL = {"read", "readwrite"}
+
+
+def _normalize_external(value: bool | str | None) -> str | None:
+    """Normalize external access value: True → "readwrite", False/None → None."""
+    if value is True:
+        return "readwrite"
+    if value is False or value is None:
+        return None
+    if value in _VALID_EXTERNAL:
+        return value
+    raise DeclarationError(
+        f"Invalid external value {value!r} — expected True, False, 'read', or 'readwrite'"
+    )
 
 
 def Field(
@@ -160,6 +187,8 @@ def Field(
     retain: bool = False,
     persistent: bool = False,
     constant: bool = False,
+    hardware: str | None = None,
+    external: bool | str | None = None,
 ) -> FieldDescriptor:
     """Declare variable metadata via annotation syntax.
 
@@ -168,6 +197,7 @@ def Field(
         sensor: Input[bool] = Field(description="Proximity")
         speed: Output[float] = Field(initial=60.0, retain=True)
         state: Static[int] = Field(retain=True)
+        motor: Output[bool] = Field(hardware="output", external=True)
     """
     return FieldDescriptor(
         initial_value=_format_initial(initial),
@@ -175,6 +205,8 @@ def Field(
         retain=retain,
         persistent=persistent,
         constant=constant,
+        hardware=hardware,
+        external=external,
     )
 
 
@@ -235,6 +267,24 @@ def _validate_field_for_direction(
     attr_name: str,
 ) -> None:
     """Validate that Field() kwargs are legal for the given direction."""
+    # hardware/external not allowed on Temp or Constant
+    if direction in (VarDirection.TEMP, VarDirection.CONSTANT):
+        if field.hardware is not None:
+            raise DeclarationError(
+                f"{direction.value.title()} variable '{attr_name}' cannot use hardware"
+            )
+        if field.external is not None:
+            raise DeclarationError(
+                f"{direction.value.title()} variable '{attr_name}' cannot use external"
+            )
+
+    # Validate hardware value
+    if field.hardware is not None and field.hardware not in _VALID_HARDWARE:
+        raise DeclarationError(
+            f"Invalid hardware value {field.hardware!r} for '{attr_name}' "
+            f"— expected 'input', 'output', or 'memory'"
+        )
+
     if direction == VarDirection.TEMP:
         if field.retain:
             raise DeclarationError(f"Temp variable '{attr_name}' cannot use retain")
@@ -309,7 +359,14 @@ def _field_to_variable(
                 retain=field.retain,
                 persistent=field.persistent,
                 constant=field.constant,
+                hardware=field.hardware,
+                external=field.external,
             )
+    metadata: dict[str, object] = {}
+    if field.hardware is not None:
+        metadata["hardware"] = field.hardware
+    if field.external is not None:
+        metadata["external"] = field.external
     return Variable(
         name=name,
         data_type=data_type,
@@ -318,6 +375,7 @@ def _field_to_variable(
         retain=field.retain,
         persistent=field.persistent,
         constant=is_constant or field.constant,
+        metadata=metadata,
     )
 
 
@@ -415,6 +473,8 @@ def _resolve_declaration(
             retain=var.retain,
             persistent=var.persistent,
             constant=var.constant,
+            hardware=field.hardware,
+            external=field.external,
         )
 
     # No field — skip non-value defaults (step objects, etc.)
@@ -520,6 +580,11 @@ def _collect_descriptors(cls: type, *, own_only: bool = False) -> dict[str, list
                 _mro_upsert(collected, seen, attr_name, (attr_name, desc))
 
     for attr_name, desc in collected:
+        metadata: dict[str, object] = {}
+        if desc.hardware is not None:
+            metadata["hardware"] = desc.hardware
+        if desc.external is not None:
+            metadata["external"] = desc.external
         var = Variable(
             name=attr_name,
             data_type=desc.data_type,
@@ -528,6 +593,7 @@ def _collect_descriptors(cls: type, *, own_only: bool = False) -> dict[str, list
             retain=desc.retain,
             persistent=desc.persistent,
             constant=desc.constant,
+            metadata=metadata,
         )
         groups[desc.direction].append(var)
 

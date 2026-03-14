@@ -114,6 +114,51 @@ class TestField:
         assert f.retain is True
         assert f.persistent is True
 
+    def test_hardware_input(self):
+        f = Field(hardware="input")
+        assert f.hardware == "input"
+
+    def test_hardware_output(self):
+        f = Field(hardware="output")
+        assert f.hardware == "output"
+
+    def test_hardware_memory(self):
+        f = Field(hardware="memory")
+        assert f.hardware == "memory"
+
+    def test_hardware_none_by_default(self):
+        f = Field()
+        assert f.hardware is None
+
+    def test_external_true_normalizes_to_readwrite(self):
+        f = Field(external=True)
+        assert f.external == "readwrite"
+
+    def test_external_read(self):
+        f = Field(external="read")
+        assert f.external == "read"
+
+    def test_external_readwrite(self):
+        f = Field(external="readwrite")
+        assert f.external == "readwrite"
+
+    def test_external_false_normalizes_to_none(self):
+        f = Field(external=False)
+        assert f.external is None
+
+    def test_external_none_by_default(self):
+        f = Field()
+        assert f.external is None
+
+    def test_external_invalid_raises(self):
+        with pytest.raises(DeclarationError, match="Invalid external"):
+            Field(external="write")
+
+    def test_hardware_and_external_together(self):
+        f = Field(hardware="output", external=True)
+        assert f.hardware == "output"
+        assert f.external == "readwrite"
+
 
 # ---------------------------------------------------------------------------
 # Annotation wrappers
@@ -326,6 +371,76 @@ class TestFieldValidation:
             class MyFB:
                 x: Constant[int]
             _collect_descriptors(MyFB)
+
+    def test_temp_rejects_hardware(self):
+        with pytest.raises(DeclarationError, match="hardware"):
+            class MyFB:
+                x: Temp[bool] = Field(hardware="input")
+            _collect_descriptors(MyFB)
+
+    def test_temp_rejects_external(self):
+        with pytest.raises(DeclarationError, match="external"):
+            class MyFB:
+                x: Temp[bool] = Field(external=True)
+            _collect_descriptors(MyFB)
+
+    def test_constant_rejects_hardware(self):
+        with pytest.raises(DeclarationError, match="hardware"):
+            class MyFB:
+                x: Constant[float] = Field(initial=3.14, hardware="input")
+            _collect_descriptors(MyFB)
+
+    def test_constant_rejects_external(self):
+        with pytest.raises(DeclarationError, match="external"):
+            class MyFB:
+                x: Constant[float] = Field(initial=3.14, external=True)
+            _collect_descriptors(MyFB)
+
+    def test_invalid_hardware_value(self):
+        with pytest.raises(DeclarationError, match="Invalid hardware"):
+            class MyFB:
+                x: Input[bool] = Field(hardware="analog")
+            _collect_descriptors(MyFB)
+
+    def test_hardware_on_input_ok(self):
+        class MyFB:
+            x: Input[bool] = Field(hardware="input")
+        groups = _collect_descriptors(MyFB)
+        assert groups["input"][0].metadata.get("hardware") == "input"
+
+    def test_hardware_on_output_ok(self):
+        class MyFB:
+            x: Output[bool] = Field(hardware="output")
+        groups = _collect_descriptors(MyFB)
+        assert groups["output"][0].metadata.get("hardware") == "output"
+
+    def test_external_on_input_ok(self):
+        class MyFB:
+            x: Input[bool] = Field(external=True)
+        groups = _collect_descriptors(MyFB)
+        assert groups["input"][0].metadata.get("external") == "readwrite"
+
+    def test_external_read_on_static(self):
+        class MyFB:
+            x: bool = Field(external="read")
+        groups = _collect_descriptors(MyFB)
+        assert groups["static"][0].metadata.get("external") == "read"
+
+    def test_hardware_and_external_metadata(self):
+        class MyFB:
+            x: Output[bool] = Field(hardware="output", external=True)
+        groups = _collect_descriptors(MyFB)
+        var = groups["output"][0]
+        assert var.metadata.get("hardware") == "output"
+        assert var.metadata.get("external") == "readwrite"
+
+    def test_no_hardware_or_external_no_metadata(self):
+        class MyFB:
+            x: Input[bool]
+        groups = _collect_descriptors(MyFB)
+        var = groups["input"][0]
+        assert "hardware" not in var.metadata
+        assert "external" not in var.metadata
 
 
 # ---------------------------------------------------------------------------

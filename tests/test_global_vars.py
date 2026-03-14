@@ -161,6 +161,57 @@ class TestFieldStyle:
         assert v.retain is False
         assert v.persistent is False
 
+    def test_hardware_input(self):
+        @global_vars
+        class IOVars:
+            sensor: BOOL = Field(hardware="input")
+
+        gvl = IOVars.compile()
+        assert gvl.variables[0].metadata.get("hardware") == "input"
+
+    def test_hardware_output(self):
+        @global_vars
+        class IOVars:
+            motor: BOOL = Field(hardware="output")
+
+        gvl = IOVars.compile()
+        assert gvl.variables[0].metadata.get("hardware") == "output"
+
+    def test_external_true(self):
+        @global_vars
+        class ExVars:
+            speed: REAL = Field(external=True)
+
+        gvl = ExVars.compile()
+        assert gvl.variables[0].metadata.get("external") == "readwrite"
+
+    def test_external_read(self):
+        @global_vars
+        class ExVars:
+            speed: REAL = Field(external="read")
+
+        gvl = ExVars.compile()
+        assert gvl.variables[0].metadata.get("external") == "read"
+
+    def test_hardware_and_external(self):
+        @global_vars
+        class IOVars:
+            motor: BOOL = Field(hardware="output", external=True)
+
+        gvl = IOVars.compile()
+        v = gvl.variables[0]
+        assert v.metadata.get("hardware") == "output"
+        assert v.metadata.get("external") == "readwrite"
+
+    def test_no_hardware_or_external_no_metadata_keys(self):
+        @global_vars
+        class PlainVars:
+            flag: BOOL
+
+        gvl = PlainVars.compile()
+        assert "hardware" not in gvl.variables[0].metadata
+        assert "external" not in gvl.variables[0].metadata
+
 
 # ---------------------------------------------------------------------------
 # Hybrid: mix bare annotations and Field() descriptors

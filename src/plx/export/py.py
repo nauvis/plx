@@ -890,7 +890,10 @@ class PyWriter:
     def _has_metadata(self, v: Variable, *, skip_constant: bool = False) -> bool:
         """Check if a variable has metadata beyond initial value."""
         constant_flag = v.constant and not skip_constant
-        return bool(v.description or v.retain or v.persistent or constant_flag)
+        return bool(
+            v.description or v.retain or v.persistent or constant_flag
+            or v.metadata.get("hardware") or v.metadata.get("external")
+        )
 
     def _build_field_kwargs(self, v: Variable, *, skip_constant: bool = False) -> str:
         """Build Field() argument string from variable metadata."""
@@ -909,6 +912,16 @@ class PyWriter:
             kwargs.append("persistent=True")
         if v.constant and not skip_constant:
             kwargs.append("constant=True")
+        hw = v.metadata.get("hardware")
+        if hw:
+            kwargs.append(f'hardware="{hw}"')
+        ext = v.metadata.get("external")
+        if ext:
+            # "readwrite" → True (cleaner API), "read" → "read"
+            if ext == "readwrite":
+                kwargs.append("external=True")
+            else:
+                kwargs.append(f'external="{ext}"')
         return ", ".join(kwargs)
 
     def _write_annotation_var(self, v: Variable, wrapper: str) -> None:
