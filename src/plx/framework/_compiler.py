@@ -66,23 +66,39 @@ from ._compiler_statements import _StatementMixin
 # These exist for IDE autocompletion / linting.  The AST compiler
 # recognises them by name and never calls them.
 
-def delayed(signal: object, *, seconds: int | float = 0, ms: int | float = 0, duration: object = None, name: str | None = None) -> bool:
-    """TON (on-delay timer).  Recognised by the AST compiler."""
+def delayed(signal: object, duration: object = None, *, name: str | None = None) -> bool:
+    """TON (on-delay timer).  Recognised by the AST compiler.
+
+    Usage: delayed(signal, timedelta(seconds=5))
+           delayed(signal, duration=self.cfg_timeout)
+    """
     raise RuntimeError("delayed() is a compile-time sentinel — do not call directly")
 
 
-def sustained(signal: object, *, seconds: int | float = 0, ms: int | float = 0, duration: object = None, name: str | None = None) -> bool:
-    """TOF (off-delay timer).  Recognised by the AST compiler."""
+def sustained(signal: object, duration: object = None, *, name: str | None = None) -> bool:
+    """TOF (off-delay timer).  Recognised by the AST compiler.
+
+    Usage: sustained(signal, timedelta(seconds=5))
+           sustained(signal, duration=self.cfg_cooldown)
+    """
     raise RuntimeError("sustained() is a compile-time sentinel — do not call directly")
 
 
-def pulse(signal: object, *, seconds: int | float = 0, ms: int | float = 0, duration: object = None, name: str | None = None) -> bool:
-    """TP (pulse timer).  Recognised by the AST compiler."""
+def pulse(signal: object, duration: object = None, *, name: str | None = None) -> bool:
+    """TP (pulse timer).  Recognised by the AST compiler.
+
+    Usage: pulse(signal, timedelta(milliseconds=500))
+           pulse(signal, duration=self.cfg_pulse_width)
+    """
     raise RuntimeError("pulse() is a compile-time sentinel — do not call directly")
 
 
-def retentive(signal: object, *, seconds: int | float = 0, ms: int | float = 0, duration: object = None, name: str | None = None) -> bool:
-    """RTO (retentive timer on).  Recognised by the AST compiler."""
+def retentive(signal: object, duration: object = None, *, name: str | None = None) -> bool:
+    """RTO (retentive timer on).  Recognised by the AST compiler.
+
+    Usage: retentive(signal, timedelta(seconds=10))
+           retentive(signal, duration=self.cfg_accumulate)
+    """
     raise RuntimeError("retentive() is a compile-time sentinel — do not call directly")
 
 

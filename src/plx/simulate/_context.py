@@ -7,6 +7,7 @@ provides attribute-style access to POU variables.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from enum import IntEnum
 
 from plx.model.pou import POU
@@ -21,6 +22,9 @@ from plx.model.types import (
 from plx.model.variables import Variable
 
 from ._executor import ExecutionEngine
+from ._proxy import StructProxy
+from ._trace import ScanTrace
+from ._triggers import ScanTrigger, SimulationTimeout
 from ._values import SimulationError, parse_literal, type_default
 
 
@@ -94,6 +98,17 @@ class SimulationContext:
 
         # Track temp var definitions for fresh allocation each scan
         object.__setattr__(self, "_temp_vars", list(pou.interface.temp_vars))
+
+        # Persistent execution engine — reused across scans (clock_ms updated per scan)
+        engine = ExecutionEngine(
+            pou=pou,
+            state=state,
+            clock_ms=0,
+            pou_registry=self._pou_registry,
+            data_type_registry=self._data_type_registry,
+            enum_registry=self._enum_registry,
+        )
+        object.__setattr__(self, "_engine", engine)
 
     # -----------------------------------------------------------------------
     # State allocation
@@ -254,6 +269,7 @@ class SimulationContext:
         2. Execute POU logic
         3. Advance clock by scan_period_ms
         """
+        engine = self._engine
         for _ in range(n):
             # Sync external vars from global state
             self._sync_externals_in()
@@ -262,15 +278,8 @@ class SimulationContext:
             for var in self._temp_vars:
                 self._state[var.name] = self._allocate_var(var)
 
-            # Execute
-            engine = ExecutionEngine(
-                pou=self._pou,
-                state=self._state,
-                clock_ms=self._clock_ms,
-                pou_registry=self._pou_registry,
-                data_type_registry=self._data_type_registry,
-                enum_registry=self._enum_registry,
-            )
+            # Execute (update clock on persistent engine)
+            engine.clock_ms = self._clock_ms
             engine.execute()
 
             # Sync external vars back to global state
@@ -283,16 +292,43 @@ class SimulationContext:
             # Advance clock
             self._clock_ms += self._scan_period_ms
 
-    def tick(self, seconds: float = 0, ms: float = 0) -> None:
+    def tick(
+        self,
+        seconds: float = 0,
+        ms: float = 0,
+        *,
+        trace: bool = False,
+    ) -> ScanTrace | None:
         """Advance simulated time by running enough scans.
 
         Computes ``ceil(total_ms / scan_period_ms)`` and calls ``scan(n=...)``.
+
+        Parameters
+        ----------
+        seconds, ms : float
+            Simulated time to advance.
+        trace : bool
+            If ``True``, capture a :class:`ScanTrace` with a snapshot after
+            each scan cycle.  Default ``False`` for backward compatibility.
+
+        Returns
+        -------
+        ScanTrace or None
+            A :class:`ScanTrace` if ``trace=True``, otherwise ``None``.
         """
         total_ms = seconds * 1000 + ms
         if total_ms <= 0:
-            return
+            return ScanTrace() if trace else None
         n = math.ceil(total_ms / self._scan_period_ms)
-        self.scan(n=n)
+        if not trace:
+            self.scan(n=n)
+            return None
+        # Trace mode: scan one-at-a-time and capture after each
+        result = ScanTrace()
+        for _ in range(n):
+            self.scan(n=1)
+            result.capture(self)
+        return result
 
     @property
     def clock_ms(self) -> int:
@@ -308,6 +344,71 @@ class SimulationContext:
     def active_steps(self) -> set[str]:
         """Currently active SFC steps (empty for non-SFC POUs)."""
         return set(self._state.get("__sfc_active_steps", set()))
+
+    # -----------------------------------------------------------------------
+    # Trigger builder API
+    # -----------------------------------------------------------------------
+
+    def scans(self) -> ScanTrigger:
+        """Return a :class:`ScanTrigger` builder for this context.
+
+        Chain methods like ``.repeat()``, ``.until()``, ``.changed()``,
+        ``.sample()``, and ``.timeout()`` before calling ``.run()``.
+
+        Example::
+
+            trace = ctx.scans().repeat(100).sample("speed").run()
+        """
+        return ScanTrigger(self)
+
+    def scan_until(
+        self,
+        condition: Callable[[SimulationContext], object],
+        *,
+        timeout_seconds: float = 60,
+    ) -> None:
+        """Scan until *condition(ctx)* is truthy, with a timeout.
+
+        Convenience wrapper around ``scans().until().timeout().run()``.
+
+        Parameters
+        ----------
+        condition : Callable[[SimulationContext], object]
+            A function that receives this context and returns a truthy
+            value when the wait is over.
+        timeout_seconds : float
+            Maximum simulated time to wait (default 60s).
+
+        Raises
+        ------
+        SimulationTimeout
+            If the condition is not met within *timeout_seconds*.
+        """
+        self.scans().until(condition).timeout(seconds=timeout_seconds).run()
+
+    def set_external(
+        self,
+        var_name: str,
+        value: object,
+        gvl: str = "__default__",
+    ) -> None:
+        """Set an external variable's value in the global state.
+
+        Parameters
+        ----------
+        var_name : str
+            The variable name (must match the external var declaration).
+        value : object
+            The value to assign.
+        gvl : str
+            The GVL name (default ``"__default__"``).
+        """
+        if gvl not in self._global_state:
+            self._global_state[gvl] = {}
+        self._global_state[gvl][var_name] = value
+        # Also update local state immediately for consistency
+        if var_name in self._state:
+            self._state[var_name] = value
 
     # -----------------------------------------------------------------------
     # Context manager
@@ -350,7 +451,11 @@ class SimulationContext:
         # Only intercept known variable names
         state = object.__getattribute__(self, "_state")
         if name in state:
-            return state[name]
+            val = state[name]
+            # Wrap dict values in StructProxy for dot-access
+            if isinstance(val, dict):
+                return StructProxy(val)
+            return val
         known = object.__getattribute__(self, "_known_vars")
         raise AttributeError(
             f"'{type(self).__name__}' has no variable '{name}'. "
