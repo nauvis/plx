@@ -20,7 +20,6 @@ from plx.model.types import (
 )
 from plx.model.variables import Variable
 
-from ._builtins import BUILTIN_FBS
 from ._executor import ExecutionEngine
 from ._values import SimulationError, parse_literal, type_default
 
@@ -189,10 +188,17 @@ class SimulationContext:
         return _build(dt.dimensions, 0)
 
     def _allocate_named(self, name: str) -> object:
-        """Allocate a named type (builtin FB, user FB, struct, enum)."""
-        # Builtin FB
-        if name in BUILTIN_FBS:
-            return BUILTIN_FBS[name].initial_state()
+        """Allocate a named type (library FB, user FB, struct, enum)."""
+        # Library type (includes IEC standard FBs, vendor stubs)
+        from plx.framework._library import LibraryEnum, LibraryFB, LibraryStruct, get_library_type
+        lib_type = get_library_type(name)
+        if lib_type is not None:
+            if issubclass(lib_type, LibraryFB):
+                return lib_type.initial_state()
+            if issubclass(lib_type, LibraryStruct):
+                return lib_type.initial_state()
+            if issubclass(lib_type, LibraryEnum):
+                return lib_type.default_value()
 
         # User-defined FB
         if name in self._pou_registry:

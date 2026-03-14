@@ -4,8 +4,7 @@ import math
 
 import pytest
 
-from plx.simulate._builtins import (
-    BUILTIN_FBS,
+from plx.framework._iec_builtins import (
     CTD,
     CTU,
     CTUD,
@@ -14,11 +13,11 @@ from plx.simulate._builtins import (
     RS,
     RTO,
     SR,
-    STDLIB_FUNCTIONS,
     TOF,
     TON,
     TP,
 )
+from plx.simulate._builtins import STDLIB_FUNCTIONS
 
 
 # ---------------------------------------------------------------------------
@@ -228,7 +227,8 @@ class TestRTO:
         assert s["Q"] is True  # retentive — stays done
 
     def test_registered_in_builtins(self):
-        assert "RTO" in BUILTIN_FBS
+        from plx.framework._library import get_library_fb
+        assert get_library_fb("RTO") is not None
 
 
 # ---------------------------------------------------------------------------
@@ -474,7 +474,8 @@ class TestCTU:
         assert s["Q"] is False
 
     def test_registered(self):
-        assert "CTU" in BUILTIN_FBS
+        from plx.framework._library import get_library_fb
+        assert get_library_fb("CTU") is not None
 
 
 # ---------------------------------------------------------------------------
@@ -515,7 +516,8 @@ class TestCTD:
         assert s["CV"] == 4
 
     def test_registered(self):
-        assert "CTD" in BUILTIN_FBS
+        from plx.framework._library import get_library_fb
+        assert get_library_fb("CTD") is not None
 
 
 # ---------------------------------------------------------------------------
@@ -548,7 +550,8 @@ class TestSR:
         assert s["Q1"] is True  # latched
 
     def test_registered(self):
-        assert "SR" in BUILTIN_FBS
+        from plx.framework._library import get_library_fb
+        assert get_library_fb("SR") is not None
 
 
 # ---------------------------------------------------------------------------
@@ -580,7 +583,8 @@ class TestRS:
         assert s["Q1"] is True  # latched
 
     def test_registered(self):
-        assert "RS" in BUILTIN_FBS
+        from plx.framework._library import get_library_fb
+        assert get_library_fb("RS") is not None
 
 
 # ---------------------------------------------------------------------------
@@ -667,4 +671,5 @@ class TestCTUD:
         assert s["CV"] == 1
 
     def test_registered(self):
-        assert "CTUD" in BUILTIN_FBS
+        from plx.framework._library import get_library_fb
+        assert get_library_fb("CTUD") is not None

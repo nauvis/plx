@@ -176,6 +176,10 @@ def _resolve_type_ref(type_arg: PrimitiveType | TypeRef | type | str) -> TypeRef
     # @fb / @program decorated classes have _compiled_pou
     if isinstance(type_arg, CompiledPOU):
         return NamedTypeRef(name=type_arg.__name__)
+    # Library type stubs (LibraryFB, LibraryStruct, LibraryEnum)
+    from ._library import LibraryType
+    if isinstance(type_arg, type) and issubclass(type_arg, LibraryType) and "_abstract" not in type_arg.__dict__:
+        return NamedTypeRef(name=type_arg._type_name)
     if isinstance(type_arg, str):
         return NamedTypeRef(name=type_arg)
     raise TypeError(

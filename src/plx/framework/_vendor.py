@@ -164,6 +164,10 @@ def validate_target(
         for check in _CHECKS:
             check(project, target, errors)
 
+    # Library type checks — run for ALL vendors (AB type on Beckhoff, etc.)
+    for check in _LIBRARY_CHECKS:
+        check(project, target, errors)
+
     if errors:
         raise VendorValidationError(target, errors)
 
@@ -321,6 +325,67 @@ _CHECKS = [
     _check_abstract_final,
     _check_struct_extends,
     _check_pointer_reference_types,
+]
+
+
+# ---------------------------------------------------------------------------
+# Library type compatibility checks — run for ALL vendors
+# ---------------------------------------------------------------------------
+
+def _extract_named_type_refs(type_ref: object) -> set[str]:
+    """Recursively collect NamedTypeRef names from a type tree."""
+    names: set[str] = set()
+    if isinstance(type_ref, NamedTypeRef):
+        names.add(type_ref.name)
+    for attr in ("element_type", "target_type"):
+        inner = getattr(type_ref, attr, None)
+        if inner is not None:
+            names.update(_extract_named_type_refs(inner))
+    return names
+
+
+def _check_library_type_compatibility(
+    project: Project, target: Vendor, errors: list[str],
+) -> None:
+    """Check that library types match the compile target vendor."""
+    from ._library import get_library_type  # avoid circular import
+
+    seen: set[tuple[str, str]] = set()  # (pou_name, type_name) dedup
+
+    def _check_type(type_name: str, pou_name: str) -> None:
+        if (pou_name, type_name) in seen:
+            return
+        seen.add((pou_name, type_name))
+        lib_type = get_library_type(type_name)
+        if lib_type is None:
+            return
+        vendor = lib_type._vendor
+        if vendor and vendor != target.value:
+            errors.append(
+                f"POU '{pou_name}' uses {type_name} (vendor: {vendor}) "
+                f"which is not compatible with target {target.value}"
+            )
+
+    # 1. FB invocations
+    fb_types = _collect_fb_types(project)
+    for fb_type_name, pou_names in fb_types.items():
+        for pou_name in pou_names:
+            _check_type(fb_type_name, pou_name)
+
+    # 2. Variable type declarations
+    for pou in project.pous:
+        all_vars = (
+            pou.interface.input_vars + pou.interface.output_vars
+            + pou.interface.inout_vars + pou.interface.static_vars
+            + pou.interface.temp_vars + pou.interface.constant_vars
+        )
+        for var in all_vars:
+            for name in _extract_named_type_refs(var.data_type):
+                _check_type(name, pou.name)
+
+
+_LIBRARY_CHECKS = [
+    _check_library_type_compatibility,
 ]
 
 
@@ -644,6 +709,7 @@ _WARNINGS = [
 # ---------------------------------------------------------------------------
 
 _BUILTIN_CHECK_COUNT = len(_CHECKS)
+_BUILTIN_LIBRARY_CHECK_COUNT = len(_LIBRARY_CHECKS)
 _BUILTIN_WARNING_COUNT = len(_WARNINGS)
 _BUILTIN_FB_WARNINGS: dict[str, dict[Vendor, str]] = {
     k: dict(v) for k, v in _FB_TRANSLATION_WARNINGS.items()
@@ -674,6 +740,7 @@ def register_fb_translation_warning(fb_type: str, vendor: Vendor, message: str) 
 def _clear_vendor_extensions() -> None:
     """Remove all registered extensions, restoring built-in checks only. For tests."""
     del _CHECKS[_BUILTIN_CHECK_COUNT:]
+    del _LIBRARY_CHECKS[_BUILTIN_LIBRARY_CHECK_COUNT:]
     del _WARNINGS[_BUILTIN_WARNING_COUNT:]
     _FB_TRANSLATION_WARNINGS.clear()
     _FB_TRANSLATION_WARNINGS.update(

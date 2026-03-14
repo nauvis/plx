@@ -562,7 +562,7 @@ class TestFBInvocation:
                 ),
             ),
         ])
-        from plx.simulate._builtins import TON
+        from plx.framework._iec_builtins import TON
         state = {
             "timer": TON.initial_state(),
             "result": False,

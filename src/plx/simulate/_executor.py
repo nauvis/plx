@@ -42,7 +42,8 @@ from plx.model.statements import (
     WhileStatement,
 )
 
-from ._builtins import BUILTIN_FBS, STDLIB_FUNCTIONS
+from ._builtins import STDLIB_FUNCTIONS
+from plx.framework._library import get_library_fb
 from ._values import SimulationError, coerce_type, parse_literal, type_default
 
 
@@ -493,9 +494,10 @@ class ExecutionEngine:
         for param_name, expr in stmt.inputs.items():
             instance_state[param_name] = self._eval(expr)
 
-        # 3. Execute
-        if fb_type and fb_type in BUILTIN_FBS:
-            BUILTIN_FBS[fb_type].execute(instance_state, self.clock_ms)
+        # 3. Execute — library FBs (IEC standard + vendor stubs) take priority
+        lib_fb = get_library_fb(fb_type) if fb_type else None
+        if lib_fb is not None:
+            lib_fb.execute(instance_state, self.clock_ms)
         elif fb_type and fb_type in self.pou_registry:
             self._exec_user_fb(self.pou_registry[fb_type], instance_state)
         else:

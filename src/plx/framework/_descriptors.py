@@ -481,6 +481,8 @@ def _collect_descriptors(cls: type, *, own_only: bool = False) -> dict[str, list
     from ._protocols import CompiledPOU
 
     # First pass: bare FB class assignments (valve_a = ValveCtrl)
+    from ._library import LibraryType
+
     for ns in sources:
         for attr_name, value in ns.items():
             if isinstance(value, type) and isinstance(value, CompiledPOU):
@@ -488,6 +490,17 @@ def _collect_descriptors(cls: type, *, own_only: bool = False) -> dict[str, list
                 desc = VarDescriptor(
                     direction=VarDirection.STATIC,
                     data_type=NamedTypeRef(name=value.__name__),
+                )
+                _mro_upsert(collected, seen, attr_name, (attr_name, desc))
+            elif (
+                isinstance(value, type)
+                and issubclass(value, LibraryType)
+                and "_abstract" not in value.__dict__
+            ):
+                # Bare library type assignment: power = MC_Power
+                desc = VarDescriptor(
+                    direction=VarDirection.STATIC,
+                    data_type=NamedTypeRef(name=value._type_name),
                 )
                 _mro_upsert(collected, seen, attr_name, (attr_name, desc))
 

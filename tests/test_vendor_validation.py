@@ -8,9 +8,10 @@ from plx.framework._compiler import CompileError
 from plx.framework._data_types import enumeration, struct
 from plx.framework._decorators import fb, method, program
 from plx.framework._descriptors import Input, Field, Output, Static, TON, RTO, SR, RS, CTU, CTD
+from plx.framework._library import LibraryFB, LibraryStruct, LibraryEnum
 from plx.framework._project import project
 from datetime import timedelta
-from plx.framework._types import BOOL, DINT, INT, POINTER_TO, REAL, REFERENCE_TO, TIME
+from plx.framework._types import ARRAY, BOOL, DINT, INT, POINTER_TO, REAL, REFERENCE_TO, TIME
 from plx.framework._vendor import (
     CompileResult,
     PortabilityWarning,
@@ -668,3 +669,170 @@ class TestPortabilityWarnings:
             result = project("P", pous=[_FBWithSqrt]).compile(target=vendor)
             math_warnings = [w for w in result.warnings if w.category == "math_translation"]
             assert math_warnings == [], f"Unexpected warning for {vendor}"
+
+
+# ---------------------------------------------------------------------------
+# Library type vendor validation
+# ---------------------------------------------------------------------------
+
+# Local stub definitions for testing — these register at class definition time.
+# Using unique names to avoid collisions with real vendor stubs.
+
+class _TestABOnlyFB(LibraryFB, vendor="ab", library="test_lib"):
+    Enable: Input[BOOL]
+    Done: Output[BOOL]
+
+class _TestBeckhoffOnlyFB(LibraryFB, vendor="beckhoff", library="test_lib"):
+    Execute: Input[BOOL]
+    Busy: Output[BOOL]
+
+class _TestABOnlyStruct(LibraryStruct, vendor="ab", library="test_lib"):
+    Status: DINT
+
+class _TestBeckhoffOnlyStruct(LibraryStruct, vendor="beckhoff", library="test_lib"):
+    State: DINT
+
+
+class TestLibraryTypeValidation:
+    """Tests for library type vendor compatibility checks in validate_target()."""
+
+    def test_iec_universal_fb_passes_all_targets(self):
+        """IEC standard FBs (TON, etc.) have no vendor — pass everywhere."""
+        @fb
+        class _UsesTon:
+            timer: TON
+            def logic(self):
+                self.timer(IN=True, PT=timedelta(milliseconds=100))
+
+        for vendor in Vendor:
+            result = project("P", pous=[_UsesTon]).compile(target=vendor)
+            # Should not raise VendorValidationError
+            assert result.project.pous[0].name == "_UsesTon"
+
+    def test_ab_fb_passes_on_ab(self):
+        """AB-vendor FB compiles fine when target is AB."""
+        @fb
+        class _UsesPIDE:
+            pid: Static[_TestABOnlyFB]
+            def logic(self):
+                self.pid(Enable=True)
+
+        result = project("P", pous=[_UsesPIDE]).compile(target=Vendor.AB)
+        assert result.project.pous[0].name == "_UsesPIDE"
+
+    def test_ab_fb_fails_on_beckhoff(self):
+        """AB-vendor FB should fail when compiling for Beckhoff."""
+        @fb
+        class _UsesPIDE2:
+            pid: Static[_TestABOnlyFB]
+            def logic(self):
+                self.pid(Enable=True)
+
+        with pytest.raises(VendorValidationError, match="_TestABOnlyFB"):
+            project("P", pous=[_UsesPIDE2]).compile(target=Vendor.BECKHOFF)
+
+    def test_ab_fb_fails_on_siemens(self):
+        """AB-vendor FB should fail when compiling for Siemens."""
+        @fb
+        class _UsesPIDE3:
+            pid: Static[_TestABOnlyFB]
+            def logic(self):
+                self.pid(Enable=True)
+
+        with pytest.raises(VendorValidationError, match="_TestABOnlyFB"):
+            project("P", pous=[_UsesPIDE3]).compile(target=Vendor.SIEMENS)
+
+    def test_beckhoff_fb_fails_on_ab(self):
+        """Beckhoff-vendor FB should fail when compiling for AB."""
+        @fb
+        class _UsesMCPower:
+            mc: Static[_TestBeckhoffOnlyFB]
+            def logic(self):
+                self.mc(Execute=True)
+
+        with pytest.raises(VendorValidationError, match="_TestBeckhoffOnlyFB"):
+            project("P", pous=[_UsesMCPower]).compile(target=Vendor.AB)
+
+    def test_beckhoff_fb_passes_on_beckhoff(self):
+        """Beckhoff-vendor FB compiles fine when target is Beckhoff."""
+        @fb
+        class _UsesMCPower2:
+            mc: Static[_TestBeckhoffOnlyFB]
+            def logic(self):
+                self.mc(Execute=True)
+
+        result = project("P", pous=[_UsesMCPower2]).compile(target=Vendor.BECKHOFF)
+        assert result.project.pous[0].name == "_UsesMCPower2"
+
+    def test_ab_variable_type_fails_on_beckhoff(self):
+        """AB-vendor struct used as a variable type should fail on Beckhoff."""
+        @fb
+        class _UsesABStruct:
+            axis: Static[_TestABOnlyStruct]
+            def logic(self):
+                pass
+
+        with pytest.raises(VendorValidationError, match="_TestABOnlyStruct"):
+            project("P", pous=[_UsesABStruct]).compile(target=Vendor.BECKHOFF)
+
+    def test_ab_type_inside_array_fails(self):
+        """ARRAY(VendorStruct, N) should catch the vendor mismatch recursively."""
+        @fb
+        class _UsesABArray:
+            axes: Static[ARRAY(_TestABOnlyStruct, 4)]
+            def logic(self):
+                pass
+
+        with pytest.raises(VendorValidationError, match="_TestABOnlyStruct"):
+            project("P", pous=[_UsesABArray]).compile(target=Vendor.BECKHOFF)
+
+    def test_multiple_vendor_mismatches_collected(self):
+        """Multiple vendor-mismatched types should all appear in errors."""
+        @fb
+        class _UsesBothVendors:
+            ab_fb: Static[_TestABOnlyFB]
+            bk_fb: Static[_TestBeckhoffOnlyFB]
+            def logic(self):
+                self.ab_fb(Enable=True)
+                self.bk_fb(Execute=True)
+
+        # Target AB: Beckhoff FB should fail
+        with pytest.raises(VendorValidationError) as exc_info:
+            project("P", pous=[_UsesBothVendors]).compile(target=Vendor.AB)
+        err = exc_info.value
+        error_text = str(err)
+        assert "_TestBeckhoffOnlyFB" in error_text
+        # AB type should pass on AB, only Beckhoff should error
+        assert "_TestABOnlyFB" not in error_text
+
+    def test_error_message_includes_pou_and_type(self):
+        """Error message should include POU name, type name, and vendor."""
+        @fb
+        class _CheckMsg:
+            mc: Static[_TestBeckhoffOnlyFB]
+            def logic(self):
+                self.mc(Execute=True)
+
+        with pytest.raises(VendorValidationError) as exc_info:
+            project("P", pous=[_CheckMsg]).compile(target=Vendor.AB)
+        err = exc_info.value
+        assert len(err.errors) >= 1
+        msg = err.errors[0]
+        assert "_CheckMsg" in msg
+        assert "_TestBeckhoffOnlyFB" in msg
+        assert "beckhoff" in msg
+        assert "ab" in msg
+
+    def test_no_target_skips_library_check(self):
+        """compile() without target should not run library type checks."""
+        @fb
+        class _MixedNoTarget:
+            ab_fb: Static[_TestABOnlyFB]
+            bk_fb: Static[_TestBeckhoffOnlyFB]
+            def logic(self):
+                self.ab_fb(Enable=True)
+                self.bk_fb(Execute=True)
+
+        # Should not raise — no vendor target means no validation
+        ir = project("P", pous=[_MixedNoTarget]).compile()
+        assert isinstance(ir, Project)

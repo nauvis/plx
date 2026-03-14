@@ -22,7 +22,7 @@ from plx.framework import (
     set_dominant,
 )
 from plx.simulate import simulate
-from plx.simulate._builtins import BUILTIN_FBS
+from plx.framework._library import get_library_fb
 
 
 # ---------------------------------------------------------------------------
@@ -32,22 +32,22 @@ from plx.simulate._builtins import BUILTIN_FBS
 
 
 class TestBuiltinCoverage:
-    """All sentinel-generated FB types have implementations in BUILTIN_FBS."""
+    """All sentinel-generated FB types have implementations in the library registry."""
 
     def test_all_builtins_present(self):
         for name in ("TON", "TOF", "TP", "RTO", "R_TRIG", "F_TRIG", "CTU", "CTD", "SR", "RS"):
-            assert name in BUILTIN_FBS, f"{name} should be in BUILTIN_FBS"
+            assert get_library_fb(name) is not None, f"{name} should be in the library registry"
 
     def test_sentinel_fb_types_fully_covered(self):
-        """All sentinel FB types are present in BUILTIN_FBS."""
+        """All sentinel FB types are present in the library registry."""
         from plx.framework._compiler_core import SENTINEL_REGISTRY
 
         sentinel_fb_types = {
             sd.fb_type for sd in SENTINEL_REGISTRY.values() if sd.fb_type
         }
 
-        missing = sentinel_fb_types - BUILTIN_FBS.keys()
-        assert missing == set(), f"Missing builtin FBs: {missing}"
+        missing = {name for name in sentinel_fb_types if get_library_fb(name) is None}
+        assert missing == set(), f"Missing library FBs: {missing}"
 
     def test_count_up_simulates(self):
         @fb

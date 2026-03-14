@@ -150,6 +150,19 @@ from ._protocols import (
     CompiledGlobalVarList,
 )
 
+from ._library import (
+    LibraryFB,
+    LibraryStruct,
+    LibraryEnum,
+    FBParam,
+    get_library_type,
+    get_library_fb,
+)
+
+# Import IEC standard builtins to register them in the library registry.
+# This must happen after _library and _descriptors are loaded.
+from . import _iec_builtins  # noqa: F401
+
 from ._errors import (
     PlxError,
     DeclarationError,
@@ -336,6 +349,13 @@ __all__ = [
     "CompiledPOU",
     "CompiledDataType",
     "CompiledGlobalVarList",
+    # Library type stubs
+    "LibraryFB",
+    "LibraryStruct",
+    "LibraryEnum",
+    "FBParam",
+    "get_library_type",
+    "get_library_fb",
     # Errors
     "PlxError",
     "CompileError",

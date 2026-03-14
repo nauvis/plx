@@ -254,7 +254,7 @@ class TestSimulatorFBArray:
     def test_execute_array_fb_invocation(self):
         """Execute an FBInvocation with ArrayAccessExpr instance_name."""
         from plx.simulate._executor import ExecutionEngine
-        from plx.simulate._builtins import TON
+        from plx.framework._iec_builtins import TON
 
         inv = FBInvocation(
             instance_name=ArrayAccessExpr(
@@ -285,7 +285,7 @@ class TestSimulatorFBArray:
     def test_array_fb_timed_output(self):
         """Array FB timer should produce Q=True after PT elapsed."""
         from plx.simulate._executor import ExecutionEngine
-        from plx.simulate._builtins import TON
+        from plx.framework._iec_builtins import TON
 
         inv = FBInvocation(
             instance_name=ArrayAccessExpr(
