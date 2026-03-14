@@ -8,7 +8,7 @@ from pydantic import Field, model_validator
 
 from ._base import IRModel
 
-from .expressions import ArrayAccessExpr, CallArg, Expression, MemberAccessExpr
+from .expressions import ArrayAccessExpr, BitAccessExpr, CallArg, Expression, MemberAccessExpr
 from .types import NamedTypeRef, TypeRef
 
 
@@ -18,6 +18,7 @@ class Assignment(IRModel):
     value: Expression
     ref_assign: bool = False  # True for REF= (reference binding)
     latch: Literal["", "S", "R"] = ""  # "S" for S= (set/latch), "R" for R= (reset/unlatch)
+    instruction_hint: str = ""  # Original instruction mnemonic for round-trip fidelity (e.g. "CPT")
     comment: str = ""  # Leading comment lines (preserved from source)
 
 
@@ -140,7 +141,7 @@ class FBInvocation(IRModel):
     """
 
     kind: Literal["fb_invocation"] = "fb_invocation"
-    instance_name: str | ArrayAccessExpr | MemberAccessExpr
+    instance_name: str | ArrayAccessExpr | MemberAccessExpr | BitAccessExpr
     fb_type: TypeRef | None = None
     inputs: dict[str, Expression] = {}
     outputs: dict[str, Expression] = {}

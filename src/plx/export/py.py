@@ -652,10 +652,11 @@ class PyWriter:
             self._line("pass")
         for m in td.members:
             type_str = self._type_ref(m.data_type)
+            mname = _sanitize_identifier(m.name)
             if m.initial_value is not None:
-                self._line(f"{m.name}: {type_str} = {_format_initial_value(m.initial_value)}")
+                self._line(f"{mname}: {type_str} = {_format_initial_value(m.initial_value)}")
             else:
-                self._line(f"{m.name}: {type_str}")
+                self._line(f"{mname}: {type_str}")
         self._indent_dec()
 
     def _write_enum(self, td: EnumType) -> None:
@@ -1584,14 +1585,34 @@ class PyWriter:
             return "True"
         if v == "FALSE":
             return "False"
+        if v == "":
+            return "''"  # empty string placeholder (e.g. GSV empty instance arg)
 
         # IEC time literal
         time_repr = _parse_iec_time(v)
         if time_repr is not None:
             return time_repr
 
+        # IEC radix literals → Python format
+        # 16#FF → 0xFF, 8#77 → 0o77, 2#1010 → 0b1010
+        radix_match = re.match(r"^(\d+)#([0-9A-Fa-f_]+)$", v)
+        if radix_match:
+            base = int(radix_match.group(1))
+            digits = radix_match.group(2)
+            if base == 16:
+                return f"0x{digits}"
+            if base == 8:
+                return f"0o{digits}"
+            if base == 2:
+                return f"0b{digits}"
+            # Other bases (10#, etc.) — convert to decimal
+            try:
+                return str(int(digits.replace("_", ""), base))
+            except ValueError:
+                pass
+
         # Enum literal: Type#MEMBER → Type.MEMBER
-        if "#" in v and not v.startswith("16#") and not v.startswith("8#"):
+        if "#" in v:
             parts = v.split("#", 1)
             if parts[0] and parts[1] and parts[0][0].isalpha():
                 return f"{parts[0]}.{parts[1]}"
@@ -1615,14 +1636,18 @@ class PyWriter:
             return "super()"
         if expr.name == "THIS^":
             return "self"
-        if expr.name in self._self_vars:
-            return f"self.{expr.name}"
+        name = expr.name
+        # Sanitize names with invalid Python characters (e.g. I/O addresses: "FlexIO:3:I.Data")
+        if not name.isidentifier() and ":" in name:
+            name = _sanitize_identifier(name)
+        if name in self._self_vars or expr.name in self._self_vars:
+            return f"self.{name}"
         # For FBs with unresolved parents (library inheritance), assume
         # unknown names are inherited instance vars unless they're clearly
         # non-self (temp vars, type names, global functions, etc.)
         if self._has_unresolved_parent and expr.name not in self._non_self_names:
-            return f"self.{expr.name}"
-        return expr.name
+            return f"self.{name}"
+        return name
 
     def _expr_binary(self, expr: BinaryExpr, parent_prec: int) -> str:
         # Function-call style ops
@@ -1638,12 +1663,17 @@ class PyWriter:
             return f"({result})"
         return result
 
-    def _expr_unary(self, expr: UnaryExpr, _prec: int) -> str:
+    def _expr_unary(self, expr: UnaryExpr, parent_prec: int) -> str:
         operand = self._expr(expr.operand, 10)
         if expr.op == UnaryOp.NEG:
             return f"-{operand}"
         if expr.op == UnaryOp.NOT:
-            return f"not {operand}"
+            # Python's 'not' has low precedence — needs parens inside
+            # bitwise ops (&, |, ^) to avoid SyntaxError
+            result = f"not {operand}"
+            if parent_prec > 6:  # 6 = Python precedence of 'not'
+                return f"({result})"
+            return result
         if expr.op == UnaryOp.BNOT:
             return f"~{operand}"
         return f"{expr.op.value}({operand})"
@@ -1998,11 +2028,23 @@ def _case_branch_condition(sel: str, branch: CaseBranch) -> str:
     return " or ".join(parts) if parts else "True"
 
 
+_PYTHON_KEYWORDS = frozenset({
+    "False", "None", "True", "and", "as", "assert", "async", "await",
+    "break", "class", "continue", "def", "del", "elif", "else", "except",
+    "finally", "for", "from", "global", "if", "import", "in", "is",
+    "lambda", "nonlocal", "not", "or", "pass", "raise", "return",
+    "try", "while", "with", "yield",
+})
+
+
 def _sanitize_identifier(name: str) -> str:
     """Convert a task/POU name to a valid Python identifier."""
     result = re.sub(r"[^a-zA-Z0-9_]", "_", name)
     if result and result[0].isdigit():
         result = "_" + result
+    # Escape Python reserved words
+    if result in _PYTHON_KEYWORDS:
+        result = result + "_"
     return result
 
 

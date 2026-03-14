@@ -431,7 +431,7 @@ class TestExpressions:
             left=VariableRef(name="status"),
             right=LiteralExpr(value="16#00FF"),
         )
-        assert w._expr(expr) == "status & 16#00FF"
+        assert w._expr(expr) == "status & 0x00FF"
 
     def test_bor(self):
         w = _make_writer()

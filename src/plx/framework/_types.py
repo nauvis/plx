@@ -182,6 +182,11 @@ def _resolve_type_ref(type_arg: PrimitiveType | TypeRef | type | str) -> TypeRef
         return NamedTypeRef(name=type_arg._type_name)
     if isinstance(type_arg, str):
         return NamedTypeRef(name=type_arg)
+    # STRING/WSTRING constructor functions passed without calling: array(string, 5)
+    if callable(type_arg) and getattr(type_arg, "__name__", "") == "STRING":
+        return StringTypeRef(wide=False)
+    if callable(type_arg) and getattr(type_arg, "__name__", "") == "WSTRING":
+        return StringTypeRef(wide=True)
     raise TypeError(
         f"Expected a type (PrimitiveType, TypeRef, or str), got {type(type_arg).__name__}"
     )
