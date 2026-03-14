@@ -118,6 +118,24 @@ def _resolve_transitive_deps(
 
 
 # ---------------------------------------------------------------------------
+# Duplicate name checks
+# ---------------------------------------------------------------------------
+
+def _check_duplicates(
+    items: list[object], attr: str, label: str, project_name: str
+) -> None:
+    """Raise ``ProjectAssemblyError`` if any two items share the same name."""
+    seen: set[str] = set()
+    for item in items:
+        name = getattr(item, attr)
+        if name in seen:
+            raise ProjectAssemblyError(
+                f"Duplicate {label} name '{name}' in project '{project_name}'"
+            )
+        seen.add(name)
+
+
+# ---------------------------------------------------------------------------
 # Project builder
 # ---------------------------------------------------------------------------
 
@@ -205,6 +223,7 @@ class PlxProject:
                     f"(missing @struct or @enumeration decorator)"
                 )
             compiled_data_types.append(cls.compile())
+        _check_duplicates(compiled_data_types, "name", "data type", self.name)
 
         # Compile global variable lists
         compiled_gvls = []
@@ -215,6 +234,7 @@ class PlxProject:
                     f"(missing @global_vars decorator)"
                 )
             compiled_gvls.append(cls.compile())
+        _check_duplicates(compiled_gvls, "name", "global variable list", self.name)
 
         # Compile POUs
         compiled_pous: list[POU] = []
@@ -236,7 +256,10 @@ class PlxProject:
                         compiled_pous.append(pou)
                         pou_names.add(pou.name)
 
+        _check_duplicates(compiled_pous, "name", "POU", self.name)
+
         compiled_tasks = [t.compile() for t in self._tasks]
+        _check_duplicates(compiled_tasks, "name", "task", self.name)
 
         result = Project(
             name=self.name,

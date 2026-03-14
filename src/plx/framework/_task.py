@@ -80,6 +80,10 @@ class PlxTask:
 def _format_interval(value: Any) -> str:
     """Convert a duration value to an IEC time literal string."""
     if isinstance(value, timedelta):
+        if value.total_seconds() <= 0:
+            raise ProjectAssemblyError(
+                f"Periodic interval must be positive, got {value}"
+            )
         return timedelta_to_iec(value)
     if isinstance(value, str):
         return value

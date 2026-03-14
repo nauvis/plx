@@ -7,12 +7,12 @@ import pytest
 from plx.framework._data_types import enumeration, struct
 from plx.framework._decorators import fb, function, program
 from plx.framework._descriptors import Input, Output, Static, Field
-from plx.framework._errors import ProjectAssemblyError
+from plx.framework._errors import DeclarationError, ProjectAssemblyError
 from plx.framework._global_vars import global_vars
 from plx.framework._project import PlxProject, project, _resolve_transitive_deps
 from plx.framework._task import _format_interval
 from datetime import timedelta
-from plx.framework._types import ARRAY, BOOL, DINT, INT, REAL, STRING
+from plx.framework._types import ARRAY, BOOL, DINT, INT, REAL, STRING, WSTRING
 from plx.model.pou import POUType
 from plx.model.project import Project
 
@@ -288,3 +288,66 @@ class TestFormatInterval:
         when watchdog is not None, so this tests the guard)."""
         with pytest.raises(ProjectAssemblyError, match="Expected a duration"):
             _format_interval(None)
+
+    def test_negative_timedelta_raises(self):
+        with pytest.raises(ProjectAssemblyError, match="Periodic interval must be positive"):
+            _format_interval(timedelta(seconds=-5))
+
+    def test_zero_timedelta_raises(self):
+        with pytest.raises(ProjectAssemblyError, match="Periodic interval must be positive"):
+            _format_interval(timedelta(0))
+
+    def test_positive_timedelta_succeeds(self):
+        assert _format_interval(timedelta(milliseconds=10)) == "T#10ms"
+
+
+# ---------------------------------------------------------------------------
+# Duplicate name checks
+# ---------------------------------------------------------------------------
+
+class TestDuplicateNames:
+    def test_duplicate_pou_names(self):
+        with pytest.raises(ProjectAssemblyError, match="Duplicate POU name '_MainProg'"):
+            project("P", pous=[_MainProg, _MainProg]).compile()
+
+    def test_duplicate_task_names(self):
+        from plx.framework._task import task
+        t1 = task("Main", periodic=timedelta(milliseconds=10), pous=[_MainProg])
+        t2 = task("Main", periodic=timedelta(milliseconds=100), pous=[_MainProg])
+        with pytest.raises(ProjectAssemblyError, match="Duplicate task name 'Main'"):
+            project("P", pous=[_MainProg], tasks=[t1, t2]).compile()
+
+    def test_duplicate_data_type_names(self):
+        with pytest.raises(ProjectAssemblyError, match="Duplicate data type name"):
+            project("P", data_types=[_MotorData, _MotorData]).compile()
+
+    def test_duplicate_gvl_names(self):
+        with pytest.raises(ProjectAssemblyError, match="Duplicate global variable list name"):
+            project("P", global_var_lists=[_SystemIO, _SystemIO]).compile()
+
+
+# ---------------------------------------------------------------------------
+# Type constructor validation
+# ---------------------------------------------------------------------------
+
+class TestTypeConstructorValidation:
+    def test_string_zero_raises(self):
+        with pytest.raises(DeclarationError, match="STRING max_length must be >= 1"):
+            STRING(0)
+
+    def test_string_negative_raises(self):
+        with pytest.raises(DeclarationError, match="STRING max_length must be >= 1"):
+            STRING(-10)
+
+    def test_wstring_zero_raises(self):
+        with pytest.raises(DeclarationError, match="WSTRING max_length must be >= 1"):
+            WSTRING(0)
+
+    def test_array_tuple_lower_gt_upper_raises(self):
+        with pytest.raises(DeclarationError, match="lower bound.*must be <= upper bound"):
+            ARRAY(INT, (10, 5))
+
+    def test_array_tuple_valid_bounds(self):
+        ref = ARRAY(INT, (0, 10))
+        assert ref.dimensions[0].lower == 0
+        assert ref.dimensions[0].upper == 10

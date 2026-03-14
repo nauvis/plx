@@ -217,7 +217,13 @@ def ARRAY(
                 raise ValueError(f"Array size must be >= 1, got {d}")
             dimensions.append(DimensionRange(lower=0, upper=d - 1))
         elif isinstance(d, tuple) and len(d) == 2:
-            dimensions.append(DimensionRange(lower=d[0], upper=d[1]))
+            lower, upper = d
+            if lower > upper:
+                from ._errors import DeclarationError
+                raise DeclarationError(
+                    f"Array lower bound ({lower}) must be <= upper bound ({upper})"
+                )
+            dimensions.append(DimensionRange(lower=lower, upper=upper))
         else:
             raise TypeError(
                 f"Dimension must be int or (lower, upper) tuple, got {type(d).__name__}"
@@ -236,11 +242,17 @@ def STRING(max_length: int = 255) -> StringTypeRef:
         STRING()       # STRING[255]
         STRING(80)     # STRING[80]
     """
+    if max_length < 1:
+        from ._errors import DeclarationError
+        raise DeclarationError(f"STRING max_length must be >= 1, got {max_length}")
     return StringTypeRef(wide=False, max_length=max_length)
 
 
 def WSTRING(max_length: int = 255) -> StringTypeRef:
     """Create a WSTRING type reference with optional max length."""
+    if max_length < 1:
+        from ._errors import DeclarationError
+        raise DeclarationError(f"WSTRING max_length must be >= 1, got {max_length}")
     return StringTypeRef(wide=True, max_length=max_length)
 
 
