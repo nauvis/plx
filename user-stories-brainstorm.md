@@ -132,3 +132,88 @@
 
 - **Blocked by:** Compile repo exists but validation services aren't complete
 - Beckhoff TcBuild integration started; AB and Siemens not yet
+
+---
+
+## Gaps — Additional Stories Identified in Review
+
+### Feasible Today (missing from original list)
+
+**17. ST/Ladder deliverables for customers**
+
+> As an SI, I want to generate structured text or ladder logic deliverables from my Python source, because many customers contractually require documentation in those formats — not Python.
+
+- **Acceptance:** `to_structured_text(project)` and `ir_to_ld(pou)` produce clean, readable output suitable for customer handoff
+- Both ST and LD exporters already implemented
+
+**18. Diff what the customer changed on-site**
+
+> As an SI returning to a site after 6 months, I want to import the customer's current L5X, diff it against my last delivery, and see exactly what their maintenance team modified in the running program.
+
+- **Acceptance:** Import current L5X → export to Python → `git diff` against last committed version shows logic-level changes
+- Parsers + Python export make this feasible today
+
+**19. Reduce vendor IDE license costs**
+
+> As an SI with 15 engineers, I want my team reviewing and writing logic in VS Code instead of requiring a $3k-$10k/seat vendor IDE license for every developer.
+
+- **Acceptance:** Engineers write, review, and test plx Python with free tooling; vendor IDE only needed for final download to hardware
+- Already feasible — Python + pytest + Git require no vendor licenses
+
+**20. Onboard traditional PLC programmers**
+
+> As an SI hiring controls engineers who know ladder and structured text but not Python, I want the framework to feel familiar — IEC function names, PLC type system, scan-cycle mental model — so the learning curve is weeks, not months.
+
+- **Acceptance:** Engineers recognize `TON`, `CTU`, `BOOL`, `REAL`, `VAR_INPUT`/`VAR_OUTPUT` patterns; `logic()` methods read like structured text with Python syntax
+- IEC builtins, type constructors, and variable descriptors already mirror IEC 61131-3 conventions
+
+**21. Share projects with end users**
+
+> As an SI, I want to hand the customer's controls engineer readable Python or generated ST so they can understand the logic I'm delivering, without needing my proprietary tooling or workflow.
+
+- **Acceptance:** Customer receives Python source or ST export; both are human-readable without plx installed
+- Python export and ST export both produce standalone, readable output
+
+### Not Yet Feasible (missing from original list)
+
+**22. HMI/SCADA tag and alarm generation**
+
+> As an SI, I want to generate HMI tag exports, alarm lists, and faceplate definitions from the same plx model, so I don't manually sync thousands of tags between PLC and HMI projects.
+
+- **Blocked by:** No HMI/SCADA export layer; the IR has the tag and type data, but no exporter targeting FactoryTalk, WinCC, or TwinCAT HMI formats
+- High value — manual PLC-to-HMI tag sync is a major time sink on every project
+
+**23. Safety / SIL-rated program support**
+
+> As an SI working on safety-critical machines, I want to author safety PLC programs (GuardLogix, F-CPU, TwinSAFE) in plx with appropriate instruction restrictions and separate safety tasks.
+
+- **Blocked by:** No safety program model — safety tasks, restricted instruction sets, and safety FB validation are not yet modeled
+- Distinct compilation target with different constraints than standard logic
+
+**24. Multi-PLC / distributed system configuration**
+
+> As an SI on a large project with 10+ PLCs, I want to model inter-controller communication (producer/consumer, Profinet IO, EtherCAT) and generate the network configuration alongside the logic.
+
+- **Blocked by:** No inter-controller communication model; hardware model is minimal (Controller → Module → IOPoint)
+- Large projects often have more effort in comms configuration than in logic
+
+**25. IO mapping and hardware configuration**
+
+> As an SI, I want to map thousands of IO points to tags with correct scaling, engineering units, and alarm limits in code rather than clicking through vendor hardware configurators.
+
+- **Blocked by:** Hardware configuration layer not yet implemented; IR has minimal `Controller → Module → IOPoint` model but no configuration workflow
+- IO mapping is one of the most tedious parts of every project
+
+**26. Regulatory compliance documentation**
+
+> As an SI in pharma or food & bev, I want to generate 21 CFR Part 11 compliance artifacts — change justifications, electronic signature records, audit trail reports — from my Git-versioned plx source.
+
+- **Blocked by:** No compliance documentation generator; Git history provides the raw data but no formatted output for auditors
+- Regulated industries require formal documentation beyond what `git log` provides
+
+**27. Legacy platform migration (PLC-5, SLC-500, S5)**
+
+> As an SI, I want to systematically migrate legacy PLC programs from end-of-life platforms (PLC-5, SLC-500, Siemens S5) into plx, so I can re-target them to modern hardware.
+
+- **Blocked by:** No parsers for legacy formats (RSLogix 500 .RSS, STEP 5 .S5D); only modern formats (L5X, SimaticML, TcPOU) are supported
+- Distinct from round-tripping — legacy migration involves instruction set translation and architectural restructuring
