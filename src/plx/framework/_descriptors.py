@@ -153,12 +153,23 @@ class FieldDescriptor:
         self.retain = retain
         self.persistent = persistent
         self.constant = constant
-        self.hardware = hardware
+        self.hardware = _validate_hardware(hardware)
         self.external = _normalize_external(external)
 
 
 _VALID_HARDWARE = {"input", "output", "memory"}
 _VALID_EXTERNAL = {"read", "readwrite"}
+
+
+def _validate_hardware(value: str | None) -> str | None:
+    """Validate hardware value at construction time."""
+    if value is None:
+        return None
+    if value in _VALID_HARDWARE:
+        return value
+    raise DeclarationError(
+        f"Invalid hardware value {value!r} — expected 'input', 'output', or 'memory'"
+    )
 
 
 def _normalize_external(value: bool | str | None) -> str | None:
@@ -273,13 +284,6 @@ def _validate_field_for_direction(
             raise DeclarationError(
                 f"{label} variable '{attr_name}' cannot use external"
             )
-
-    # Validate hardware value
-    if field.hardware is not None and field.hardware not in _VALID_HARDWARE:
-        raise DeclarationError(
-            f"Invalid hardware value {field.hardware!r} for '{attr_name}' "
-            f"— expected 'input', 'output', or 'memory'"
-        )
 
     if direction == VarDirection.TEMP:
         if field.retain:
