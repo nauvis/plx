@@ -30,7 +30,6 @@ from plx.framework import (
     transition,
 )
 from plx.framework._descriptors import (
-    Constant,
     External,
     InOut,
     Temp,
@@ -138,7 +137,7 @@ class TestFieldValidationPerDirection:
         with pytest.raises(DeclarationError, match="cannot use retain"):
             @fb
             class Bad:
-                x: Annotated[Constant[int], Field(retain=True)]
+                x: Annotated[int, Field(retain=True, constant=True)]
 
                 def logic(self):
                     pass
@@ -147,7 +146,7 @@ class TestFieldValidationPerDirection:
         with pytest.raises(DeclarationError, match="cannot use persistent"):
             @fb
             class Bad:
-                x: Annotated[Constant[int], Field(persistent=True)]
+                x: Annotated[int, Field(persistent=True, constant=True)]
 
                 def logic(self):
                     pass

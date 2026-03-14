@@ -8,7 +8,6 @@ from plx.framework._descriptors import (
     InOut,
     Static,
     Temp,
-    Constant,
     External,
     Field,
     FieldDescriptor,
@@ -210,9 +209,9 @@ class TestAnnotationWrappers:
         assert groups["temp"][0].name == "scratch"
         assert groups["temp"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
 
-    def test_constant_wrapper(self):
+    def test_constant_via_field(self):
         class MyFB:
-            PI: Constant[float] = 3.14
+            PI: float = Field(initial=3.14, constant=True)
 
         groups = _collect_descriptors(MyFB)
         assert len(groups["constant"]) == 1
@@ -293,7 +292,7 @@ class TestAnnotationWithField:
 
     def test_constant_with_field(self):
         class MyFB:
-            PI: Constant[float] = Field(initial=3.14, description="Pi constant")
+            PI: float = Field(initial=3.14, description="Pi constant", constant=True)
 
         groups = _collect_descriptors(MyFB)
         v = groups["constant"][0]
@@ -363,13 +362,13 @@ class TestFieldValidation:
     def test_constant_rejects_retain(self):
         with pytest.raises(DeclarationError, match="retain"):
             class MyFB:
-                x: Constant[float] = Field(initial=3.14, retain=True)
+                x: float = Field(initial=3.14, retain=True, constant=True)
             _collect_descriptors(MyFB)
 
     def test_constant_requires_initial(self):
         with pytest.raises(DeclarationError, match="requires an initial"):
             class MyFB:
-                x: Constant[int]
+                x: int = Field(constant=True)
             _collect_descriptors(MyFB)
 
     def test_temp_rejects_hardware(self):
@@ -387,13 +386,13 @@ class TestFieldValidation:
     def test_constant_rejects_hardware(self):
         with pytest.raises(DeclarationError, match="hardware"):
             class MyFB:
-                x: Constant[float] = Field(initial=3.14, hardware="input")
+                x: float = Field(initial=3.14, hardware="input", constant=True)
             _collect_descriptors(MyFB)
 
     def test_constant_rejects_external(self):
         with pytest.raises(DeclarationError, match="external"):
             class MyFB:
-                x: Constant[float] = Field(initial=3.14, external=True)
+                x: float = Field(initial=3.14, external=True, constant=True)
             _collect_descriptors(MyFB)
 
     def test_invalid_hardware_value(self):
@@ -558,16 +557,18 @@ class TestCollectDescriptors:
 
     def test_flags_passed_through_to_variable(self):
         class MyFB:
-            a: DINT = Field(retain=True, persistent=True, constant=True)
+            a: DINT = Field(retain=True, persistent=True)
             b: Input[BOOL] = Field(retain=True)
             c: Output[REAL] = Field(retain=True)
+            d: DINT = Field(initial=42, constant=True)
 
         groups = _collect_descriptors(MyFB)
 
         static = groups["static"][0]
+        assert static.name == "a"
         assert static.retain is True
         assert static.persistent is True
-        assert static.constant is True
+        assert static.constant is False
 
         inp = groups["input"][0]
         assert inp.retain is True
@@ -579,10 +580,15 @@ class TestCollectDescriptors:
         assert out.persistent is False
         assert out.constant is False
 
+        const = groups["constant"][0]
+        assert const.name == "d"
+        assert const.constant is True
+        assert const.initial_value == "42"
+
     def test_constant_group(self):
         class MyFB:
             sensor: Input[BOOL]
-            MAX_SPEED: Constant[REAL] = 100.0
+            MAX_SPEED: REAL = Field(initial=100.0, constant=True)
 
         groups = _collect_descriptors(MyFB)
         assert len(groups["constant"]) == 1
@@ -611,7 +617,7 @@ class TestConstantIntegration:
         @fb
         class Motor:
             running: Input[BOOL]
-            MAX_RPM: Constant[REAL] = 3600.0
+            MAX_RPM: REAL = Field(initial=3600.0, constant=True)
 
             def logic(self):
                 pass
@@ -757,11 +763,6 @@ class TestDetermineDirection:
         assert d == VarDirection.TEMP
         assert inner is int
 
-    def test_constant(self):
-        d, inner = _determine_direction(Constant[float])
-        assert d == VarDirection.CONSTANT
-        assert inner is float
-
     def test_external(self):
         d, inner = _determine_direction(External[int])
         assert d == VarDirection.EXTERNAL
@@ -791,10 +792,10 @@ class TestResolveDeclaration:
             assert desc is not None
             assert desc.direction == expected
 
-    def test_constant_wrapper_with_initial(self):
-        desc = _resolve_declaration("PI", Constant[float], 3.14, type("D", (), {}))
+    def test_constant_field_with_initial(self):
+        desc = _resolve_declaration("PI", float, Field(initial=3.14, constant=True), type("D", (), {}))
         assert desc is not None
-        assert desc.direction == VarDirection.CONSTANT
+        assert desc.direction == VarDirection.STATIC
         assert desc.constant is True
         assert desc.initial_value == "3.14"
 
@@ -837,12 +838,12 @@ class TestConstantFieldBugFix:
     def test_constant_with_field_no_initial_raises_declaration_error(self):
         with pytest.raises(DeclarationError, match="requires an initial"):
             class MyFB:
-                x: Constant[int] = Field()
+                x: int = Field(constant=True)
             _collect_descriptors(MyFB)
 
     def test_constant_with_annotated_field_no_initial_raises_declaration_error(self):
         from typing import Annotated
         with pytest.raises(DeclarationError, match="requires an initial"):
             class MyFB:
-                x: Annotated[Constant[int], Field()] = None
+                x: Annotated[int, Field(constant=True)]
             _collect_descriptors(MyFB)

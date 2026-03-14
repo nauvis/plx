@@ -57,11 +57,6 @@ class Temp(Generic[_T]):
     pass
 
 
-class Constant(Generic[_T]):
-    """Annotation marker for constant variables: ``PI: Constant[float] = 3.14``"""
-    pass
-
-
 class External(Generic[_T]):
     """Annotation marker for external variables: ``ext: External[int]``"""
     pass
@@ -85,7 +80,6 @@ _WRAPPER_DIRECTIONS: dict[type, VarDirection] = {
     InOut: VarDirection.INOUT,
     Static: VarDirection.STATIC,
     Temp: VarDirection.TEMP,
-    Constant: VarDirection.CONSTANT,
     External: VarDirection.EXTERNAL,
 }
 
@@ -267,15 +261,17 @@ def _validate_field_for_direction(
     attr_name: str,
 ) -> None:
     """Validate that Field() kwargs are legal for the given direction."""
-    # hardware/external not allowed on Temp or Constant
-    if direction in (VarDirection.TEMP, VarDirection.CONSTANT):
+    # hardware/external not allowed on Temp or constant fields
+    is_constant = field.constant or direction == VarDirection.CONSTANT
+    if direction == VarDirection.TEMP or is_constant:
+        label = "Constant" if is_constant else "Temp"
         if field.hardware is not None:
             raise DeclarationError(
-                f"{direction.value.title()} variable '{attr_name}' cannot use hardware"
+                f"{label} variable '{attr_name}' cannot use hardware"
             )
         if field.external is not None:
             raise DeclarationError(
-                f"{direction.value.title()} variable '{attr_name}' cannot use external"
+                f"{label} variable '{attr_name}' cannot use external"
             )
 
     # Validate hardware value
@@ -306,7 +302,9 @@ def _validate_field_for_direction(
             raise DeclarationError(f"External variable '{attr_name}' cannot use retain")
         if field.persistent:
             raise DeclarationError(f"External variable '{attr_name}' cannot use persistent")
-    elif direction == VarDirection.CONSTANT:
+
+    # Constant-specific validation (whether from VarDirection.CONSTANT or field.constant)
+    if is_constant:
         if field.retain:
             raise DeclarationError(f"Constant variable '{attr_name}' cannot use retain")
         if field.persistent:
@@ -461,7 +459,7 @@ def _resolve_declaration(
         _validate_field_for_direction(field, direction, attr_name)
         is_constant = direction == VarDirection.CONSTANT or field.constant
         var = _field_to_variable(attr_name, data_type, field, default, is_constant=is_constant)
-        if direction == VarDirection.CONSTANT and var.initial_value is None:
+        if is_constant and var.initial_value is None:
             raise DeclarationError(
                 f"Constant variable '{attr_name}' requires an initial value"
             )
@@ -595,7 +593,11 @@ def _collect_descriptors(cls: type, *, own_only: bool = False) -> dict[str, list
             constant=desc.constant,
             metadata=metadata,
         )
-        groups[desc.direction].append(var)
+        # Route static + constant=True to the "constant" group
+        group = desc.direction
+        if desc.direction == VarDirection.STATIC and desc.constant:
+            group = VarDirection.CONSTANT
+        groups[group].append(var)
 
     return groups
 

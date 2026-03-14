@@ -880,7 +880,7 @@ class PyWriter:
             self._write_annotation_var(v, "Temp")
             any_emitted = True
         for v in iface.constant_vars:
-            self._write_annotation_var(v, "Constant")
+            self._write_static_var(v)
             any_emitted = True
         for v in iface.external_vars:
             self._write_annotation_var(v, "External")

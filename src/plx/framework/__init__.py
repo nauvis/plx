@@ -86,7 +86,6 @@ from ._descriptors import (
     InOut,
     Static,
     Temp,
-    Constant,
     External,
     Field,
     # IEC 61131-3 standard function block types (uppercase — backwards compat)
@@ -288,7 +287,6 @@ __all__ = [
     "InOut",
     "Static",
     "Temp",
-    "Constant",
     "External",
     "Field",
     # IEC 61131-3 standard function block types (uppercase — backwards compat)

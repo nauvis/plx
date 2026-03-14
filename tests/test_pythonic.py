@@ -26,7 +26,6 @@ from plx.framework import (
     Output,
     Static,
     Temp,
-    Constant,
     Field,
     project,
     struct,

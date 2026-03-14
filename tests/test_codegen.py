@@ -1763,8 +1763,8 @@ class TestAnnotationSyntaxEmission:
         out = w.getvalue()
         assert "speed: Input[real] = 100.0" in out
 
-    def test_constant_no_redundant_flag(self):
-        """Constant[T] wrapper should not repeat constant=True in Field()."""
+    def test_constant_simple_uses_field(self):
+        """Constant var with just initial value uses Field(constant=True)."""
         pou = POU(
             pou_type=POUType.FUNCTION_BLOCK,
             name="ConstFB",
@@ -1779,12 +1779,10 @@ class TestAnnotationSyntaxEmission:
         w = _make_writer()
         w._write_pou(pou)
         out = w.getvalue()
-        # Simple form — no Field() needed since constant is implicit from the wrapper
-        assert "SEALER_ALARM_COUNT: Constant[int] = 6" in out
-        assert "constant=True" not in out
+        assert "SEALER_ALARM_COUNT: int = Field(initial=6, constant=True)" in out
 
-    def test_constant_with_description_no_redundant_flag(self):
-        """Constant with description uses Field() but omits constant=True."""
+    def test_constant_with_description_uses_field(self):
+        """Constant with description uses Field() with constant=True."""
         pou = POU(
             pou_type=POUType.FUNCTION_BLOCK,
             name="ConstDescFB",
@@ -1799,19 +1797,19 @@ class TestAnnotationSyntaxEmission:
         w = _make_writer()
         w._write_pou(pou)
         out = w.getvalue()
-        assert 'FAULTID: Constant[int] = Field(initial=1, description="Fault number")' in out
-        assert "constant=True" not in out
+        assert 'FAULTID: int = Field(initial=1, description="Fault number", constant=True)' in out
 
     def test_constant_bare_no_initial(self):
-        """Constant without initial or metadata uses bare annotation."""
+        """Constant without initial value uses Field(constant=True)."""
         w = _make_writer()
+        w._self_vars = set()
         v = Variable(name="MAX", data_type=PrimitiveTypeRef(type=PrimitiveType.INT), constant=True)
-        w._write_annotation_var(v, "Constant")
+        w._write_static_var(v)
         out = w.getvalue().strip()
-        assert out == "MAX: Constant[int]"
+        assert out == "MAX: int = Field(constant=True)"
 
     def test_static_constant_flag_preserved(self):
-        """Static var with constant=True still emits the flag (no wrapper to imply it)."""
+        """Static var with constant=True emits the flag in Field()."""
         w = _make_writer()
         w._self_vars = set()
         v = Variable(name="PI", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
