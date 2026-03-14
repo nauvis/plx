@@ -1,14 +1,22 @@
 """plx simulator — scan-cycle execution of Universal IR.
 
-Entry point::
+Entry points::
 
+    # Single-POU simulation
     from plx.simulate import simulate
 
     ctx = simulate(MyFB)
     ctx.cmd = True
     ctx.scan()
     assert ctx.running
+
+    # Project-level simulation (multi-program, multi-task)
+    from plx.simulate import simulate_project
+
+    ctx = simulate_project(proj.compile())
+    ctx.globals.IO.start_button = True
     ctx.tick(seconds=5)
+    assert ctx.MainProgram.running
 """
 
 from __future__ import annotations
@@ -24,6 +32,10 @@ from plx.model.types import EnumType, StructType
 from plx.framework._protocols import CompiledDataType, CompiledPOU
 
 from ._context import SimulationContext
+from ._project_context import ProjectSimulationContext
+from ._proxy import StructProxy
+from ._trace import ScanSnapshot, ScanTrace
+from ._triggers import ScanTrigger, SimulationTimeout
 from ._values import SimulationError
 
 
@@ -147,6 +159,40 @@ def _register_typedef(
             enum_registry[typedef.name] = IntEnum(typedef.name, members)
 
 
+def simulate_project(
+    target: Any,
+    *,
+    scan_period_ms: int = 10,
+) -> ProjectSimulationContext:
+    """Create a project-level simulation context.
+
+    Parameters
+    ----------
+    target
+        A ``Project`` IR node or a ``PlxProject`` builder (calls
+        ``.compile()`` automatically).
+    scan_period_ms
+        Fallback base period when no periodic tasks are defined
+        (default 10ms).
+
+    Returns
+    -------
+    ProjectSimulationContext
+        The project simulation context with per-program attribute access.
+    """
+    from plx.model.project import Project
+    from plx.framework._project import PlxProject
+
+    if isinstance(target, PlxProject):
+        target = target.compile()
+    if not isinstance(target, Project):
+        raise TypeError(
+            f"simulate_project() expects a Project IR or PlxProject builder, "
+            f"got {type(target).__name__}"
+        )
+    return ProjectSimulationContext(target, scan_period_ms=scan_period_ms)
+
+
 def _auto_discover(target: Any) -> tuple[list[Any], list[Any]]:
     """Auto-discover POUs and data types from the target's scope.
 
@@ -195,4 +241,15 @@ def _auto_discover(target: Any) -> tuple[list[Any], list[Any]]:
     return pou_classes, data_type_classes
 
 
-__all__ = ["simulate", "SimulationContext", "SimulationError"]
+__all__ = [
+    "simulate",
+    "simulate_project",
+    "SimulationContext",
+    "ProjectSimulationContext",
+    "SimulationError",
+    "SimulationTimeout",
+    "ScanTrigger",
+    "ScanTrace",
+    "ScanSnapshot",
+    "StructProxy",
+]
