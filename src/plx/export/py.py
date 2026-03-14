@@ -88,6 +88,23 @@ from plx.framework._constants import STANDARD_FB_TYPES
 # ---------------------------------------------------------------------------
 # Primitive type → Python name mapping
 # ---------------------------------------------------------------------------
+# String quoting helper
+# ---------------------------------------------------------------------------
+
+
+def _quote_string(s: str) -> str:
+    """Quote a string for use in generated Python code.
+
+    Uses simple ``"..."`` when the string is single-line, or ``repr()``
+    when it contains newlines, backslashes, or quotes that would break
+    a bare double-quoted string.
+    """
+    if "\n" in s or "\r" in s or '"' in s or "\\" in s:
+        return repr(s)
+    return f'"{s}"'
+
+
+# ---------------------------------------------------------------------------
 # The framework supports lowercase PLC type classes (sint, dint, real, etc.)
 # and Python builtins (bool).  The exporter emits these instead of IEC
 # uppercase names so generated code reads as natural Python.
@@ -141,6 +158,12 @@ _NAMED_TYPE_PY_NAME: dict[str, str] = {
     "CTUD": "ctud",
     "SR": "sr",
     "RS": "rs",
+    # AB-specific type aliases (lowered from L5X)
+    "BIT": "bool",
+    "TIMER": "TON",
+    "COUNTER": "CTU",
+    "PID": "PID",
+    "MESSAGE": "MESSAGE",
 }
 
 
@@ -197,7 +220,7 @@ def generate_files(project: Project) -> dict[str, str]:
         if deps:
             fw._line()
             for dep_file, dep_names in sorted(deps.items()):
-                fw._line(f"from .{dep_file} import {', '.join(sorted(dep_names))}")
+                fw._line(f"from {dep_file} import {', '.join(sorted(dep_names))}")
 
         fw._line()
         if pou.pou_type == POUType.INTERFACE:
@@ -214,8 +237,8 @@ def generate_files(project: Project) -> dict[str, str]:
     def _module_path(folder: str, name: str) -> str:
         folder = _sanitize_folder(folder)
         if folder:
-            return "." + folder.replace("/", ".") + "." + name
-        return "." + name
+            return folder.replace("/", ".") + "." + name
+        return name
 
     task_pou_names: set[str] = set()
     for t in project.tasks:
@@ -518,6 +541,13 @@ class PyWriter:
         self._has_unresolved_parent: bool = False
         self._return_var: str | None = None  # property/function name → return rewrite
         self._project = project
+        # Collect known type names so we can quote unknown references
+        self._known_types: set[str] = set()
+        if project:
+            for td in project.data_types:
+                self._known_types.add(td.name)
+            for pou in project.pous:
+                self._known_types.add(pou.name)
 
     def getvalue(self) -> str:
         return self._buf.getvalue().rstrip("\n") + "\n"
@@ -658,7 +688,7 @@ class PyWriter:
         # Decorator
         decorator_args: list[str] = []
         if gvl.description:
-            decorator_args.append(f'description="{gvl.description}"')
+            decorator_args.append(f'description={_quote_string(gvl.description)}')
         if gvl.folder:
             decorator_args.append(f'folder="{gvl.folder}"')
         if gvl.scope:
@@ -904,7 +934,7 @@ class PyWriter:
             else:
                 kwargs.append(f"initial={repr(v.initial_value)}")
         if v.description:
-            kwargs.append(f'description="{v.description}"')
+            kwargs.append(f'description={_quote_string(v.description)}')
         if v.retain:
             kwargs.append("retain=True")
         if v.persistent:
@@ -1228,7 +1258,14 @@ class PyWriter:
                 return f"{base}({tr.max_length})"
             return base
         if isinstance(tr, NamedTypeRef):
-            return _NAMED_TYPE_PY_NAME.get(tr.name, tr.name)
+            mapped = _NAMED_TYPE_PY_NAME.get(tr.name)
+            if mapped:
+                return mapped
+            # If we have project context, quote types not defined in this project
+            # to avoid NameError for vendor FBs and cross-file UDT references
+            if self._known_types and tr.name not in self._known_types:
+                return repr(tr.name)
+            return tr.name
         if isinstance(tr, ArrayTypeRef):
             return self._array_type_ref(tr)
         if isinstance(tr, PointerTypeRef):
@@ -1308,6 +1345,7 @@ class PyWriter:
         # S=/R= latch assignments have no Python framework equivalent
         if stmt.latch:
             self._line(f"# {self._expr(stmt.target)} {stmt.latch}= {self._expr(stmt.value)}")
+            self._line("pass  # latch assignment (S=/R=) not yet supported in framework")
             return
         # Recover augmented assignment: ``x = x + y`` → ``x += y``
         if isinstance(stmt.value, BinaryExpr):
@@ -1730,8 +1768,9 @@ class PyWriter:
             task_var_names.append(var_name)
             self._write_task(t, var_name)
 
-        # project() call — use packages=["."] for auto-discovery
-        kwargs: list[str] = ['packages=["."]']
+        # project() call — use explicit pous list for portability
+        pou_names = [p.name for p in proj.pous]
+        kwargs: list[str] = [f"pous=[{', '.join(pou_names)}]"]
 
         if task_var_names:
             kwargs.append(f"tasks=[{', '.join(task_var_names)}]")

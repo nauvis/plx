@@ -1270,7 +1270,7 @@ class TestFullProject:
         out = generate(proj)
         assert "from plx.framework import *" in out
         assert 'project("Empty"' in out
-        assert 'packages=["."]' in out
+        assert "pous=[" in out
 
     def test_project_with_pou(self):
         proj = Project(
@@ -1296,7 +1296,7 @@ class TestFullProject:
         assert "from plx.framework import *" in out
         assert "@fb" in out
         assert "class Motor:" in out
-        assert 'packages=["."]' in out
+        assert "pous=[" in out
 
     def test_project_with_tasks(self):
         proj = Project(
@@ -1349,7 +1349,7 @@ class TestFullProject:
         assert "class SensorData:" in out
         assert "@enumeration" in out
         assert "class State:" in out
-        assert 'packages=["."]' in out
+        assert "pous=[" in out
 
     def test_project_with_global_vars(self):
         proj = Project(
@@ -1367,7 +1367,7 @@ class TestFullProject:
         out = generate(proj)
         assert "@global_vars" in out
         assert "class SystemIO:" in out
-        assert 'packages=["."]' in out
+        assert "pous=[" in out
 
     def test_pou_ordering(self):
         """FUNCTIONs before FUNCTION_BLOCKs before PROGRAMs."""
@@ -1829,7 +1829,7 @@ class TestGenerateFiles:
         files = generate_files(proj)
         assert "project.py" in files
         assert 'project("Empty"' in files["project.py"]
-        assert 'packages=["."]' in files["project.py"]
+        assert "pous=[" in files["project.py"]
 
     def test_one_file_per_pou(self):
         proj = Project(
@@ -1866,7 +1866,7 @@ class TestGenerateFiles:
         assert "class Main:" in files["Main.py"]
 
         # project.py uses packages discovery, no explicit imports
-        assert 'packages=["."]' in files["project.py"]
+        assert "pous=[" in files["project.py"]
 
     def test_one_file_per_data_type(self):
         proj = Project(
@@ -1889,7 +1889,7 @@ class TestGenerateFiles:
         assert "@enumeration" in files["State.py"]
 
         # project.py uses packages discovery
-        assert 'packages=["."]' in files["project.py"]
+        assert "pous=[" in files["project.py"]
 
     def test_one_file_per_gvl(self):
         proj = Project(
@@ -1908,7 +1908,7 @@ class TestGenerateFiles:
         assert "SystemIO.py" in files
         assert "@global_vars" in files["SystemIO.py"]
         # project.py uses packages discovery
-        assert 'packages=["."]' in files["project.py"]
+        assert "pous=[" in files["project.py"]
 
     def test_pou_imports_data_type_dep(self):
         """A POU that references a struct type should import it."""
@@ -1931,7 +1931,7 @@ class TestGenerateFiles:
             ],
         )
         files = generate_files(proj)
-        assert "from .MotorData import MotorData" in files["Controller.py"]
+        assert "from MotorData import MotorData" in files["Controller.py"]
 
     def test_extends_dep_imported(self):
         """A derived FB should import its base."""
@@ -1948,7 +1948,7 @@ class TestGenerateFiles:
             ],
         )
         files = generate_files(proj)
-        assert "from .BaseFB import BaseFB" in files["Derived.py"]
+        assert "from BaseFB import BaseFB" in files["Derived.py"]
 
     def test_standard_fb_not_imported(self):
         """Standard FB types like TON should NOT be imported from sibling files."""
@@ -2177,9 +2177,9 @@ class TestInterfaceExport:
         proj = Project(name="Test", pous=[iface, fb_pou])
         files = generate_files(proj)
         # project.py uses packages discovery
-        assert 'packages=["."]' in files["project.py"]
+        assert "pous=[" in files["project.py"]
         # FB should import the interface it implements
-        assert "from .IMoveable import IMoveable" in files["Motor.py"]
+        assert "from IMoveable import IMoveable" in files["Motor.py"]
 
 
 # ===========================================================================
@@ -2702,7 +2702,8 @@ class TestLatchAssignmentExport:
         )
         w._write_stmt(stmt)
         out = w.getvalue().strip()
-        assert out == "# flag S= cond"
+        assert "# flag S= cond" in out
+        assert "pass" in out
 
     def test_reset_latch_emits_comment(self):
         w = _make_writer()
@@ -2713,7 +2714,8 @@ class TestLatchAssignmentExport:
         )
         w._write_stmt(stmt)
         out = w.getvalue().strip()
-        assert out == "# flag R= cond"
+        assert "# flag R= cond" in out
+        assert "pass" in out
 
     def test_normal_assignment_unaffected(self):
         w = _make_writer()
