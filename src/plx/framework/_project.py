@@ -263,6 +263,7 @@ class PlxProject:
 
         result = Project(
             name=self.name,
+            vendor=target.value if target else "",
             data_types=compiled_data_types,
             global_variable_lists=compiled_gvls,
             pous=compiled_pous,

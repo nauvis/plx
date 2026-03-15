@@ -49,6 +49,8 @@ class GlobalVariableList(IRModel):
 
 class Project(IRModel):
     name: str = Field(min_length=1)
+    vendor: str = ""
+    vendor_version: str = ""
     data_types: list[TypeDefinition] = []
     global_variable_lists: list[GlobalVariableList] = []
     pous: list[POU] = []

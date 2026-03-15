@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
+          restore-keys: pip-${{ matrix.python-version }}-
+      - run: pip install -e ".[dev]"
+      - run: pytest tests/ -m "not fuzz" -v
+
+  fuzz:
+    runs-on: ubuntu-latest
+    # Run on push to main and on the nightly schedule, but not on PRs
+    if: github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-3.12-${{ hashFiles('pyproject.toml') }}
+          restore-keys: pip-3.12-
+      - name: Cache hypothesis database
+        uses: actions/cache@v4
+        with:
+          path: .hypothesis
+          key: hypothesis-${{ github.ref_name }}
+          restore-keys: hypothesis-
+      - run: pip install -e ".[dev]"
+      - run: pytest tests/ -m fuzz -v

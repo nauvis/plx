@@ -1,0 +1,30 @@
+name: Fuzz (nightly)
+
+on:
+  schedule:
+    # Run at 3am UTC every day
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-3.12-${{ hashFiles('pyproject.toml') }}
+          restore-keys: pip-3.12-
+      - name: Restore hypothesis database
+        uses: actions/cache@v4
+        with:
+          path: .hypothesis
+          key: hypothesis-nightly-${{ github.sha }}
+          restore-keys: hypothesis-nightly-
+      - run: pip install -e ".[dev]"
+      - run: pytest tests/ -m fuzz -v
