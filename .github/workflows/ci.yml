@@ -53,3 +53,16 @@ jobs:
           restore-keys: hypothesis-
       - run: pip install -e ".[dev]"
       - run: pytest tests/ -m fuzz -v
+
+  vendor-check:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Trigger vendor CI with PR branch
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.VENDOR_CI_TOKEN }}
+          repository: macleapatrick/plx-vendor
+          event-type: public-repo-check
+          client-payload: '{"ref": "${{ github.head_ref }}", "pr": "${{ github.event.number }}"}'
