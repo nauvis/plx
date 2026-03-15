@@ -1,0 +1,644 @@
+"""Constants, formatting utilities, and standalone helpers for the Python exporter."""
+
+from __future__ import annotations
+
+import re
+from typing import TYPE_CHECKING
+
+from plx.model.expressions import BinaryOp, Expression
+from plx.model.pou import POU, POUInterface, POUType
+from plx.model.project import GlobalVariableList, Project
+from plx.model.statements import CaseBranch
+from plx.model.types import (
+    AliasType,
+    ArrayTypeRef,
+    EnumType,
+    NamedTypeRef,
+    PointerTypeRef,
+    PrimitiveType,
+    ReferenceTypeRef,
+    StringTypeRef,
+    StructType,
+    SubrangeType,
+    TypeRef,
+    UnionType,
+)
+
+
+def _standard_fb_types() -> frozenset[str]:
+    """Lazy import to avoid circular dependency with plx.framework.__init__."""
+    from plx.framework._constants import STANDARD_FB_TYPES
+    return STANDARD_FB_TYPES
+
+
+# ---------------------------------------------------------------------------
+# Primitive type -> Python name mapping
+# ---------------------------------------------------------------------------
+
+_PRIMITIVE_PY_NAME: dict[PrimitiveType, str] = {
+    # Boolean -> Python builtin
+    PrimitiveType.BOOL: "bool",
+    # Signed integers -> PLC type classes
+    PrimitiveType.SINT: "sint",
+    PrimitiveType.INT: "int",
+    PrimitiveType.DINT: "dint",
+    PrimitiveType.LINT: "lint",
+    # Unsigned integers -> PLC type classes
+    PrimitiveType.USINT: "usint",
+    PrimitiveType.UINT: "uint",
+    PrimitiveType.UDINT: "udint",
+    PrimitiveType.ULINT: "ulint",
+    # Floating point -> PLC type classes
+    PrimitiveType.REAL: "real",
+    PrimitiveType.LREAL: "lreal",
+    # Bit-strings -> PLC type classes
+    PrimitiveType.BYTE: "byte",
+    PrimitiveType.WORD: "word",
+    PrimitiveType.DWORD: "dword",
+    PrimitiveType.LWORD: "lword",
+    # Duration (no PLC class yet -- lowercase IEC name)
+    PrimitiveType.TIME: "time",
+    PrimitiveType.LTIME: "ltime",
+    # Date/time (no PLC class yet -- lowercase IEC name)
+    PrimitiveType.DATE: "date",
+    PrimitiveType.LDATE: "ldate",
+    PrimitiveType.TOD: "tod",
+    PrimitiveType.LTOD: "ltod",
+    PrimitiveType.DT: "dt",
+    PrimitiveType.LDT: "ldt",
+    # Character (no PLC class yet -- lowercase IEC name)
+    PrimitiveType.CHAR: "char",
+    PrimitiveType.WCHAR: "wchar",
+}
+
+# Standard FB types -> lowercase Python names
+_NAMED_TYPE_PY_NAME: dict[str, str] = {
+    "TON": "ton",
+    "TOF": "tof",
+    "TP": "tp",
+    "RTO": "rto",
+    "R_TRIG": "r_trig",
+    "F_TRIG": "f_trig",
+    "CTU": "ctu",
+    "CTD": "ctd",
+    "CTUD": "ctud",
+    "SR": "sr",
+    "RS": "rs",
+    # AB-specific type aliases (lowered from L5X)
+    "BIT": "bool",
+    "TIMER": "TON",
+    "COUNTER": "CTU",
+    "PID": "PID",
+    "MESSAGE": "MESSAGE",
+}
+
+
+# ---------------------------------------------------------------------------
+# Operator maps
+# ---------------------------------------------------------------------------
+
+_BINOP_PYTHON: dict[BinaryOp, str] = {
+    BinaryOp.ADD: "+",
+    BinaryOp.SUB: "-",
+    BinaryOp.MUL: "*",
+    BinaryOp.DIV: "/",
+    BinaryOp.MOD: "%",
+    BinaryOp.AND: "and",
+    BinaryOp.OR: "or",
+    BinaryOp.XOR: "^",
+    BinaryOp.BAND: "&",
+    BinaryOp.BOR: "|",
+    BinaryOp.EQ: "==",
+    BinaryOp.NE: "!=",
+    BinaryOp.GT: ">",
+    BinaryOp.GE: ">=",
+    BinaryOp.LT: "<",
+    BinaryOp.LE: "<=",
+    BinaryOp.EXPT: "**",
+    BinaryOp.AND_THEN: "and",   # Python and/or are already short-circuit
+    BinaryOp.OR_ELSE: "or",
+}
+
+# Python precedence (higher = binds tighter)
+_BINOP_PRECEDENCE: dict[BinaryOp, int] = {
+    BinaryOp.BOR: 7,
+    BinaryOp.OR: 1,
+    BinaryOp.OR_ELSE: 1,
+    BinaryOp.XOR: 8,
+    BinaryOp.BAND: 9,
+    BinaryOp.AND: 3,
+    BinaryOp.AND_THEN: 3,
+    BinaryOp.EQ: 4,
+    BinaryOp.NE: 4,
+    BinaryOp.LT: 5,
+    BinaryOp.GT: 5,
+    BinaryOp.LE: 5,
+    BinaryOp.GE: 5,
+    BinaryOp.ADD: 6,
+    BinaryOp.SUB: 6,
+    BinaryOp.MUL: 7,
+    BinaryOp.DIV: 7,
+    BinaryOp.MOD: 7,
+    BinaryOp.EXPT: 8,
+    # Function-call style
+    BinaryOp.SHL: 0,
+    BinaryOp.SHR: 0,
+    BinaryOp.ROL: 0,
+    BinaryOp.ROR: 0,
+}
+
+_FUNC_CALL_OPS = {BinaryOp.SHL, BinaryOp.SHR, BinaryOp.ROL, BinaryOp.ROR}
+
+# IEC functions -> Python builtins / math module
+_FUNC_REMAP: dict[str, str] = {
+    "ABS": "abs",
+    "MIN": "min",
+    "MAX": "max",
+    "ROUND": "round",
+    "SQRT": "math.sqrt",
+    "LN": "math.log",
+    "LOG": "math.log10",
+    "EXP": "math.exp",
+    "SIN": "math.sin",
+    "COS": "math.cos",
+    "TAN": "math.tan",
+    "ASIN": "math.asin",
+    "ACOS": "math.acos",
+    "ATAN": "math.atan",
+    "TRUNC": "math.trunc",
+    "CEIL": "math.ceil",
+    "FLOOR": "math.floor",
+}
+
+_POU_DECORATOR = {
+    POUType.FUNCTION_BLOCK: "fb",
+    POUType.PROGRAM: "program",
+    POUType.FUNCTION: "function",
+}
+
+
+# ---------------------------------------------------------------------------
+# String quoting
+# ---------------------------------------------------------------------------
+
+def _quote_string(s: str) -> str:
+    """Quote a string for use in generated Python code.
+
+    Uses simple ``"..."`` when the string is single-line, or ``repr()``
+    when it contains newlines, backslashes, or quotes that would break
+    a bare double-quoted string.
+    """
+    if "\n" in s or "\r" in s or '"' in s or "\\" in s:
+        return repr(s)
+    return f'"{s}"'
+
+
+# ---------------------------------------------------------------------------
+# IEC time parsing
+# ---------------------------------------------------------------------------
+
+# IEC time literal regex: T#1h2m3s4ms5us or subsets
+_IEC_TIME_RE = re.compile(
+    r"^(?:L?TIME#|[LT]#)"
+    r"(?:(\d+)h)?"
+    r"(?:(\d+)m(?!s))?"
+    r"(?:(\d+(?:\.\d+)?)s(?!$|[a-zA-Z]))?"
+    r"(?:(\d+(?:\.\d+)?)s)?"
+    r"(?:(\d+)ms)?"
+    r"(?:(\d+)us)?$",
+    re.IGNORECASE,
+)
+
+# Simpler per-unit patterns for IEC time
+_IEC_TIME_UNIT_RE = re.compile(
+    r"(\d+(?:\.\d+)?)\s*(ms|us|h|m(?!s)|s)",
+    re.IGNORECASE,
+)
+
+
+def _parse_iec_time(value: str) -> str | None:
+    """Parse an IEC time literal like T#100ms into timedelta(milliseconds=100).
+
+    Returns None if not a time literal.
+    """
+    if not re.match(r"^(?:L?TIME#|[LT]#)", value, re.IGNORECASE):
+        return None
+
+    # Map IEC unit abbreviations to timedelta kwarg names
+    _UNIT_TO_KWARG = {
+        "h": "hours",
+        "m": "minutes",
+        "s": "seconds",
+        "ms": "milliseconds",
+        "us": "microseconds",
+    }
+
+    # Extract units
+    parts: dict[str, str] = {}
+    for match in _IEC_TIME_UNIT_RE.finditer(value):
+        amount = match.group(1)
+        unit = match.group(2).lower()
+        kwarg_name = _UNIT_TO_KWARG.get(unit)
+        if kwarg_name:
+            parts[kwarg_name] = amount
+
+    if not parts:
+        return None
+
+    # Simplify: remove .0 from float amounts, use int if possible
+    kwargs = []
+    for k, v in parts.items():
+        if "." in v:
+            fv = float(v)
+            if fv == int(fv):
+                v = str(int(fv))
+        kwargs.append(f"{k}={v}")
+
+    return f"timedelta({', '.join(kwargs)})"
+
+
+# ---------------------------------------------------------------------------
+# Initial value formatting
+# ---------------------------------------------------------------------------
+
+def _format_initial_value(value: str) -> str | None:
+    """Convert an IEC initial value string to a Python literal.
+
+    Returns ``None`` for values that have no valid Python representation
+    (function calls, complex expressions).  Callers should fall back to
+    ``Field(initial=...)`` when this returns ``None``.
+    """
+    if value == "TRUE":
+        return "True"
+    if value == "FALSE":
+        return "False"
+
+    # IEC time literal
+    time_repr = _parse_iec_time(value)
+    if time_repr is not None:
+        return time_repr
+
+    # Enum literal: EnumType#MEMBER -> EnumType.MEMBER
+    if "#" in value and not value.startswith("16#") and not value.startswith("8#"):
+        parts = value.split("#", 1)
+        if parts[0] and parts[1] and parts[0][0].isalpha():
+            return f"{parts[0]}.{parts[1]}"
+
+    # Numeric -- try int then float
+    try:
+        int(value)
+        return value
+    except ValueError:
+        pass
+    try:
+        float(value)
+        return value
+    except ValueError:
+        pass
+
+    # String literal -- pass through
+    if value.startswith("'") or value.startswith('"'):
+        return value
+
+    # IEC FB/struct initialization: (Param := Value, ...) -> dict(Param=Value, ...)
+    fb_init = _try_format_fb_init(value)
+    if fb_init is not None:
+        return fb_init
+
+    # Empty array/struct initializer
+    if value in ("[]", "{}"):
+        return value
+
+    # Not representable as a Python literal (function calls, complex
+    # expressions, etc.) -- return None so callers use Field(initial=...).
+    return None
+
+
+def _try_format_fb_init(value: str) -> str | None:
+    """Convert IEC FB init ``(A := 1, B := TRUE)`` to Python dict literal.
+
+    Returns a string like ``{"Name": "Axis", "Flag": True}`` which callers
+    wrap in ``Field(initial=...)``.  Returns None if the value doesn't match.
+    """
+    stripped = value.strip()
+    if not (stripped.startswith("(") and stripped.endswith(")")):
+        return None
+    inner = stripped[1:-1].strip()
+    if ":=" not in inner:
+        return None
+
+    # Split on commas that aren't inside nested parens or strings
+    parts = _split_init_params(inner)
+    if not parts:
+        return None
+
+    py_params: list[str] = []
+    for part in parts:
+        part = part.strip()
+        if ":=" not in part:
+            return None  # Not a named param -- bail
+        name, _, val = part.partition(":=")
+        name = name.strip()
+        val = val.strip()
+        if not name or not val:
+            return None
+        # Recursively format the value
+        py_val = _format_initial_value(val)
+        py_params.append(f'"{name}": {py_val}')
+
+    return "{" + ", ".join(py_params) + "}"
+
+
+def _is_dict_literal(formatted: str) -> bool:
+    """Check if a formatted initial value is a dict literal (FB/struct init)."""
+    return formatted.startswith("{")
+
+
+def _split_init_params(text: str) -> list[str]:
+    """Split comma-separated IEC init params, respecting nested parens and strings."""
+    parts: list[str] = []
+    depth = 0
+    current: list[str] = []
+    in_string = False
+    for ch in text:
+        if ch == "'" and not in_string:
+            in_string = True
+            current.append(ch)
+        elif ch == "'" and in_string:
+            in_string = False
+            current.append(ch)
+        elif in_string:
+            current.append(ch)
+        elif ch == "(":
+            depth += 1
+            current.append(ch)
+        elif ch == ")":
+            depth -= 1
+            current.append(ch)
+        elif ch == "," and depth == 0:
+            parts.append("".join(current))
+            current = []
+        else:
+            current.append(ch)
+    if current:
+        parts.append("".join(current))
+    return parts
+
+
+# ---------------------------------------------------------------------------
+# Self-var / inheritance helpers
+# ---------------------------------------------------------------------------
+
+def _build_self_vars(iface: POUInterface) -> set[str]:
+    """Build the set of variable names that need self. prefix.
+
+    All vars except temp_vars get self. prefix.
+    """
+    names: set[str] = set()
+    for v in iface.input_vars:
+        names.add(v.name)
+    for v in iface.output_vars:
+        names.add(v.name)
+    for v in iface.inout_vars:
+        names.add(v.name)
+    for v in iface.static_vars:
+        names.add(v.name)
+    for v in iface.constant_vars:
+        names.add(v.name)
+    for v in iface.external_vars:
+        names.add(v.name)
+    return names
+
+
+def _build_inherited_self_context(
+    parent_name: str, all_pous: list[POU],
+) -> tuple[set[str], set[str], bool]:
+    """Walk the inheritance chain and collect parent vars + method names.
+
+    Returns (inherited_vars, inherited_methods, fully_resolved).
+    ``fully_resolved`` is False if the chain hits a POU not in the project
+    (e.g. a library FB).
+    """
+    inherited_vars: set[str] = set()
+    inherited_methods: set[str] = set()
+    pou_map = {p.name: p for p in all_pous}
+    current = parent_name
+    while current:
+        parent = pou_map.get(current)
+        if parent is None:
+            return inherited_vars, inherited_methods, False
+        inherited_vars |= _build_self_vars(parent.interface)
+        inherited_methods |= {m.name for m in parent.methods}
+        current = parent.extends
+    return inherited_vars, inherited_methods, True
+
+
+# Well-known IEC 61131-3 / Beckhoff built-in functions that should never get
+# a self. prefix. This is intentionally non-exhaustive -- when the parent is
+# fully resolved, the heuristic is not needed.
+_KNOWN_GLOBAL_FUNCTIONS: frozenset[str] = frozenset({
+    # IEC standard functions
+    "ABS", "SQRT", "LN", "LOG", "EXP", "SIN", "COS", "TAN",
+    "ASIN", "ACOS", "ATAN", "ATAN2",
+    "CEIL", "FLOOR", "TRUNC", "ROUND",
+    "MIN", "MAX", "LIMIT", "SEL", "MUX",
+    "SHL", "SHR", "ROL", "ROR",
+    "LEN", "LEFT", "RIGHT", "MID", "FIND", "REPLACE", "INSERT", "DELETE",
+    "CONCAT", "SIZEOF", "ADR", "ADRINST",
+    "MEMSET", "MEMCPY", "MEMMOVE",
+    "AND", "OR", "XOR", "NOT",
+    # Python builtins used in plx
+    "abs", "min", "max", "len", "round", "range", "print",
+    # Common Beckhoff system functions
+    "F_GetActualDcTime64", "F_CreateAllEventsInClass", "F_GetMaxSeverityRaised",
+    "F_RaiseAlarmWithStringParameters", "F_UnitModeToString",
+})
+
+
+def _build_non_self_names(pou: POU, project: Project | None) -> set[str]:
+    """Build the set of names that should NOT get a self. prefix.
+
+    Used as a negative filter when the POU has an unresolved parent.
+    Includes: temp vars, known global functions, type/POU/GVL names
+    from the project, IEC primitive type names, and enum type names.
+    """
+    names: set[str] = set(_KNOWN_GLOBAL_FUNCTIONS)
+
+    # Temp vars from the POU's own interface
+    for v in pou.interface.temp_vars:
+        names.add(v.name)
+
+    # IEC primitive type names
+    for pt in PrimitiveType:
+        names.add(pt.value)
+
+    # Standard FB type names
+    names |= set(_standard_fb_types())
+
+    if project is not None:
+        # POU names, data type names, GVL names
+        for p in project.pous:
+            names.add(p.name)
+        for td in project.data_types:
+            if isinstance(td, (StructType, EnumType)):
+                names.add(td.name)
+                # Enum members are accessed via EnumType.MEMBER so the type
+                # name itself is non-self, but members don't appear as
+                # standalone VariableRefs.
+        for gvl in project.global_variable_lists:
+            names.add(gvl.name)
+
+    return names
+
+
+# ---------------------------------------------------------------------------
+# Topological sort / SFC / CASE helpers
+# ---------------------------------------------------------------------------
+
+def _topo_sort_fbs(fbs: list[POU]) -> list[POU]:
+    """Sort function blocks so bases come before derived classes."""
+    by_name = {fb.name: fb for fb in fbs}
+    visited: set[str] = set()
+    result: list[POU] = []
+
+    def visit(name: str) -> None:
+        if name in visited:
+            return
+        visited.add(name)
+        fb = by_name.get(name)
+        if fb is None:
+            return
+        if fb.extends and fb.extends in by_name:
+            visit(fb.extends)
+        result.append(fb)
+
+    for fb in fbs:
+        visit(fb.name)
+    return result
+
+
+def _step_group_expr(steps: list[str]) -> str:
+    """Format step list for SFC transition path."""
+    if len(steps) == 1:
+        return steps[0]
+    return f"({' & '.join(steps)})"
+
+
+def _case_branch_condition(sel: str, branch: CaseBranch) -> str:
+    """Build a Python condition for a CASE branch with ranges."""
+    parts: list[str] = []
+    for v in branch.values:
+        if isinstance(v, str):
+            parts.append(f"{sel} == {v}")
+        else:
+            parts.append(f"{sel} == {v}")
+    for r in branch.ranges:
+        parts.append(f"{r.start} <= {sel} <= {r.end}")
+    return " or ".join(parts) if parts else "True"
+
+
+# ---------------------------------------------------------------------------
+# Identifier / folder sanitization
+# ---------------------------------------------------------------------------
+
+_PYTHON_KEYWORDS = frozenset({
+    "False", "None", "True", "and", "as", "assert", "async", "await",
+    "break", "class", "continue", "def", "del", "elif", "else", "except",
+    "finally", "for", "from", "global", "if", "import", "in", "is",
+    "lambda", "nonlocal", "not", "or", "pass", "raise", "return",
+    "try", "while", "with", "yield",
+})
+
+
+def _sanitize_identifier(name: str) -> str:
+    """Convert a task/POU name to a valid Python identifier."""
+    result = re.sub(r"[^a-zA-Z0-9_]", "_", name)
+    if result and result[0].isdigit():
+        result = "_" + result
+    # Escape Python reserved words
+    if result in _PYTHON_KEYWORDS:
+        result = result + "_"
+    return result
+
+
+def _sanitize_folder(folder: str) -> str:
+    """Sanitize a folder path so each segment is a valid Python identifier.
+
+    Beckhoff FolderPath can contain spaces (e.g. ``"Machine/HMI Connections"``),
+    which are invalid in Python module paths.  Replaces non-identifier characters
+    with underscores in each path segment.
+    """
+    if not folder:
+        return folder
+    return "/".join(_sanitize_identifier(seg) for seg in folder.split("/"))
+
+
+# ---------------------------------------------------------------------------
+# Dependency collection
+# ---------------------------------------------------------------------------
+
+def _collect_named_refs(tr: TypeRef) -> set[str]:
+    """Collect all NamedTypeRef names from a TypeRef tree."""
+    names: set[str] = set()
+    if isinstance(tr, NamedTypeRef):
+        names.add(tr.name)
+    elif isinstance(tr, ArrayTypeRef):
+        names |= _collect_named_refs(tr.element_type)
+    elif isinstance(tr, PointerTypeRef):
+        names |= _collect_named_refs(tr.target_type)
+    elif isinstance(tr, ReferenceTypeRef):
+        names |= _collect_named_refs(tr.target_type)
+    return names
+
+
+def _collect_pou_deps(pou: POU, project: Project) -> dict[str, list[str]]:
+    """Collect cross-file dependencies for a POU.
+
+    Returns {module_name: [imported_names]} for sibling file imports.
+    Only includes names that correspond to project-level definitions
+    (data types, GVLs, other POUs).
+    """
+    # Build lookup of what's defined where
+    def _mod(folder: str, name: str) -> str:
+        folder = _sanitize_folder(folder)
+        if folder:
+            return folder.replace("/", ".") + "." + name
+        return name
+
+    project_names: dict[str, str] = {}  # name -> module_path (dotted)
+    for td in project.data_types:
+        if isinstance(td, (StructType, EnumType, UnionType, AliasType, SubrangeType)):
+            project_names[td.name] = _mod(td.folder, td.name)
+    for gvl in project.global_variable_lists:
+        project_names[gvl.name] = _mod(gvl.folder, gvl.name)
+    for p in project.pous:
+        if p.name != pou.name:
+            project_names[p.name] = _mod(p.folder, p.name)
+
+    # Collect all NamedTypeRef references from this POU's interface
+    referenced: set[str] = set()
+    for var_list in (
+        pou.interface.input_vars, pou.interface.output_vars,
+        pou.interface.inout_vars, pou.interface.static_vars,
+        pou.interface.temp_vars, pou.interface.constant_vars,
+        pou.interface.external_vars,
+    ):
+        for v in var_list:
+            referenced |= _collect_named_refs(v.data_type)
+
+    # extends reference
+    if pou.extends:
+        referenced.add(pou.extends)
+
+    # implements references
+    for iface_name in pou.implements:
+        referenced.add(iface_name)
+
+    # Filter to project-level names only
+    deps: dict[str, list[str]] = {}
+    for name in referenced:
+        if name in project_names and name not in _standard_fb_types():
+            module = project_names[name]
+            deps.setdefault(module, []).append(name)
+
+    return deps
