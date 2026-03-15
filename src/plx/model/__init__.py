@@ -92,6 +92,12 @@ from .types import (
     UnionType,
 )
 from .variables import Variable
+from .walk import (
+    walk_expressions,
+    walk_statements,
+    walk_pou,
+    walk_project,
+)
 
 __all__ = [
     # base
@@ -182,4 +188,9 @@ __all__ = [
     # project
     "GlobalVariableList",
     "Project",
+    # walk
+    "walk_expressions",
+    "walk_statements",
+    "walk_pou",
+    "walk_project",
 ]

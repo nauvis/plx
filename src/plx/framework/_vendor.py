@@ -35,28 +35,15 @@ from plx.model.expressions import (
     DerefExpr,
     Expression,
     FunctionCallExpr,
-    BinaryExpr,
-    UnaryExpr,
-    ArrayAccessExpr,
-    MemberAccessExpr,
-    BitAccessExpr,
-    SubstringExpr,
-    TypeConversionExpr,
 )
 from plx.model.types import NamedTypeRef
 from plx.model.statements import (
     Assignment,
-    CaseBranch,
-    CaseStatement,
     FBInvocation,
-    ForStatement,
     FunctionCallStatement,
-    IfStatement,
-    RepeatStatement,
-    ReturnStatement,
     Statement,
-    WhileStatement,
 )
+from plx.model.walk import walk_expressions, walk_pou
 
 from ._compiler_core import CompileError
 
@@ -322,63 +309,6 @@ def _check_pointer_reference_operations(
     """DerefExpr, ADR/ADRINST/SIZEOF, and REF= are Beckhoff-only."""
     _POINTER_FUNCS = {"ADR", "ADRINST", "SIZEOF"}
 
-    def _has_deref(expr: Expression) -> bool:
-        if isinstance(expr, DerefExpr):
-            return True
-        if isinstance(expr, FunctionCallExpr):
-            return any(_has_deref(a.value) for a in expr.args)
-        if isinstance(expr, BinaryExpr):
-            return _has_deref(expr.left) or _has_deref(expr.right)
-        if isinstance(expr, UnaryExpr):
-            return _has_deref(expr.operand)
-        if isinstance(expr, ArrayAccessExpr):
-            return _has_deref(expr.array) or any(_has_deref(i) for i in expr.indices)
-        if isinstance(expr, MemberAccessExpr):
-            return _has_deref(expr.struct)
-        if isinstance(expr, BitAccessExpr):
-            return _has_deref(expr.target)
-        if isinstance(expr, TypeConversionExpr):
-            return _has_deref(expr.source)
-        if isinstance(expr, SubstringExpr):
-            return (_has_deref(expr.string)
-                    or (expr.start is not None and _has_deref(expr.start))
-                    or (expr.end is not None and _has_deref(expr.end)))
-        return False
-
-    def _check_stmts(stmts: list[Statement], pou_name: str) -> None:
-        for stmt in stmts:
-            if isinstance(stmt, Assignment):
-                if stmt.ref_assign:
-                    errors.append(
-                        f"POU '{pou_name}' uses REF= assignment — "
-                        f"reference assignment is Beckhoff-only"
-                    )
-                if _has_deref(stmt.target) or _has_deref(stmt.value):
-                    errors.append(
-                        f"POU '{pou_name}' uses pointer dereference — "
-                        f"pointer operations are Beckhoff-only"
-                    )
-            elif isinstance(stmt, IfStatement):
-                if _has_deref(stmt.if_branch.condition):
-                    errors.append(
-                        f"POU '{pou_name}' uses pointer dereference — "
-                        f"pointer operations are Beckhoff-only"
-                    )
-                _check_stmts(stmt.if_branch.body, pou_name)
-                for branch in stmt.elsif_branches:
-                    _check_stmts(branch.body, pou_name)
-                _check_stmts(stmt.else_body, pou_name)
-            elif isinstance(stmt, CaseStatement):
-                _check_stmts(stmt.else_body, pou_name)
-                for branch in stmt.branches:
-                    _check_stmts(branch.body, pou_name)
-            elif isinstance(stmt, ForStatement):
-                _check_stmts(stmt.body, pou_name)
-            elif isinstance(stmt, WhileStatement):
-                _check_stmts(stmt.body, pou_name)
-            elif isinstance(stmt, RepeatStatement):
-                _check_stmts(stmt.body, pou_name)
-
     # Check for pointer functions (ADR, ADRINST, SIZEOF)
     func_calls = _collect_function_calls(project)
     for func_name in _POINTER_FUNCS:
@@ -391,11 +321,26 @@ def _check_pointer_reference_operations(
 
     # Check for DerefExpr and ref_assign in statements
     for pou in project.pous:
-        for net in pou.networks:
-            _check_stmts(net.statements, pou.name)
-        for m in pou.methods:
-            for net in m.networks:
-                _check_stmts(net.statements, pou.name)
+        deref_reported = False
+
+        def _on_stmt(stmt: Statement) -> None:
+            nonlocal deref_reported
+            if isinstance(stmt, Assignment) and stmt.ref_assign:
+                errors.append(
+                    f"POU '{pou.name}' uses REF= assignment — "
+                    f"reference assignment is Beckhoff-only"
+                )
+
+        def _on_expr(expr: Expression) -> None:
+            nonlocal deref_reported
+            if not deref_reported and isinstance(expr, DerefExpr):
+                errors.append(
+                    f"POU '{pou.name}' uses pointer dereference — "
+                    f"pointer operations are Beckhoff-only"
+                )
+                deref_reported = True
+
+        walk_pou(pou, on_stmt=_on_stmt, on_expr=_on_expr)
 
 
 # ---------------------------------------------------------------------------
@@ -545,46 +490,11 @@ def _collect_fb_types(project: Project) -> dict[str, set[str]]:
     """
     result: dict[str, set[str]] = {}
 
-    def _walk_statements(stmts: list[Statement], pou_name: str) -> None:
-        for stmt in stmts:
-            if isinstance(stmt, FBInvocation):
-                if isinstance(stmt.fb_type, NamedTypeRef):
-                    result.setdefault(stmt.fb_type.name, set()).add(pou_name)
-            elif isinstance(stmt, IfStatement):
-                _walk_statements(stmt.if_branch.body, pou_name)
-                for branch in stmt.elsif_branches:
-                    _walk_statements(branch.body, pou_name)
-                _walk_statements(stmt.else_body, pou_name)
-            elif isinstance(stmt, CaseStatement):
-                for branch in stmt.branches:
-                    _walk_statements(branch.body, pou_name)
-                _walk_statements(stmt.else_body, pou_name)
-            elif isinstance(stmt, ForStatement):
-                _walk_statements(stmt.body, pou_name)
-            elif isinstance(stmt, WhileStatement):
-                _walk_statements(stmt.body, pou_name)
-            elif isinstance(stmt, RepeatStatement):
-                _walk_statements(stmt.body, pou_name)
-
     for pou in project.pous:
-        # Networks
-        for net in pou.networks:
-            _walk_statements(net.statements, pou.name)
-
-        # SFC body
-        if pou.sfc_body:
-            for step in pou.sfc_body.steps:
-                for action in step.actions + step.entry_actions + step.exit_actions:
-                    _walk_statements(action.body, pou.name)
-
-        # Methods
-        for m in pou.methods:
-            for net in m.networks:
-                _walk_statements(net.statements, pou.name)
-            if m.sfc_body:
-                for step in m.sfc_body.steps:
-                    for action in step.actions + step.entry_actions + step.exit_actions:
-                        _walk_statements(action.body, pou.name)
+        def _on_stmt(stmt: Statement, _name: str = pou.name) -> None:
+            if isinstance(stmt, FBInvocation) and isinstance(stmt.fb_type, NamedTypeRef):
+                result.setdefault(stmt.fb_type.name, set()).add(_name)
+        walk_pou(pou, on_stmt=_on_stmt)
 
     return result
 
@@ -643,39 +553,6 @@ _MATH_TRANSLATION_WARNINGS: dict[str, dict[Vendor, str]] = {
 }
 
 
-def _walk_expressions(expr: Expression) -> list[FunctionCallExpr]:
-    """Recursively collect all FunctionCallExpr nodes in an expression tree."""
-    result: list[FunctionCallExpr] = []
-    if isinstance(expr, FunctionCallExpr):
-        result.append(expr)
-        for arg in expr.args:
-            result.extend(_walk_expressions(arg.value))
-    elif isinstance(expr, BinaryExpr):
-        result.extend(_walk_expressions(expr.left))
-        result.extend(_walk_expressions(expr.right))
-    elif isinstance(expr, UnaryExpr):
-        result.extend(_walk_expressions(expr.operand))
-    elif isinstance(expr, ArrayAccessExpr):
-        result.extend(_walk_expressions(expr.array))
-        for idx in expr.indices:
-            result.extend(_walk_expressions(idx))
-    elif isinstance(expr, MemberAccessExpr):
-        result.extend(_walk_expressions(expr.struct))
-    elif isinstance(expr, DerefExpr):
-        result.extend(_walk_expressions(expr.pointer))
-    elif isinstance(expr, BitAccessExpr):
-        result.extend(_walk_expressions(expr.target))
-    elif isinstance(expr, TypeConversionExpr):
-        result.extend(_walk_expressions(expr.source))
-    elif isinstance(expr, SubstringExpr):
-        result.extend(_walk_expressions(expr.string))
-        if expr.start is not None:
-            result.extend(_walk_expressions(expr.start))
-        if expr.end is not None:
-            result.extend(_walk_expressions(expr.end))
-    return result
-
-
 def _collect_function_calls(project: Project) -> dict[str, set[str]]:
     """Walk all expressions in *project* and collect function call names.
 
@@ -683,60 +560,18 @@ def _collect_function_calls(project: Project) -> dict[str, set[str]]:
     """
     result: dict[str, set[str]] = {}
 
-    def _extract_from_expr(expr: Expression, pou_name: str) -> None:
-        for call in _walk_expressions(expr):
-            result.setdefault(call.function_name, set()).add(pou_name)
-
-    def _extract_from_stmts(stmts: list[Statement], pou_name: str) -> None:
-        for stmt in stmts:
-            if isinstance(stmt, Assignment):
-                _extract_from_expr(stmt.value, pou_name)
-                _extract_from_expr(stmt.target, pou_name)
-            elif isinstance(stmt, FunctionCallStatement):
-                _extract_from_expr(
-                    FunctionCallExpr(function_name=stmt.function_name, args=stmt.args),
-                    pou_name,
-                )
-            elif isinstance(stmt, ReturnStatement) and stmt.value is not None:
-                _extract_from_expr(stmt.value, pou_name)
-            elif isinstance(stmt, FBInvocation):
-                for expr in stmt.inputs.values():
-                    _extract_from_expr(expr, pou_name)
-            elif isinstance(stmt, IfStatement):
-                _extract_from_expr(stmt.if_branch.condition, pou_name)
-                _extract_from_stmts(stmt.if_branch.body, pou_name)
-                for branch in stmt.elsif_branches:
-                    _extract_from_expr(branch.condition, pou_name)
-                    _extract_from_stmts(branch.body, pou_name)
-                _extract_from_stmts(stmt.else_body, pou_name)
-            elif isinstance(stmt, CaseStatement):
-                _extract_from_expr(stmt.selector, pou_name)
-                for branch in stmt.branches:
-                    _extract_from_stmts(branch.body, pou_name)
-                _extract_from_stmts(stmt.else_body, pou_name)
-            elif isinstance(stmt, ForStatement):
-                _extract_from_expr(stmt.from_expr, pou_name)
-                _extract_from_expr(stmt.to_expr, pou_name)
-                if stmt.by_expr is not None:
-                    _extract_from_expr(stmt.by_expr, pou_name)
-                _extract_from_stmts(stmt.body, pou_name)
-            elif isinstance(stmt, WhileStatement):
-                _extract_from_expr(stmt.condition, pou_name)
-                _extract_from_stmts(stmt.body, pou_name)
-            elif isinstance(stmt, RepeatStatement):
-                _extract_from_expr(stmt.until, pou_name)
-                _extract_from_stmts(stmt.body, pou_name)
-
     for pou in project.pous:
-        for net in pou.networks:
-            _extract_from_stmts(net.statements, pou.name)
-        if pou.sfc_body:
-            for step in pou.sfc_body.steps:
-                for action in step.actions + step.entry_actions + step.exit_actions:
-                    _extract_from_stmts(action.body, pou.name)
-        for m in pou.methods:
-            for net in m.networks:
-                _extract_from_stmts(net.statements, pou.name)
+        def _on_stmt(stmt: Statement, _name: str = pou.name) -> None:
+            # FunctionCallStatement is a statement, not an expression —
+            # capture its function_name directly
+            if isinstance(stmt, FunctionCallStatement):
+                result.setdefault(stmt.function_name, set()).add(_name)
+
+        def _on_expr(expr: Expression, _name: str = pou.name) -> None:
+            if isinstance(expr, FunctionCallExpr):
+                result.setdefault(expr.function_name, set()).add(_name)
+
+        walk_pou(pou, on_stmt=_on_stmt, on_expr=_on_expr)
 
     return result
 
