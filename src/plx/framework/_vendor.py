@@ -39,6 +39,7 @@ from plx.model.expressions import (
     ArrayAccessExpr,
     MemberAccessExpr,
     BitAccessExpr,
+    SubstringExpr,
     TypeConversionExpr,
 )
 from plx.model.types import NamedTypeRef
@@ -580,6 +581,12 @@ def _walk_expressions(expr: Expression) -> list[FunctionCallExpr]:
         result.extend(_walk_expressions(expr.target))
     elif isinstance(expr, TypeConversionExpr):
         result.extend(_walk_expressions(expr.source))
+    elif isinstance(expr, SubstringExpr):
+        result.extend(_walk_expressions(expr.string))
+        if expr.start is not None:
+            result.extend(_walk_expressions(expr.start))
+        if expr.end is not None:
+            result.extend(_walk_expressions(expr.end))
     return result
 
 
