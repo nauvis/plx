@@ -14,6 +14,7 @@ from plx.model.expressions import (
     BinaryExpr,
     BinaryOp,
     BitAccessExpr,
+    DerefExpr,
     Expression,
     FunctionCallExpr,
     LiteralExpr,
@@ -695,6 +696,9 @@ class STWriter:
     def _expr_member_access(self, expr: MemberAccessExpr, _prec: int) -> str:
         return f"{self._expr(expr.struct, 10)}.{expr.member}"
 
+    def _expr_deref(self, expr: DerefExpr, _prec: int) -> str:
+        return f"{self._expr(expr.pointer, 10)}^"
+
     def _expr_bit_access(self, expr: BitAccessExpr, _prec: int) -> str:
         return f"{self._expr(expr.target, 10)}.{expr.bit_index}"
 
@@ -965,6 +969,7 @@ _EXPR_WRITERS = {
     "function_call": STWriter._expr_function_call,
     "array_access": STWriter._expr_array_access,
     "member_access": STWriter._expr_member_access,
+    "deref": STWriter._expr_deref,
     "bit_access": STWriter._expr_bit_access,
     "type_conversion": STWriter._expr_type_conversion,
     "substring": STWriter._expr_substring,

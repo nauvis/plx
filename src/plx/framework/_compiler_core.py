@@ -85,7 +85,7 @@ class CompileContext:
     """enum_name -> {member_name: int_value} for enum literal resolution"""
 
     known_methods: set[str] = field(default_factory=set)
-    """Names of @method-decorated functions on the POU being compiled"""
+    """Names of @fb_method-decorated functions on the POU being compiled"""
 
     source_line_offset: int = 0
     source_file: str = "<unknown>"
@@ -169,6 +169,7 @@ _BUILTIN_FUNCS = frozenset({
     "TRUNC", "ROUND",
     "LEN", "LEFT", "RIGHT", "MID", "FIND", "REPLACE", "INSERT", "DELETE",
     "AND", "OR", "XOR", "NOT",
+    "ADR", "ADRINST", "SIZEOF",
 })
 
 _PYTHON_BUILTIN_MAP: dict[str, str] = {

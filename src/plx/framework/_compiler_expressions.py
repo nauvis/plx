@@ -18,6 +18,7 @@ from plx.model.expressions import (
     BinaryOp,
     BitAccessExpr,
     CallArg,
+    DerefExpr,
     Expression,
     FunctionCallExpr,
     LiteralExpr,
@@ -115,6 +116,10 @@ class _ExpressionMixin:
                 f"Supported: {', '.join(f'math.{k}' for k in sorted(_MATH_CONSTANTS))}",
                 node, self.ctx,
             )
+        # Pointer dereference: expr.deref → DerefExpr(pointer=expr)
+        if node.attr == "deref":
+            pointer = self.compile_expression(node.value)
+            return DerefExpr(pointer=pointer)
         # Bit access: expr.bit5 → BitAccessExpr(target=expr, bit_index=5)
         m = _BIT_ACCESS_RE.match(node.attr)
         if m:

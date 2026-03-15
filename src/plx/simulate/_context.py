@@ -15,13 +15,16 @@ from plx.model.types import (
     ArrayTypeRef,
     EnumType,
     NamedTypeRef,
+    PointerTypeRef,
     PrimitiveTypeRef,
+    ReferenceTypeRef,
     StructType,
     TypeRef,
 )
 from plx.model.variables import Variable
 
 from ._executor import ExecutionEngine
+from ._pointers import PointerTable
 from ._proxy import StructProxy
 from ._trace import ScanTrace
 from ._triggers import ScanTrigger, SimulationTimeout
@@ -99,6 +102,10 @@ class SimulationContext:
         # Track temp var definitions for fresh allocation each scan
         object.__setattr__(self, "_temp_vars", list(pou.interface.temp_vars))
 
+        # Pointer table for ADR/deref/__NEW/__DELETE/REF= simulation
+        pointer_table = PointerTable()
+        object.__setattr__(self, "_pointer_table", pointer_table)
+
         # Persistent execution engine — reused across scans (clock_ms updated per scan)
         engine = ExecutionEngine(
             pou=pou,
@@ -107,6 +114,7 @@ class SimulationContext:
             pou_registry=self._pou_registry,
             data_type_registry=self._data_type_registry,
             enum_registry=self._enum_registry,
+            pointer_table=pointer_table,
         )
         object.__setattr__(self, "_engine", engine)
 
@@ -165,6 +173,10 @@ class SimulationContext:
             return parse_literal(var.initial_value, var.data_type, self._enum_registry)
 
         dt = var.data_type
+
+        # Pointer/reference types default to 0 (null)
+        if isinstance(dt, (PointerTypeRef, ReferenceTypeRef)):
+            return 0
 
         # Array allocation
         if isinstance(dt, ArrayTypeRef):

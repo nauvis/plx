@@ -14,6 +14,7 @@ from plx.model.expressions import (
     BinaryExpr,
     BinaryOp,
     BitAccessExpr,
+    DerefExpr,
     Expression,
     FunctionCallExpr,
     LiteralExpr,
@@ -28,7 +29,7 @@ from plx.model.expressions import (
 )
 from plx.model.pou import POU, Property
 from plx.model.sfc import Action, ActionQualifier, SFCBody, Step, Transition
-from plx.model.types import NamedTypeRef
+from plx.model.types import NamedTypeRef, PrimitiveTypeRef
 from plx.model.statements import (
     Assignment,
     CaseStatement,
@@ -43,6 +44,7 @@ from plx.model.statements import (
 )
 
 from ._builtins import STDLIB_FUNCTIONS
+from ._pointers import NULL_PTR, PointerTable, _RefBinding
 from plx.framework._library import get_library_fb
 from ._values import SimulationError, coerce_type, parse_literal, type_default
 
@@ -97,6 +99,7 @@ class ExecutionEngine:
         pou_registry: dict[str, POU] | None = None,
         data_type_registry: dict | None = None,
         enum_registry: dict | None = None,
+        pointer_table: PointerTable | None = None,
     ) -> None:
         self.pou = pou
         self.state = state
@@ -104,6 +107,7 @@ class ExecutionEngine:
         self.pou_registry = pou_registry or {}
         self.data_type_registry = data_type_registry or {}
         self.enum_registry = enum_registry or {}
+        self.pointer_table = pointer_table
 
     # -----------------------------------------------------------------------
     # Public API
@@ -384,8 +388,23 @@ class ExecutionEngine:
         handler(self, stmt)
 
     def _exec_assignment(self, stmt: Assignment) -> None:
+        if stmt.ref_assign:
+            self._exec_ref_assign(stmt)
+            return
         value = self._eval(stmt.value)
         self._write_target(stmt.target, value)
+
+    def _exec_ref_assign(self, stmt: Assignment) -> None:
+        """Handle REF= assignment: bind a reference to a variable."""
+        if self.pointer_table is None:
+            raise SimulationError(
+                "REF= assignment requires pointer support "
+                "(use simulate() instead of raw ExecutionEngine)"
+            )
+        container, key, path = self._resolve_binding(stmt.value)
+        addr = self.pointer_table.get_or_assign(path, container, key)
+        # Store a _RefBinding as the LHS value
+        self._write_target(stmt.target, _RefBinding(addr))
 
     def _exec_if(self, stmt: IfStatement) -> None:
         if self._scalar(self._eval(stmt.if_branch.condition)):
@@ -519,11 +538,28 @@ class ExecutionEngine:
             pou_registry=self.pou_registry,
             data_type_registry=self.data_type_registry,
             enum_registry=self.enum_registry,
+            pointer_table=self.pointer_table,
         )
         engine.execute()
 
     def _exec_function_call_stmt(self, stmt: FunctionCallStatement) -> None:
         name = stmt.function_name
+
+        # __DELETE is statement-only
+        if name.upper() == "__DELETE":
+            if self.pointer_table is None:
+                raise SimulationError(
+                    "__DELETE() requires pointer support "
+                    "(use simulate() instead of raw ExecutionEngine)"
+                )
+            if len(stmt.args) != 1:
+                raise SimulationError("__DELETE() requires exactly 1 argument")
+            addr = self._eval(stmt.args[0].value)
+            self.pointer_table.heap_free(int(addr))
+            # Set the pointer variable to null after deletion
+            if isinstance(stmt.args[0].value, VariableRef):
+                self.state[stmt.args[0].value.name] = NULL_PTR
+            return
 
         if name in STDLIB_FUNCTIONS:
             pos_args = [self._eval(a.value) for a in stmt.args if a.name is None]
@@ -638,9 +674,17 @@ class ExecutionEngine:
 
     def _eval_variable_ref(self, expr: VariableRef) -> object:
         name = expr.name
-        if name in self.state:
-            return self.state[name]
-        raise SimulationError(f"Variable '{name}' not found in state")
+        if name not in self.state:
+            raise SimulationError(f"Variable '{name}' not found in state")
+        value = self.state[name]
+        # Transparently follow reference bindings
+        if isinstance(value, _RefBinding):
+            if self.pointer_table is None:
+                raise SimulationError(
+                    f"Variable '{name}' is a reference binding but no pointer table available"
+                )
+            return self.pointer_table.read(value.target_addr)
+        return value
 
     def _eval_binary(self, expr: BinaryExpr) -> object:
         # No short-circuit — evaluate both sides (PLC semantics)
@@ -726,6 +770,11 @@ class ExecutionEngine:
     def _eval_function_call(self, expr: FunctionCallExpr) -> object:
         name = expr.function_name
 
+        # Pointer intrinsics (before stdlib so ADR/SIZEOF don't conflict)
+        result = self._try_pointer_intrinsic(name, expr)
+        if result is not None:
+            return result[0]
+
         # Stdlib functions
         if name in STDLIB_FUNCTIONS:
             pos_args = [self._eval(a.value) for a in expr.args if a.name is None]
@@ -741,6 +790,215 @@ class ExecutionEngine:
             return self._call_method(name, expr.args)
 
         raise SimulationError(f"Unknown function: {name}")
+
+    def _try_pointer_intrinsic(
+        self, name: str, expr: FunctionCallExpr,
+    ) -> tuple[object] | None:
+        """Handle pointer intrinsic functions. Returns (value,) or None."""
+        upper = name.upper()
+
+        if upper == "ADR" or upper == "ADRINST":
+            if self.pointer_table is None:
+                raise SimulationError(
+                    f"{name}() requires pointer support "
+                    f"(use simulate() instead of raw ExecutionEngine)"
+                )
+            if len(expr.args) != 1:
+                raise SimulationError(f"{name}() requires exactly 1 argument")
+            container, key, path = self._resolve_binding(expr.args[0].value)
+            return (self.pointer_table.get_or_assign(path, container, key),)
+
+        if upper == "SIZEOF":
+            if len(expr.args) != 1:
+                raise SimulationError("SIZEOF() requires exactly 1 argument")
+            return (self._eval_sizeof(expr.args[0].value),)
+
+        if upper == "__NEW":
+            if self.pointer_table is None:
+                raise SimulationError(
+                    "__NEW() requires pointer support "
+                    "(use simulate() instead of raw ExecutionEngine)"
+                )
+            return (self._eval_new(expr),)
+
+        if upper == "__ISVALIDREF":
+            if len(expr.args) != 1:
+                raise SimulationError("__ISVALIDREF() requires exactly 1 argument")
+            return (self._eval_isvalidref(expr.args[0].value),)
+
+        return None
+
+    def _resolve_binding(
+        self, expr: Expression,
+    ) -> tuple[dict | list, str | int, str]:
+        """Resolve an expression to (container, key, canonical_path).
+
+        The container is the dict/list holding the value; key is the
+        name/index within it. This enables ADR() to return stable addresses
+        and REF= to create aliases.
+        """
+        if isinstance(expr, VariableRef):
+            return (self.state, expr.name, expr.name)
+
+        if isinstance(expr, MemberAccessExpr):
+            struct = self._eval(expr.struct)
+            if not isinstance(struct, dict):
+                raise SimulationError(
+                    f"Cannot take address of member '{expr.member}' "
+                    f"on {type(struct).__name__}"
+                )
+            # Build path for stable addressing
+            if isinstance(expr.struct, VariableRef):
+                path = f"{expr.struct.name}.{expr.member}"
+            else:
+                path = f"<expr>.{expr.member}"
+            return (struct, expr.member, path)
+
+        if isinstance(expr, ArrayAccessExpr):
+            array = self._eval(expr.array)
+            if not isinstance(array, list):
+                raise SimulationError(
+                    f"Cannot take address of element in {type(array).__name__}"
+                )
+            idx = int(self._eval(expr.indices[0]))
+            if isinstance(expr.array, VariableRef):
+                path = f"{expr.array.name}[{idx}]"
+            else:
+                path = f"<expr>[{idx}]"
+            return (array, idx, path)
+
+        if isinstance(expr, DerefExpr):
+            # ADR(ptr^) — address of what ptr points to
+            if self.pointer_table is None:
+                raise SimulationError("Cannot resolve binding through pointer without pointer table")
+            addr = self._eval(expr.pointer)
+            binding = self.pointer_table._addr_to_binding.get(int(addr))
+            if binding is None:
+                raise SimulationError(f"Cannot take address of dereferenced invalid pointer")
+            container, key = binding
+            return (container, key, f"<deref@0x{int(addr):08X}>")
+
+        raise SimulationError(
+            f"Cannot take address of expression kind: {expr.kind}"
+        )
+
+    def _eval_sizeof(self, expr: Expression) -> int:
+        """Evaluate SIZEOF() — return byte size based on type."""
+        _PRIM_SIZES = {
+            "BOOL": 1, "BYTE": 1, "SINT": 1, "USINT": 1,
+            "WORD": 2, "INT": 2, "UINT": 2,
+            "DWORD": 4, "DINT": 4, "UDINT": 4, "REAL": 4, "TIME": 4,
+            "LWORD": 8, "LINT": 8, "ULINT": 8, "LREAL": 8, "LTIME": 8,
+        }
+        # Try to find the variable's declared type
+        if isinstance(expr, VariableRef):
+            for var in (
+                self.pou.interface.input_vars
+                + self.pou.interface.output_vars
+                + self.pou.interface.static_vars
+                + self.pou.interface.inout_vars
+                + self.pou.interface.temp_vars
+            ):
+                if var.name == expr.name:
+                    from plx.model.types import PrimitiveTypeRef, ArrayTypeRef, StringTypeRef
+                    dt = var.data_type
+                    if isinstance(dt, PrimitiveTypeRef):
+                        return _PRIM_SIZES.get(dt.type.value, 4)
+                    if isinstance(dt, StringTypeRef):
+                        return (dt.max_length or 255) + 1
+                    if isinstance(dt, ArrayTypeRef):
+                        elem_size = 4  # default
+                        if isinstance(dt.element_type, PrimitiveTypeRef):
+                            elem_size = _PRIM_SIZES.get(dt.element_type.type.value, 4)
+                        count = 1
+                        for dim in dt.dimensions:
+                            if isinstance(dim.lower, int) and isinstance(dim.upper, int):
+                                count *= (dim.upper - dim.lower + 1)
+                        return elem_size * count
+                    break
+        # Fallback: guess from runtime value
+        value = self._eval(expr)
+        if isinstance(value, bool):
+            return 1
+        if isinstance(value, int):
+            return 4
+        if isinstance(value, float):
+            return 4
+        if isinstance(value, str):
+            return len(value) + 1
+        if isinstance(value, dict):
+            return sum(4 for _ in value)  # rough estimate
+        if isinstance(value, list):
+            return len(value) * 4
+        return 4
+
+    def _eval_new(self, expr: FunctionCallExpr) -> int:
+        """Evaluate __NEW(Type [, count]). Returns heap address."""
+        if not expr.args:
+            raise SimulationError("__NEW() requires at least 1 argument")
+        # First arg is a type literal (LiteralExpr with type name string)
+        type_arg = expr.args[0].value
+        if isinstance(type_arg, LiteralExpr):
+            type_name = type_arg.value
+        elif isinstance(type_arg, VariableRef):
+            type_name = type_arg.name
+        else:
+            type_name = str(type_arg)
+        # Strip "POINTER TO " prefix (common: __NEW(POINTER TO MyStruct))
+        upper = type_name.upper()
+        if upper.startswith("POINTER TO "):
+            type_name = type_name[11:]
+        # Determine default value
+        from plx.model.types import PrimitiveType, StructType
+        try:
+            prim = PrimitiveType(type_name.upper())
+            default = type_default(PrimitiveTypeRef(type=prim))
+        except ValueError:
+            # Named type — try to allocate from registry
+            if type_name in self.data_type_registry:
+                typedef = self.data_type_registry[type_name]
+                if isinstance(typedef, StructType):
+                    default = {}
+                    for m in typedef.members:
+                        d = type_default(m.data_type)
+                        default[m.name] = d if d is not None else 0
+                else:
+                    default = 0
+            else:
+                default = {}
+        # Handle count argument: __NEW(BYTE, 100) → list
+        if len(expr.args) >= 2:
+            count = int(self._eval(expr.args[1].value))
+            default = [default for _ in range(count)]
+        return self.pointer_table.heap_alloc(default)
+
+    def _eval_isvalidref(self, expr: Expression) -> bool:
+        """Evaluate __ISVALIDREF(ref) — check if reference is valid."""
+        # Read raw value without following references
+        if isinstance(expr, VariableRef):
+            if expr.name not in self.state:
+                return False
+            value = self.state[expr.name]
+            if isinstance(value, _RefBinding):
+                if self.pointer_table is None:
+                    return False
+                return self.pointer_table.is_valid(value.target_addr)
+            # A raw integer — check if it's a valid pointer
+            if isinstance(value, int):
+                if value == NULL_PTR:
+                    return False
+                if self.pointer_table is not None:
+                    return self.pointer_table.is_valid(value)
+                return value != 0
+        # For other expressions, just check non-zero
+        value = self._eval(expr)
+        if isinstance(value, _RefBinding):
+            if self.pointer_table is None:
+                return False
+            return self.pointer_table.is_valid(value.target_addr)
+        if isinstance(value, int):
+            return value != 0
+        return True
 
     def _call_user_function(self, name: str, args: list) -> object:
         """Call a user-defined FUNCTION POU."""
@@ -775,6 +1033,7 @@ class ExecutionEngine:
             pou_registry=self.pou_registry,
             data_type_registry=self.data_type_registry,
             enum_registry=self.enum_registry,
+            pointer_table=self.pointer_table,
         )
         return engine.execute()
 
@@ -830,6 +1089,7 @@ class ExecutionEngine:
             pou_registry=self.pou_registry,
             data_type_registry=self.data_type_registry,
             enum_registry=self.enum_registry,
+            pointer_table=self.pointer_table,
         )
         try:
             for network in prop.getter.networks:
@@ -853,6 +1113,7 @@ class ExecutionEngine:
             pou_registry=self.pou_registry,
             data_type_registry=self.data_type_registry,
             enum_registry=self.enum_registry,
+            pointer_table=self.pointer_table,
         )
         try:
             for network in prop.setter.networks:
@@ -901,6 +1162,18 @@ class ExecutionEngine:
             return self.state.get("__system_first_scan", False)
         raise SimulationError(f"Unknown system flag: {expr.flag}")
 
+    def _eval_deref(self, expr: DerefExpr) -> object:
+        if self.pointer_table is None:
+            raise SimulationError(
+                "Pointer dereference is not supported in simulation"
+            )
+        addr = self._eval(expr.pointer)
+        if not isinstance(addr, (int, float)):
+            raise SimulationError(
+                f"Cannot dereference non-integer value: {type(addr).__name__}"
+            )
+        return self.pointer_table.read(int(addr))
+
     def _eval_substring(self, expr: SubstringExpr) -> object:
         s = self._eval(expr.string)
         if not isinstance(s, str):
@@ -920,6 +1193,7 @@ class ExecutionEngine:
         "unary": _eval_unary,
         "function_call": _eval_function_call,
         "member_access": _eval_member_access,
+        "deref": _eval_deref,
         "bit_access": _eval_bit_access,
         "array_access": _eval_array_access,
         "type_conversion": _eval_type_conversion,
@@ -932,9 +1206,27 @@ class ExecutionEngine:
     # -----------------------------------------------------------------------
 
     def _write_target(self, target: Expression, value: object) -> None:
-        """Write a value to an assignment target (variable, member, array)."""
+        """Write a value to an assignment target (variable, member, array, deref)."""
         if target.kind == "variable_ref":
-            self.state[target.name] = value
+            # Write-through for reference-bound variables
+            current = self.state.get(target.name)
+            if isinstance(current, _RefBinding) and not isinstance(value, _RefBinding):
+                if self.pointer_table is None:
+                    raise SimulationError(
+                        f"Variable '{target.name}' is a reference binding "
+                        f"but no pointer table available"
+                    )
+                self.pointer_table.write(current.target_addr, value)
+            else:
+                self.state[target.name] = value
+        elif target.kind == "deref":
+            if self.pointer_table is None:
+                raise SimulationError(
+                    "Pointer write requires pointer support "
+                    "(use simulate() instead of raw ExecutionEngine)"
+                )
+            addr = self._eval(target.pointer)
+            self.pointer_table.write(int(addr), value)
         elif target.kind == "member_access":
             struct = self._eval(target.struct)
             if isinstance(struct, dict):

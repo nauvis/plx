@@ -12,8 +12,10 @@ from datetime import datetime, timezone
 from plx.model.types import (
     ArrayTypeRef,
     NamedTypeRef,
+    PointerTypeRef,
     PrimitiveType,
     PrimitiveTypeRef,
+    ReferenceTypeRef,
     StringTypeRef,
     TypeRef,
 )
@@ -262,6 +264,10 @@ def type_default(data_type: TypeRef) -> object:
 
     if isinstance(data_type, StringTypeRef):
         return ""
+
+    # Pointer and reference types default to 0 (null/unbound)
+    if isinstance(data_type, (PointerTypeRef, ReferenceTypeRef)):
+        return 0
 
     # Named types and arrays are handled at allocation level
     return None

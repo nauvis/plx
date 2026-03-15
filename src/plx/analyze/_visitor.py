@@ -11,6 +11,7 @@ from typing import Callable
 from plx.model.expressions import (
     ArrayAccessExpr,
     BinaryExpr,
+    DerefExpr,
     Expression,
     FunctionCallExpr,
     LiteralExpr,
@@ -347,6 +348,8 @@ class AnalysisVisitor:
         if isinstance(expr, BitAccessExpr):
             if isinstance(expr.target, VariableRef):
                 return expr.target.name
+        if isinstance(expr, DerefExpr):
+            return AnalysisVisitor._extract_target_name(expr.pointer)
         return None
 
     @staticmethod
@@ -377,6 +380,8 @@ class AnalysisVisitor:
                 self._collect_reads(ctx, idx)
         elif isinstance(expr, MemberAccessExpr):
             self._collect_reads(ctx, expr.struct)
+        elif isinstance(expr, DerefExpr):
+            self._collect_reads(ctx, expr.pointer)
         elif isinstance(expr, BitAccessExpr):
             self._collect_reads(ctx, expr.target)
         elif isinstance(expr, TypeConversionExpr):

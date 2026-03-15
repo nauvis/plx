@@ -130,6 +130,12 @@ class _StatementMixin:
         )
 
     def _compile_augassign(self, node: ast.AugAssign) -> list[Statement]:
+        # @= → reference assignment (REF=)
+        if isinstance(node.op, ast.MatMult):
+            target = self._compile_target(node.target, node)
+            value, pending = self._compile_expr_and_flush(node.value)
+            pending.append(Assignment(target=target, value=value, ref_assign=True))
+            return pending
         rejected_msg = _REJECTED_AUGOP_MESSAGES.get(type(node.op))
         if rejected_msg is not None:
             raise CompileError(rejected_msg, node, self.ctx)

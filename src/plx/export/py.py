@@ -14,6 +14,7 @@ from plx.model.expressions import (
     BinaryExpr,
     BinaryOp,
     BitAccessExpr,
+    DerefExpr,
     Expression,
     FunctionCallExpr,
     LiteralExpr,
@@ -629,19 +630,19 @@ class PyWriter:
         elif isinstance(td, EnumType):
             self._write_enum(td)
         elif isinstance(td, UnionType):
-            self._line(f"# UnionType '{td.name}' — not supported in framework")
+            self._line(f"# UnionType '{td.name}' — rarely used, no framework support")
             for m in td.members:
                 self._line(f"#   {m.name}: {self._type_ref(m.data_type)}")
         elif isinstance(td, AliasType):
             self._line(
                 f"# AliasType '{td.name}' = {self._type_ref(td.base_type)}"
-                f" — not supported in framework"
+                f" — rarely used, no framework support"
             )
         elif isinstance(td, SubrangeType):
             self._line(
                 f"# SubrangeType '{td.name}': {td.base_type.value}"
                 f"({td.lower_bound}..{td.upper_bound})"
-                f" — not supported in framework"
+                f" — rarely used, no framework support"
             )
 
     def _write_struct(self, td: StructType) -> None:
@@ -854,9 +855,9 @@ class PyWriter:
             if has_content:
                 self._line()
             if m.access != AccessSpecifier.PUBLIC:
-                self._line(f"@method(access=AccessSpecifier.{m.access.value})")
+                self._line(f"@fb_method(access=AccessSpecifier.{m.access.value})")
             else:
-                self._line("@method")
+                self._line("@fb_method")
             params: list[str] = ["self"]
             for v in m.interface.input_vars:
                 params.append(f"{v.name}: {self._type_ref(v.data_type)}")
@@ -1019,9 +1020,9 @@ class PyWriter:
 
         # Decorator
         if m.access != AccessSpecifier.PUBLIC:
-            self._line(f"@method(access=AccessSpecifier.{m.access.value})")
+            self._line(f"@fb_method(access=AccessSpecifier.{m.access.value})")
         else:
-            self._line("@method")
+            self._line("@fb_method")
 
         # Signature — input and inout params go in the method signature
         params: list[str] = ["self"]
@@ -1348,6 +1349,10 @@ class PyWriter:
             self._line(f"# {self._expr(stmt.target)} {stmt.latch}= {self._expr(stmt.value)}")
             self._line("pass  # latch assignment (S=/R=) not yet supported in framework")
             return
+        # REF= reference assignment: ``ref @= expr``
+        if stmt.ref_assign:
+            self._line(f"{self._expr(stmt.target)} @= {self._expr(stmt.value)}")
+            return
         # Recover augmented assignment: ``x = x + y`` → ``x += y``
         if isinstance(stmt.value, BinaryExpr):
             aug = self._AUGOP.get(stmt.value.op)
@@ -1514,7 +1519,16 @@ class PyWriter:
     def _write_fb_invocation(self, stmt: FBInvocation) -> None:
         # Emit: self.instance(IN=val, PT=val)
         if isinstance(stmt.instance_name, str):
-            instance = f"self.{stmt.instance_name}" if stmt.instance_name in self._self_vars else stmt.instance_name
+            inst_name = stmt.instance_name
+            # Beckhoff OOP: THIS^.fb.Method → self.fb.Method
+            if inst_name.startswith("THIS^."):
+                instance = f"self.{inst_name[6:]}"
+            elif inst_name.startswith("SUPER^."):
+                instance = f"super().{inst_name[7:]}"
+            elif inst_name in self._self_vars:
+                instance = f"self.{inst_name}"
+            else:
+                instance = inst_name
         else:
             instance = self._expr(stmt.instance_name)
         parts: list[str] = []
@@ -1650,6 +1664,11 @@ class PyWriter:
         return name
 
     def _expr_binary(self, expr: BinaryExpr, parent_prec: int) -> str:
+        # Pythonic reconstruction attempts
+        result = self._try_reconstruct_membership(expr, parent_prec)
+        if result is not None:
+            return result
+
         # Function-call style ops
         if expr.op in _FUNC_CALL_OPS:
             return f"{expr.op.value}({self._expr(expr.left)}, {self._expr(expr.right)})"
@@ -1679,23 +1698,17 @@ class PyWriter:
         return f"{expr.op.value}({operand})"
 
     def _expr_function_call(self, expr: FunctionCallExpr, _prec: int) -> str:
-        if expr.function_name == "CONCAT":
-            fstr = self._try_reconstruct_fstring(expr)
-            if fstr is not None:
-                return fstr
-        # LIMIT(mn, val, mx) → math.clamp(val, mn, mx)
-        if expr.function_name == "LIMIT" and len(expr.args) == 3:
-            mn = self._expr(expr.args[0].value, 0)
-            val = self._expr(expr.args[1].value, 0)
-            mx = self._expr(expr.args[2].value, 0)
-            return f"math.clamp({val}, {mn}, {mx})"
-        # TRUNC(a / b) → a // b
-        if expr.function_name == "TRUNC" and len(expr.args) == 1:
-            inner = expr.args[0].value
-            if isinstance(inner, BinaryExpr) and inner.op == BinaryOp.DIV:
-                left = self._expr(inner.left, 5)
-                right = self._expr(inner.right, 6)
-                return f"{left} // {right}"
+        # Pythonic reconstruction attempts
+        for try_fn in (
+            self._try_reconstruct_fstring,
+            self._try_reconstruct_ternary,
+            self._try_reconstruct_clamp,
+            self._try_reconstruct_floor_div,
+        ):
+            result = try_fn(expr, _prec)
+            if result is not None:
+                return result
+
         name = expr.function_name
         # Beckhoff OOP: SUPER^.Method() → super().Method()
         if name.startswith("SUPER^."):
@@ -1707,12 +1720,18 @@ class PyWriter:
         args = self._call_args_str(expr.args)
         return f"{name}({args})"
 
-    def _try_reconstruct_fstring(self, expr: FunctionCallExpr) -> str | None:
-        """Try to reconstruct an f-string from a CONCAT(...) call.
+    # ------------------------------------------------------------------
+    # Pythonic reconstruction methods
+    #
+    # Each method returns ``str | None``.  The calling site tries each
+    # in turn and uses the first non-None result; otherwise falls
+    # through to generic formatting.
+    # ------------------------------------------------------------------
 
-        Returns ``f"..."`` string if all args are positional and representable,
-        ``None`` otherwise (caller falls back to raw CONCAT).
-        """
+    def _try_reconstruct_fstring(self, expr: FunctionCallExpr, _prec: int) -> str | None:
+        """``CONCAT(a, b, ...)`` → ``f"...{expr}..."``."""
+        if expr.function_name != "CONCAT":
+            return None
         if any(a.name is not None for a in expr.args):
             return None  # named args — not from f-string
 
@@ -1740,12 +1759,126 @@ class PyWriter:
 
         return f'f"{"".join(parts)}"'
 
+    def _try_reconstruct_ternary(self, expr: FunctionCallExpr, _prec: int) -> str | None:
+        """``SEL(cond, false_val, true_val)`` → ``true_val if cond else false_val``."""
+        if expr.function_name != "SEL" or len(expr.args) != 3:
+            return None
+        if any(a.name is not None for a in expr.args):
+            return None  # named args — from vendor code, not from ternary
+        cond = self._expr(expr.args[0].value)
+        false_val = self._expr(expr.args[1].value)
+        true_val = self._expr(expr.args[2].value)
+        result = f"{true_val} if {cond} else {false_val}"
+        # Ternary has very low precedence — parenthesise if nested
+        if _prec > 0:
+            return f"({result})"
+        return result
+
+    def _try_reconstruct_clamp(self, expr: FunctionCallExpr, _prec: int) -> str | None:
+        """``LIMIT(mn, val, mx)`` → ``math.clamp(val, mn, mx)``."""
+        if expr.function_name != "LIMIT" or len(expr.args) != 3:
+            return None
+        mn = self._expr(expr.args[0].value, 0)
+        val = self._expr(expr.args[1].value, 0)
+        mx = self._expr(expr.args[2].value, 0)
+        return f"math.clamp({val}, {mn}, {mx})"
+
+    def _try_reconstruct_floor_div(self, expr: FunctionCallExpr, _prec: int) -> str | None:
+        """``TRUNC(a / b)`` → ``a // b``."""
+        if expr.function_name != "TRUNC" or len(expr.args) != 1:
+            return None
+        inner = expr.args[0].value
+        if not isinstance(inner, BinaryExpr) or inner.op != BinaryOp.DIV:
+            return None
+        left = self._expr(inner.left, 5)
+        right = self._expr(inner.right, 6)
+        return f"{left} // {right}"
+
+    def _try_reconstruct_membership(self, expr: BinaryExpr, parent_prec: int) -> str | None:
+        """OR/EQ chain → ``x in (a, b, c)``, AND/NE chain → ``x not in (a, b, c)``.
+
+        The compiler emits::
+
+            OR(OR(EQ(x, a), EQ(x, b)), EQ(x, c))     # x in (a, b, c)
+            AND(AND(NE(x, a), NE(x, b)), NE(x, c))    # x not in (a, b, c)
+
+        Walks the left spine collecting EQ/NE leaves.  All leaves must
+        compare the same ``left`` expression (structural equality via
+        Pydantic ``__eq__``).  Requires at least two values.
+        """
+        # Determine which pair of ops to look for
+        if expr.op == BinaryOp.OR:
+            leaf_op = BinaryOp.EQ
+            negate = False
+        elif expr.op == BinaryOp.AND:
+            leaf_op = BinaryOp.NE
+            negate = True
+        else:
+            return None
+
+        # Collect values by walking the left-folded spine
+        values: list[Expression] = []
+        target: Expression | None = None
+        node: Expression = expr
+
+        while isinstance(node, BinaryExpr) and node.op == expr.op:
+            rhs = node.right
+            if not isinstance(rhs, BinaryExpr) or rhs.op != leaf_op:
+                return None
+            if target is None:
+                target = rhs.left
+            elif rhs.left != target:
+                return None
+            values.append(rhs.right)
+            node = node.left
+
+        # The leftmost node is also a leaf
+        if not isinstance(node, BinaryExpr) or node.op != leaf_op:
+            return None
+        if target is None:
+            target = node.left
+        elif node.left != target:
+            return None
+        values.append(node.right)
+
+        if len(values) < 2:
+            return None
+
+        # Values were collected right-to-left; reverse to restore original order
+        values.reverse()
+
+        keyword = "not in" if negate else "in"
+        target_str = self._expr(target)
+        values_str = ", ".join(self._expr(v) for v in values)
+        result = f"{target_str} {keyword} ({values_str})"
+        # `in` has comparison-level precedence in Python
+        if _BINOP_PRECEDENCE[BinaryOp.EQ] < parent_prec:
+            return f"({result})"
+        return result
+
     def _expr_array_access(self, expr: ArrayAccessExpr, _prec: int) -> str:
         indices = ", ".join(self._expr(i) for i in expr.indices)
         return f"{self._expr(expr.array, 10)}[{indices}]"
 
     def _expr_member_access(self, expr: MemberAccessExpr, _prec: int) -> str:
+        # Beckhoff OOP: THIS^.member → self.member, SUPER^.member → super().member
+        if isinstance(expr.struct, DerefExpr) and isinstance(expr.struct.pointer, VariableRef):
+            name = expr.struct.pointer.name.upper()
+            if name == "THIS":
+                return f"self.{expr.member}"
+            if name == "SUPER":
+                return f"super().{expr.member}"
         return f"{self._expr(expr.struct, 10)}.{expr.member}"
+
+    def _expr_deref(self, expr: DerefExpr, _prec: int) -> str:
+        # Beckhoff OOP: bare THIS^ → self, SUPER^ → super()
+        if isinstance(expr.pointer, VariableRef):
+            name = expr.pointer.name.upper()
+            if name == "THIS":
+                return "self"
+            if name == "SUPER":
+                return "super()"
+        return f"{self._expr(expr.pointer, 10)}.deref"
 
     def _expr_bit_access(self, expr: BitAccessExpr, _prec: int) -> str:
         return f"{self._expr(expr.target, 10)}.bit{expr.bit_index}"
@@ -1861,6 +1994,7 @@ _EXPR_WRITERS = {
     "function_call": PyWriter._expr_function_call,
     "array_access": PyWriter._expr_array_access,
     "member_access": PyWriter._expr_member_access,
+    "deref": PyWriter._expr_deref,
     "bit_access": PyWriter._expr_bit_access,
     "type_conversion": PyWriter._expr_type_conversion,
     "substring": PyWriter._expr_substring,

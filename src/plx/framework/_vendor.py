@@ -20,7 +20,7 @@ Usage::
     from plx.framework import project, Vendor
 
     ir = project("MyProject", pous=[Main]).compile(target=Vendor.AB)
-    # → VendorValidationError if Main uses @method, etc.
+    # → VendorValidationError if Main uses @fb_method, etc.
     # → CompileResult with .project and .warnings otherwise
 """
 
@@ -32,6 +32,7 @@ from typing import Any
 
 from plx.model.project import Project
 from plx.model.expressions import (
+    DerefExpr,
     Expression,
     FunctionCallExpr,
     BinaryExpr,
@@ -315,6 +316,88 @@ def _type_contains(type_ref: object, kind: str) -> bool:
     return False
 
 
+def _check_pointer_reference_operations(
+    project: Project, target: Vendor, errors: list[str],
+) -> None:
+    """DerefExpr, ADR/ADRINST/SIZEOF, and REF= are Beckhoff-only."""
+    _POINTER_FUNCS = {"ADR", "ADRINST", "SIZEOF"}
+
+    def _has_deref(expr: Expression) -> bool:
+        if isinstance(expr, DerefExpr):
+            return True
+        if isinstance(expr, FunctionCallExpr):
+            return any(_has_deref(a.value) for a in expr.args)
+        if isinstance(expr, BinaryExpr):
+            return _has_deref(expr.left) or _has_deref(expr.right)
+        if isinstance(expr, UnaryExpr):
+            return _has_deref(expr.operand)
+        if isinstance(expr, ArrayAccessExpr):
+            return _has_deref(expr.array) or any(_has_deref(i) for i in expr.indices)
+        if isinstance(expr, MemberAccessExpr):
+            return _has_deref(expr.struct)
+        if isinstance(expr, BitAccessExpr):
+            return _has_deref(expr.target)
+        if isinstance(expr, TypeConversionExpr):
+            return _has_deref(expr.source)
+        if isinstance(expr, SubstringExpr):
+            return (_has_deref(expr.string)
+                    or (expr.start is not None and _has_deref(expr.start))
+                    or (expr.end is not None and _has_deref(expr.end)))
+        return False
+
+    def _check_stmts(stmts: list[Statement], pou_name: str) -> None:
+        for stmt in stmts:
+            if isinstance(stmt, Assignment):
+                if stmt.ref_assign:
+                    errors.append(
+                        f"POU '{pou_name}' uses REF= assignment — "
+                        f"reference assignment is Beckhoff-only"
+                    )
+                if _has_deref(stmt.target) or _has_deref(stmt.value):
+                    errors.append(
+                        f"POU '{pou_name}' uses pointer dereference — "
+                        f"pointer operations are Beckhoff-only"
+                    )
+            elif isinstance(stmt, IfStatement):
+                if _has_deref(stmt.if_branch.condition):
+                    errors.append(
+                        f"POU '{pou_name}' uses pointer dereference — "
+                        f"pointer operations are Beckhoff-only"
+                    )
+                _check_stmts(stmt.if_branch.body, pou_name)
+                for branch in stmt.elsif_branches:
+                    _check_stmts(branch.body, pou_name)
+                _check_stmts(stmt.else_body, pou_name)
+            elif isinstance(stmt, CaseStatement):
+                _check_stmts(stmt.else_body, pou_name)
+                for branch in stmt.branches:
+                    _check_stmts(branch.body, pou_name)
+            elif isinstance(stmt, ForStatement):
+                _check_stmts(stmt.body, pou_name)
+            elif isinstance(stmt, WhileStatement):
+                _check_stmts(stmt.body, pou_name)
+            elif isinstance(stmt, RepeatStatement):
+                _check_stmts(stmt.body, pou_name)
+
+    # Check for pointer functions (ADR, ADRINST, SIZEOF)
+    func_calls = _collect_function_calls(project)
+    for func_name in _POINTER_FUNCS:
+        if func_name in func_calls:
+            for pou_name in sorted(func_calls[func_name]):
+                errors.append(
+                    f"POU '{pou_name}' uses {func_name}() — "
+                    f"pointer functions are Beckhoff-only"
+                )
+
+    # Check for DerefExpr and ref_assign in statements
+    for pou in project.pous:
+        for net in pou.networks:
+            _check_stmts(net.statements, pou.name)
+        for m in pou.methods:
+            for net in m.networks:
+                _check_stmts(net.statements, pou.name)
+
+
 # ---------------------------------------------------------------------------
 # Check registry — add new checks here
 # ---------------------------------------------------------------------------
@@ -326,6 +409,7 @@ _CHECKS = [
     _check_abstract_final,
     _check_struct_extends,
     _check_pointer_reference_types,
+    _check_pointer_reference_operations,
 ]
 
 
@@ -577,6 +661,8 @@ def _walk_expressions(expr: Expression) -> list[FunctionCallExpr]:
             result.extend(_walk_expressions(idx))
     elif isinstance(expr, MemberAccessExpr):
         result.extend(_walk_expressions(expr.struct))
+    elif isinstance(expr, DerefExpr):
+        result.extend(_walk_expressions(expr.pointer))
     elif isinstance(expr, BitAccessExpr):
         result.extend(_walk_expressions(expr.target))
     elif isinstance(expr, TypeConversionExpr):

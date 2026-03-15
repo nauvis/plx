@@ -134,6 +134,13 @@ class TypeConversionExpr(IRModel):
     source_type: TypeRef | None = None
 
 
+class DerefExpr(IRModel):
+    """Pointer dereference: ptr^ in ST."""
+
+    kind: Literal["deref"] = "deref"
+    pointer: Expression
+
+
 class SubstringExpr(IRModel):
     """String substring extraction (0-based, half-open interval).
 
@@ -168,6 +175,7 @@ Expression = Annotated[
         MemberAccessExpr,
         BitAccessExpr,
         TypeConversionExpr,
+        DerefExpr,
         SubstringExpr,
         SystemFlagExpr,
     ],
@@ -192,6 +200,7 @@ ArrayAccessExpr.model_rebuild()
 MemberAccessExpr.model_rebuild()
 BitAccessExpr.model_rebuild()
 TypeConversionExpr.model_rebuild()
+DerefExpr.model_rebuild()
 SubstringExpr.model_rebuild()
 SystemFlagExpr.model_rebuild()
 
