@@ -491,8 +491,10 @@ class _LDTransformer:
         from plx.model.types import PrimitiveTypeRef
         if isinstance(expr.target_type, PrimitiveTypeRef):
             type_name = f"TO_{expr.target_type.type.value}"
+        elif isinstance(expr.target_type, NamedTypeRef):
+            type_name = f"TO_{expr.target_type.name}"
         else:
-            type_name = f"TO_{format_expression(expr.source)}"
+            type_name = f"TO_{expr.target_type.kind}"
         return Box(
             name=type_name,
             type_name=type_name,

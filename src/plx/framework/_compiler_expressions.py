@@ -526,7 +526,7 @@ class _ExpressionMixin:
             return self._compile_slice(node, node.slice)
 
         # Single index — check if this is string indexing
-        from ._compiler_statements import _infer_type
+        from ._compiler_core import _infer_type
         value_type = _infer_type(node.value, self.ctx)
         if isinstance(value_type, StringTypeRef):
             return self._compile_string_index(node)
@@ -541,7 +541,7 @@ class _ExpressionMixin:
 
     def _compile_slice(self, node: ast.Subscript, slc: ast.Slice) -> Expression:
         """Compile a slice operation. Only valid on STRING types."""
-        from ._compiler_statements import _infer_type
+        from ._compiler_core import _infer_type
 
         value_type = _infer_type(node.value, self.ctx)
 

@@ -185,18 +185,22 @@ class AnalysisVisitor:
         self._collect_reads(ctx, stmt.selector)
         for i, branch in enumerate(stmt.branches):
             ctx.nesting_depth += 1
+            ctx.guard_conditions.append(stmt.selector)
             ctx.current_stmt_path.append(f"case_{i}")
             for s in branch.body:
                 self._visit_stmt(ctx, s)
             ctx.current_stmt_path.pop()
+            ctx.guard_conditions.pop()
             ctx.nesting_depth -= 1
 
         if stmt.else_body:
             ctx.nesting_depth += 1
+            ctx.guard_conditions.append(stmt.selector)
             ctx.current_stmt_path.append("case_else")
             for s in stmt.else_body:
                 self._visit_stmt(ctx, s)
             ctx.current_stmt_path.pop()
+            ctx.guard_conditions.pop()
             ctx.nesting_depth -= 1
 
     def _visit_for(self, ctx: AnalysisContext, stmt: ForStatement) -> None:

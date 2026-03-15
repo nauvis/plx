@@ -617,14 +617,34 @@ def _collect_pou_deps(pou: POU, project: Project) -> dict[str, list[str]]:
 
     # Collect all NamedTypeRef references from this POU's interface
     referenced: set[str] = set()
-    for var_list in (
-        pou.interface.input_vars, pou.interface.output_vars,
-        pou.interface.inout_vars, pou.interface.static_vars,
-        pou.interface.temp_vars, pou.interface.constant_vars,
-        pou.interface.external_vars,
-    ):
-        for v in var_list:
-            referenced |= _collect_named_refs(v.data_type)
+
+    def _collect_from_interface(iface: "POUInterface") -> None:
+        for var_list in (
+            iface.input_vars, iface.output_vars,
+            iface.inout_vars, iface.static_vars,
+            iface.temp_vars, iface.constant_vars,
+            iface.external_vars,
+        ):
+            for v in var_list:
+                referenced.update(_collect_named_refs(v.data_type))
+
+    _collect_from_interface(pou.interface)
+
+    # Method and property interfaces
+    for method in pou.methods:
+        if method.interface:
+            _collect_from_interface(method.interface)
+        if method.return_type:
+            referenced.update(_collect_named_refs(method.return_type))
+    for prop in pou.properties:
+        if prop.data_type:
+            referenced.update(_collect_named_refs(prop.data_type))
+        if prop.getter and prop.getter.local_vars:
+            for v in prop.getter.local_vars:
+                referenced.update(_collect_named_refs(v.data_type))
+        if prop.setter and prop.setter.local_vars:
+            for v in prop.setter.local_vars:
+                referenced.update(_collect_named_refs(v.data_type))
 
     # extends reference
     if pou.extends:
