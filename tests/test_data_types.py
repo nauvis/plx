@@ -497,7 +497,7 @@ class TestEnumInLogic:
                             pass
 
     def test_enum_in_method(self):
-        from plx.framework._decorators import method
+        from plx.framework._decorators import fb_method
 
         @enumeration
         class Cmd:
@@ -511,7 +511,7 @@ class TestEnumInLogic:
             def logic(self):
                 pass
 
-            @method
+            @fb_method
             def set_cmd(self):
                 self.cmd = Cmd.START
 

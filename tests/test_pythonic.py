@@ -21,7 +21,7 @@ from plx.framework import (
     fb,
     program,
     function,
-    method,
+    fb_method,
     Input,
     Output,
     Static,
@@ -181,7 +181,7 @@ class TestOptionalLogic:
         class DataBlock:
             value: float = 0.0
 
-            @method
+            @fb_method
             def reset(self):
                 self.value = 0.0
 

@@ -3,7 +3,7 @@
 import pytest
 
 from plx.framework._compiler_core import CompileError
-from plx.framework._decorators import fb, interface, method
+from plx.framework._decorators import fb, interface, fb_method
 from plx.framework._descriptors import Input, Field, Output
 from plx.framework._types import BOOL, REAL
 from plx.model.pou import POUType
@@ -17,7 +17,7 @@ class TestInterface:
     def test_basic_interface(self):
         @interface
         class IMoveable:
-            @method
+            @fb_method
             def move_to(self, target: REAL) -> BOOL: ...
 
         pou = IMoveable.compile()
@@ -30,7 +30,7 @@ class TestInterface:
     def test_interface_method_params(self):
         @interface
         class IMotor:
-            @method
+            @fb_method
             def set_speed(self, speed: REAL, enable: BOOL) -> BOOL: ...
 
         pou = IMotor.compile()
@@ -44,7 +44,7 @@ class TestInterface:
         """Interface methods should have no networks/body."""
         @interface
         class ISimple:
-            @method
+            @fb_method
             def do_thing(self): ...
 
         pou = ISimple.compile()
@@ -53,7 +53,7 @@ class TestInterface:
     def test_interface_marker(self):
         @interface
         class IFoo:
-            @method
+            @fb_method
             def bar(self): ...
 
         assert getattr(IFoo, "__plx_interface__", False) is True
@@ -67,12 +67,12 @@ class TestInterfaceExtends:
     def test_extends(self):
         @interface
         class IBase:
-            @method
+            @fb_method
             def base_method(self): ...
 
         @interface
         class IDerived(IBase):
-            @method
+            @fb_method
             def derived_method(self): ...
 
         pou = IDerived.compile()
@@ -85,7 +85,7 @@ class TestInterfaceExtends:
     def test_no_extends_without_parent(self):
         @interface
         class IStandalone:
-            @method
+            @fb_method
             def foo(self): ...
 
         pou = IStandalone.compile()
@@ -100,14 +100,14 @@ class TestImplements:
     def test_fb_implements(self):
         @interface
         class IRunnable:
-            @method
+            @fb_method
             def run(self, speed: REAL) -> BOOL: ...
 
         @fb(implements=[IRunnable])
         class Motor:
             speed: REAL
 
-            @method
+            @fb_method
             def run(self, speed: REAL) -> BOOL:
                 self.speed = speed
                 return True
@@ -121,21 +121,21 @@ class TestImplements:
     def test_fb_implements_multiple(self):
         @interface
         class IA:
-            @method
+            @fb_method
             def a(self): ...
 
         @interface
         class IB:
-            @method
+            @fb_method
             def b(self): ...
 
         @fb(implements=[IA, IB])
         class Combined:
-            @method
+            @fb_method
             def a(self):
                 pass
 
-            @method
+            @fb_method
             def b(self):
                 pass
 
@@ -168,7 +168,7 @@ class TestInterfaceSTExport:
 
         @interface
         class IMotor:
-            @method
+            @fb_method
             def start(self, speed: REAL) -> BOOL: ...
 
         pou = IMotor.compile()

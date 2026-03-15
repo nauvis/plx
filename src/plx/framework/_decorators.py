@@ -1,4 +1,4 @@
-"""POU decorators: @fb, @program, @function, @method.
+"""POU decorators: @fb, @program, @function, @fb_method.
 
 These orchestrate the full compilation pipeline — collecting variable
 descriptors, parsing the ``logic()`` method source, compiling via AST
@@ -48,23 +48,23 @@ from ._properties import (
 
 
 # ---------------------------------------------------------------------------
-# @method decorator
+# @fb_method decorator
 # ---------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class _MethodMarker:
-    """Stored as ``func._plx_marker`` on @method-decorated functions."""
+    """Stored as ``func._plx_marker`` on @fb_method-decorated functions."""
     access: AccessSpecifier
 
 
-def method(
+def fb_method(
     func: Any = None,
     *,
     access: AccessSpecifier = AccessSpecifier.PUBLIC,
 ) -> Any:
     """Mark a function as a PLC method on a function block.
 
-    Can be used as ``@method`` or ``@method(access=PRIVATE)``.
+    Can be used as ``@fb_method`` or ``@fb_method(access=PRIVATE)``.
 
     Method parameters (with type annotations) become VAR_INPUT.
     The return annotation becomes the method's return type.
@@ -78,12 +78,12 @@ def method(
             def logic(self):
                 pass
 
-            @method
+            @fb_method
             def start(self, target_speed: REAL) -> BOOL:
                 self.speed = target_speed
                 return True
 
-            @method(access=PRIVATE)
+            @fb_method(access=PRIVATE)
             def _reset_internals(self):
                 self.speed = 0.0
     """
@@ -99,14 +99,14 @@ def method(
 
 
 def _is_method(obj: object) -> bool:
-    """Check if an object is a @method-decorated function."""
+    """Check if an object is a @fb_method-decorated function."""
     return callable(obj) and isinstance(
         getattr(obj, '_plx_marker', None), _MethodMarker,
     )
 
 
 def _collect_methods(cls: type) -> list[tuple[str, Any, AccessSpecifier]]:
-    """Collect @method-decorated functions from *cls* and its MRO.
+    """Collect @fb_method-decorated functions from *cls* and its MRO.
 
     Returns ``(name, function, access)`` tuples.  Parent methods come
     first; child methods with the same name override the parent's.
@@ -136,7 +136,7 @@ def _compile_method(
     static_var_types: dict[str, TypeRef],
     source_file: str,
 ) -> Method:
-    """Compile a single @method-decorated function into a Method IR node."""
+    """Compile a single @fb_method-decorated function into a Method IR node."""
 
     context_name = f"{cls.__name__}.{method_name}()"
     func_def, _, start_lineno = _parse_function_source(
@@ -195,7 +195,7 @@ def _compile_method(
 
 
 def _resolve_method_annotation(ann: ast.expr, cls: type, method_name: str) -> TypeRef | None:
-    """Resolve a type annotation in a @method context."""
+    """Resolve a type annotation in a @fb_method context."""
     return resolve_annotation(
         ann,
         location_hint=f"{cls.__name__}.{method_name}()",
@@ -379,7 +379,7 @@ def _compile_all_methods(
     static_var_types: dict[str, TypeRef],
     source_file: str,
 ) -> list[Method]:
-    """Compile all @method-decorated functions on *cls*."""
+    """Compile all @fb_method-decorated functions on *cls*."""
     compiled_methods: list[Method] = []
     for method_name, method_func, method_access in _collect_methods(cls):
         compiled_methods.append(_compile_method(
@@ -626,7 +626,7 @@ def interface(cls: type = None, *, folder: str = "") -> Any:
 
     Can be used as ``@interface`` or ``@interface(folder="...")``.
 
-    Methods decorated with ``@method`` are collected as signatures only
+    Methods decorated with ``@fb_method`` are collected as signatures only
     (parameters + return type, no body compilation).  Supports ``extends``
     via Python class inheritance from another ``@interface``.
 
@@ -634,12 +634,12 @@ def interface(cls: type = None, *, folder: str = "") -> Any:
 
         @interface
         class IMoveable:
-            @method
+            @fb_method
             def move_to(self, target: REAL) -> BOOL: ...
 
         @interface
         class IResettable(IMoveable):
-            @method
+            @fb_method
             def reset(self): ...
     """
     def _apply(cls: type) -> type:
@@ -652,7 +652,7 @@ def interface(cls: type = None, *, folder: str = "") -> Any:
                 extends = base._compiled_pou.name
                 break
 
-        # Collect @method-decorated functions as signatures only
+        # Collect @fb_method-decorated functions as signatures only
         method_irs: list[Method] = []
         for method_name, method_func, method_access in _collect_methods(cls):
             # Extract parameters and return type — no body compilation
@@ -727,3 +727,7 @@ def interface(cls: type = None, *, folder: str = "") -> Any:
     if cls is not None:
         return _apply(cls)
     return _apply
+
+
+# Backward-compat alias — will be removed in a future version
+method = fb_method

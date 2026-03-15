@@ -3,7 +3,7 @@
 import pytest
 
 from plx.framework._compiler_core import CompileError
-from plx.framework._decorators import fb, method
+from plx.framework._decorators import fb, fb_method
 from plx.framework._descriptors import Input, Field, Output
 from plx.framework._properties import PropDescriptor, fb_property
 from plx.framework._types import BOOL, INT, REAL

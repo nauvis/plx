@@ -3,7 +3,7 @@
 import pytest
 
 from plx.framework._compiler_core import CompileError
-from plx.framework._decorators import fb, interface, method, program
+from plx.framework._decorators import fb, interface, fb_method, program
 from plx.framework._descriptors import Input, Output, Static
 from plx.framework._project import project
 from plx.framework._properties import fb_property
@@ -147,7 +147,7 @@ class TestInterfaceRejection:
     def test_ab_rejects_interface_pou(self):
         @interface
         class IDevice:
-            @method
+            @fb_method
             def start(self): ...
 
         with pytest.raises(VendorValidationError, match="INTERFACE"):
@@ -156,7 +156,7 @@ class TestInterfaceRejection:
     def test_siemens_rejects_interface_pou(self):
         @interface
         class IController:
-            @method
+            @fb_method
             def run(self): ...
 
         with pytest.raises(VendorValidationError, match="INTERFACE"):
@@ -165,12 +165,12 @@ class TestInterfaceRejection:
     def test_ab_rejects_implements(self):
         @interface
         class IRunnable:
-            @method
+            @fb_method
             def run(self): ...
 
         @fb(implements=[IRunnable])
         class Runner:
-            @method
+            @fb_method
             def run(self):
                 pass
 
@@ -183,7 +183,7 @@ class TestInterfaceRejection:
     def test_beckhoff_allows_interface(self):
         @interface
         class IStartable:
-            @method
+            @fb_method
             def start(self): ...
 
         result = project("P", pous=[IStartable]).compile(target=Vendor.BECKHOFF)
@@ -251,7 +251,7 @@ class TestMultipleErrors:
         class ComplexFB:
             _val: REAL
 
-            @method
+            @fb_method
             def do_thing(self) -> BOOL:
                 return True
 
@@ -270,7 +270,7 @@ class TestMultipleErrors:
     def test_interface_and_pointer_both_reported(self):
         @interface
         class ISomething:
-            @method
+            @fb_method
             def do_it(self): ...
 
         @fb
@@ -294,17 +294,17 @@ class TestDeepInterfaceHierarchy:
     def test_three_level_interface(self):
         @interface
         class IBase:
-            @method
+            @fb_method
             def base_op(self): ...
 
         @interface
         class IMid(IBase):
-            @method
+            @fb_method
             def mid_op(self): ...
 
         @interface
         class ITop(IMid):
-            @method
+            @fb_method
             def top_op(self): ...
 
         pou = ITop.compile()
@@ -317,7 +317,7 @@ class TestDeepInterfaceHierarchy:
     def test_interface_with_property(self):
         @interface
         class IMotor:
-            @method
+            @fb_method
             def start(self): ...
 
             @fb_property(REAL, abstract=True)

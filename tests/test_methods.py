@@ -1,4 +1,4 @@
-"""Tests for @method decorator on function blocks."""
+"""Tests for @fb_method decorator on function blocks."""
 
 import pytest
 
@@ -10,7 +10,7 @@ from plx.framework import (
     REAL,
     TIME,
     fb,
-    method,
+    fb_method,
     Input,
     Output,
     delayed,
@@ -36,7 +36,7 @@ class TestMethodBasic:
             def logic(self):
                 pass
 
-            @method
+            @fb_method
             def reset(self):
                 self.x = 0.0
 
@@ -52,7 +52,7 @@ class TestMethodBasic:
             def logic(self):
                 pass
 
-            @method
+            @fb_method
             def reset(self):
                 self.x = 0.0
 
@@ -72,12 +72,12 @@ class TestMethodBasic:
             def logic(self):
                 pass
 
-            @method
+            @fb_method
             def start(self, target: REAL):
                 self.speed = target
                 self.running = True
 
-            @method
+            @fb_method
             def stop(self):
                 self.speed = 0.0
                 self.running = False
@@ -96,7 +96,7 @@ class TestMethodBasic:
             def logic(self):
                 pass
 
-            @method
+            @fb_method
             def reset(self):
                 self.x = 0.0
 
@@ -122,7 +122,7 @@ class TestMethodParameters:
             def logic(self):
                 pass
 
-            @method
+            @fb_method
             def set_speed(self, target: REAL):
                 self.speed = target
 
@@ -139,7 +139,7 @@ class TestMethodParameters:
             def logic(self):
                 pass
 
-            @method
+            @fb_method
             def configure(self, low: REAL, high: REAL, enable: BOOL):
                 pass
 
@@ -156,7 +156,7 @@ class TestMethodParameters:
             def logic(self):
                 pass
 
-            @method
+            @fb_method
             def reset(self):
                 self.x = 0.0
 
@@ -171,7 +171,7 @@ class TestMethodParameters:
             def logic(self):
                 pass
 
-            @method
+            @fb_method
             def set_value(self, val: REAL):
                 self.x = val
 
@@ -190,7 +190,7 @@ class TestMethodParameters:
                 def logic(self):
                     pass
 
-                @method
+                @fb_method
                 def bad_method(self, val):
                     self.x = val
 
@@ -208,7 +208,7 @@ class TestMethodReturnType:
             def logic(self):
                 pass
 
-            @method
+            @fb_method
             def get_value(self) -> REAL:
                 return self.x
 
@@ -223,7 +223,7 @@ class TestMethodReturnType:
             def logic(self):
                 pass
 
-            @method
+            @fb_method
             def reset(self):
                 self.x = 0.0
 
@@ -238,7 +238,7 @@ class TestMethodReturnType:
             def logic(self):
                 pass
 
-            @method
+            @fb_method
             def is_running(self) -> BOOL:
                 return self.running
 
@@ -259,7 +259,7 @@ class TestMethodAccess:
             def logic(self):
                 pass
 
-            @method
+            @fb_method
             def reset(self):
                 pass
 
@@ -271,7 +271,7 @@ class TestMethodAccess:
             def logic(self):
                 pass
 
-            @method(access=AccessSpecifier.PUBLIC)
+            @fb_method(access=AccessSpecifier.PUBLIC)
             def reset(self):
                 pass
 
@@ -283,7 +283,7 @@ class TestMethodAccess:
             def logic(self):
                 pass
 
-            @method(access=AccessSpecifier.PRIVATE)
+            @fb_method(access=AccessSpecifier.PRIVATE)
             def _internal(self):
                 pass
 
@@ -295,7 +295,7 @@ class TestMethodAccess:
             def logic(self):
                 pass
 
-            @method(access=AccessSpecifier.PROTECTED)
+            @fb_method(access=AccessSpecifier.PROTECTED)
             def _helper(self):
                 pass
 
@@ -316,7 +316,7 @@ class TestMethodAccessFBVars:
             def logic(self):
                 pass
 
-            @method
+            @fb_method
             def check(self) -> BOOL:
                 return self.sensor
 
@@ -334,7 +334,7 @@ class TestMethodAccessFBVars:
             def logic(self):
                 pass
 
-            @method
+            @fb_method
             def set_output(self, val: REAL):
                 self.out = val
 
@@ -351,7 +351,7 @@ class TestMethodAccessFBVars:
             def logic(self):
                 pass
 
-            @method
+            @fb_method
             def get_count(self) -> DINT:
                 return self.count
 
@@ -375,7 +375,7 @@ class TestMethodCalledFromLogic:
             def logic(self):
                 self.pressure = self.check_limits()
 
-            @method
+            @fb_method
             def check_limits(self) -> REAL:
                 return self.limit
 
@@ -396,7 +396,7 @@ class TestMethodCalledFromLogic:
             def logic(self):
                 self.val = self.clamp(self.val)
 
-            @method
+            @fb_method
             def clamp(self, x: REAL) -> REAL:
                 return x
 
@@ -418,7 +418,7 @@ class TestMethodCalledFromLogic:
             def logic(self):
                 self.reset()
 
-            @method
+            @fb_method
             def reset(self):
                 self.speed = 0.0
 
@@ -443,7 +443,7 @@ class TestMethodWithSentinels:
             def logic(self):
                 pass
 
-            @method
+            @fb_method
             def timed_check(self) -> BOOL:
                 return delayed(self.sig, timedelta(seconds=5))
 
@@ -466,7 +466,7 @@ class TestMethodInheritance:
             def logic(self):
                 pass
 
-            @method
+            @fb_method
             def reset(self):
                 self.x = 0.0
 
@@ -489,7 +489,7 @@ class TestMethodInheritance:
             def logic(self):
                 pass
 
-            @method
+            @fb_method
             def reset(self):
                 self.x = 0.0
 
@@ -500,7 +500,7 @@ class TestMethodInheritance:
             def logic(self):
                 super().logic()
 
-            @method
+            @fb_method
             def reset(self):
                 self.x = 0.0
                 self.y = 0.0
@@ -518,7 +518,7 @@ class TestMethodInheritance:
             def logic(self):
                 pass
 
-            @method
+            @fb_method
             def reset(self):
                 self.x = 0.0
 
@@ -527,7 +527,7 @@ class TestMethodInheritance:
             def logic(self):
                 super().logic()
 
-            @method
+            @fb_method
             def extra(self) -> BOOL:
                 return True
 
@@ -551,7 +551,7 @@ class TestMethodSerialization:
             def logic(self):
                 pass
 
-            @method
+            @fb_method
             def set_x(self, val: REAL):
                 self.x = val
 
@@ -572,7 +572,7 @@ class TestMethodSerialization:
             def logic(self):
                 pass
 
-            @method
+            @fb_method
             def get_x(self) -> REAL:
                 return self.x
 

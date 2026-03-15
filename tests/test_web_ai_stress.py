@@ -1280,7 +1280,7 @@ class Accumulator:
     value: Static[REAL]
     total: Output[REAL]
 
-    @method
+    @fb_method
     def add(self, delta: REAL):
         self.value = self.value + delta
 

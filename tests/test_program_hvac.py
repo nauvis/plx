@@ -1,4 +1,4 @@
-"""Multi-Zone HVAC System — exercises 3-level FB inheritance, @method(access=PROTECTED),
+"""Multi-Zone HVAC System — exercises 3-level FB inheritance, @fb_method(access=PROTECTED),
 sustained() for fan coast-down, and first_scan() for initialization.
 
 ~45 I/O: 9 DI, 3 DO, 18 AI, 9 AO across 3 zones + central plant.
@@ -17,7 +17,7 @@ from plx.framework import (
     fb,
     first_scan,
     Input,
-    method,
+    fb_method,
     Output,
     program,
     project,
@@ -81,7 +81,7 @@ class BaseZoneController:
     # Internals
     gain: REAL = 5.0
 
-    @method(access=AccessSpecifier.PROTECTED)
+    @fb_method(access=AccessSpecifier.PROTECTED)
     def compute_demand(self, error: REAL) -> REAL:
         """Proportional demand: error * gain, clamped 0-100."""
         result: REAL = error * self.gain
@@ -862,7 +862,7 @@ class TestHVACProjectCompilation:
         assert pou_map["OccupancyZoneController"].extends == "BaseZoneController"
         assert pou_map["BaseZoneController"].extends is None
 
-        # Verify @method(access=PROTECTED) on BaseZoneController
+        # Verify @fb_method(access=PROTECTED) on BaseZoneController
         base_methods = pou_map["BaseZoneController"].methods
         assert len(base_methods) == 1
         assert base_methods[0].name == "compute_demand"

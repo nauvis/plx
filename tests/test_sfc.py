@@ -11,7 +11,7 @@ from plx.framework import (
     REAL,
     CompileError,
     Input,
-    method,
+    fb_method,
     Output,
     project,
     sfc,
@@ -479,7 +479,7 @@ class TestSerialization:
 
 
 # ---------------------------------------------------------------------------
-# @method on @sfc class
+# @fb_method on @sfc class
 # ---------------------------------------------------------------------------
 
 class TestMethodOnSfc:
@@ -489,7 +489,7 @@ class TestMethodOnSfc:
             val: INT = 0
             S0 = step(initial=True)
 
-            @method
+            @fb_method
             def reset(self, target: INT) -> BOOL:
                 self.val = target
                 return True

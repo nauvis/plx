@@ -1075,7 +1075,7 @@ class TestPOUEmission:
         w = _make_writer()
         w._write_pou(pou)
         out = w.getvalue().strip()
-        assert "@method" in out
+        assert "@fb_method" in out
         assert "def Calculate(self, x: real) -> real:" in out
 
     def test_private_method(self):
@@ -1096,7 +1096,7 @@ class TestPOUEmission:
         w = _make_writer()
         w._write_pou(pou)
         out = w.getvalue().strip()
-        assert "@method(access=AccessSpecifier.PRIVATE)" in out
+        assert "@fb_method(access=AccessSpecifier.PRIVATE)" in out
 
     def test_network_comments(self):
         pou = POU(
@@ -2136,7 +2136,7 @@ class TestInterfaceExport:
         code = generate(Project(name="Test", pous=[pou]))
         assert "@interface" in code
         assert "class IMoveable:" in code
-        assert "@method" in code
+        assert "@fb_method" in code
         assert "def move_to(self, target: real) -> bool: ..." in code
         assert "@fb_property(real)" in code
         assert "def position(self): ..." in code
@@ -2281,7 +2281,7 @@ class TestRoundTripFixes:
         w = _make_writer()
         w._write_pou(pou)
         out = w.getvalue()
-        assert "@method(access=AccessSpecifier.PRIVATE)" in out
+        assert "@fb_method(access=AccessSpecifier.PRIVATE)" in out
         # Verify AccessSpecifier is importable from framework
         from plx.framework import AccessSpecifier as AS
         assert AS.PRIVATE is not None
@@ -2838,3 +2838,305 @@ class TestNewStatementIRModel:
             stmt = ta.validate_python(data)
             restored = ta.validate_json(ta.dump_json(stmt))
             assert restored == stmt
+
+
+# ===========================================================================
+# Membership reconstruction (in / not in)
+# ===========================================================================
+
+class TestMembershipReconstruction:
+    """Test that OR/EQ chains are reconstructed as ``in`` and AND/NE as ``not in``."""
+
+    # -- Helper to build the left-folded chain the compiler produces --
+
+    @staticmethod
+    def _make_membership_ir(target, values, negate=False):
+        """Build the same left-folded tree that _compile_membership_test produces."""
+        eq_op = BinaryOp.NE if negate else BinaryOp.EQ
+        chain_op = BinaryOp.AND if negate else BinaryOp.OR
+        result = BinaryExpr(op=eq_op, left=target, right=values[0])
+        for v in values[1:]:
+            result = BinaryExpr(
+                op=chain_op,
+                left=result,
+                right=BinaryExpr(op=eq_op, left=target, right=v),
+            )
+        return result
+
+    # -- Basic reconstruction --
+
+    def test_in_two_elements(self):
+        w = _make_writer()
+        expr = self._make_membership_ir(
+            VariableRef(name="state"),
+            [LiteralExpr(value="1"), LiteralExpr(value="2")],
+        )
+        assert w._expr(expr) == "state in (1, 2)"
+
+    def test_in_three_elements(self):
+        w = _make_writer()
+        expr = self._make_membership_ir(
+            VariableRef(name="x"),
+            [LiteralExpr(value="1"), LiteralExpr(value="2"), LiteralExpr(value="3")],
+        )
+        assert w._expr(expr) == "x in (1, 2, 3)"
+
+    def test_in_five_elements(self):
+        w = _make_writer()
+        expr = self._make_membership_ir(
+            VariableRef(name="mode"),
+            [LiteralExpr(value=str(i)) for i in range(5)],
+        )
+        assert w._expr(expr) == "mode in (0, 1, 2, 3, 4)"
+
+    def test_not_in_two_elements(self):
+        w = _make_writer()
+        expr = self._make_membership_ir(
+            VariableRef(name="state"),
+            [LiteralExpr(value="1"), LiteralExpr(value="2")],
+            negate=True,
+        )
+        assert w._expr(expr) == "state not in (1, 2)"
+
+    def test_not_in_three_elements(self):
+        w = _make_writer()
+        expr = self._make_membership_ir(
+            VariableRef(name="x"),
+            [LiteralExpr(value="1"), LiteralExpr(value="2"), LiteralExpr(value="3")],
+            negate=True,
+        )
+        assert w._expr(expr) == "x not in (1, 2, 3)"
+
+    def test_preserves_value_order(self):
+        w = _make_writer()
+        expr = self._make_membership_ir(
+            VariableRef(name="x"),
+            [LiteralExpr(value="10"), LiteralExpr(value="20"), LiteralExpr(value="30")],
+        )
+        assert w._expr(expr) == "x in (10, 20, 30)"
+
+    def test_self_prefix(self):
+        w = _make_writer(self_vars={"state"})
+        expr = self._make_membership_ir(
+            VariableRef(name="state"),
+            [LiteralExpr(value="1"), LiteralExpr(value="2")],
+        )
+        assert w._expr(expr) == "self.state in (1, 2)"
+
+    def test_enum_values(self):
+        w = _make_writer(self_vars={"mode"})
+        expr = self._make_membership_ir(
+            VariableRef(name="mode"),
+            [LiteralExpr(value="Mode#IDLE"), LiteralExpr(value="Mode#RUNNING")],
+        )
+        assert w._expr(expr) == "self.mode in (Mode.IDLE, Mode.RUNNING)"
+
+    # -- Non-matching patterns --
+
+    def test_no_match_different_targets(self):
+        """OR(EQ(x, 1), EQ(y, 2)) — different targets, should not match."""
+        w = _make_writer()
+        expr = BinaryExpr(
+            op=BinaryOp.OR,
+            left=BinaryExpr(op=BinaryOp.EQ, left=VariableRef(name="x"), right=LiteralExpr(value="1")),
+            right=BinaryExpr(op=BinaryOp.EQ, left=VariableRef(name="y"), right=LiteralExpr(value="2")),
+        )
+        assert "in" not in w._expr(expr)
+
+    def test_no_match_mixed_ops(self):
+        """OR(GT(x, 1), EQ(x, 2)) — not all EQ leaves, should not match."""
+        w = _make_writer()
+        expr = BinaryExpr(
+            op=BinaryOp.OR,
+            left=BinaryExpr(op=BinaryOp.GT, left=VariableRef(name="x"), right=LiteralExpr(value="1")),
+            right=BinaryExpr(op=BinaryOp.EQ, left=VariableRef(name="x"), right=LiteralExpr(value="2")),
+        )
+        assert "in (" not in w._expr(expr)
+
+    def test_no_match_and_with_eq(self):
+        """AND(EQ(x, 1), EQ(x, 2)) — AND requires NE leaves, not EQ."""
+        w = _make_writer()
+        expr = BinaryExpr(
+            op=BinaryOp.AND,
+            left=BinaryExpr(op=BinaryOp.EQ, left=VariableRef(name="x"), right=LiteralExpr(value="1")),
+            right=BinaryExpr(op=BinaryOp.EQ, left=VariableRef(name="x"), right=LiteralExpr(value="2")),
+        )
+        assert "in (" not in w._expr(expr)
+
+    def test_no_match_simple_or(self):
+        """OR(a, b) — plain boolean OR, not EQ chain."""
+        w = _make_writer()
+        expr = BinaryExpr(
+            op=BinaryOp.OR,
+            left=VariableRef(name="a"),
+            right=VariableRef(name="b"),
+        )
+        assert w._expr(expr) == "a or b"
+
+    # -- Full round-trip: framework → IR → Python --
+
+    def test_round_trip_in(self):
+        from plx.framework._decorators import fb
+        from plx.framework._descriptors import Input, Output
+        from plx.framework._plc_types import dint
+
+        @fb
+        class InTestFB:
+            state: Input[dint]
+            active: Output[bool]
+
+            def logic(self):
+                self.active = self.state in (1, 2, 3)
+
+        pou = InTestFB.compile()
+        proj = Project(name="InTest", pous=[pou])
+        code = generate(proj)
+        compile(code, "<generated>", "exec")
+        assert "self.state in (1, 2, 3)" in code
+
+    def test_round_trip_not_in(self):
+        from plx.framework._decorators import fb
+        from plx.framework._descriptors import Input, Output
+        from plx.framework._plc_types import dint
+
+        @fb
+        class NotInTestFB:
+            state: Input[dint]
+            inactive: Output[bool]
+
+            def logic(self):
+                self.inactive = self.state not in (0, 99)
+
+        pou = NotInTestFB.compile()
+        proj = Project(name="NotInTest", pous=[pou])
+        code = generate(proj)
+        compile(code, "<generated>", "exec")
+        assert "self.state not in (0, 99)" in code
+
+
+# ===========================================================================
+# Ternary reconstruction (SEL → if/else)
+# ===========================================================================
+
+class TestTernaryReconstruction:
+    """Test that SEL(cond, false_val, true_val) is reconstructed as ternary."""
+
+    def test_basic_ternary(self):
+        w = _make_writer()
+        expr = FunctionCallExpr(
+            function_name="SEL",
+            args=[
+                CallArg(value=VariableRef(name="running")),
+                CallArg(value=LiteralExpr(value="0")),
+                CallArg(value=LiteralExpr(value="100")),
+            ],
+        )
+        assert w._expr(expr) == "100 if running else 0"
+
+    def test_ternary_with_self(self):
+        w = _make_writer(self_vars={"running", "high", "low"})
+        expr = FunctionCallExpr(
+            function_name="SEL",
+            args=[
+                CallArg(value=VariableRef(name="running")),
+                CallArg(value=VariableRef(name="low")),
+                CallArg(value=VariableRef(name="high")),
+            ],
+        )
+        assert w._expr(expr) == "self.high if self.running else self.low"
+
+    def test_ternary_nested_in_expression(self):
+        """Ternary inside a higher-precedence context gets parenthesised."""
+        w = _make_writer()
+        sel = FunctionCallExpr(
+            function_name="SEL",
+            args=[
+                CallArg(value=VariableRef(name="flag")),
+                CallArg(value=LiteralExpr(value="0")),
+                CallArg(value=LiteralExpr(value="10")),
+            ],
+        )
+        expr = BinaryExpr(
+            op=BinaryOp.ADD,
+            left=sel,
+            right=LiteralExpr(value="1"),
+        )
+        assert w._expr(expr) == "(10 if flag else 0) + 1"
+
+    def test_ternary_at_top_level(self):
+        """Ternary at statement level — no parentheses needed."""
+        w = _make_writer()
+        expr = FunctionCallExpr(
+            function_name="SEL",
+            args=[
+                CallArg(value=VariableRef(name="cond")),
+                CallArg(value=LiteralExpr(value="'off'")),
+                CallArg(value=LiteralExpr(value="'on'")),
+            ],
+        )
+        assert w._expr(expr, 0) == "'on' if cond else 'off'"
+
+    def test_sel_with_named_args_not_reconstructed(self):
+        """SEL with named args is not from a ternary — fall through."""
+        w = _make_writer()
+        expr = FunctionCallExpr(
+            function_name="SEL",
+            args=[
+                CallArg(name="G", value=VariableRef(name="cond")),
+                CallArg(name="IN0", value=LiteralExpr(value="0")),
+                CallArg(name="IN1", value=LiteralExpr(value="1")),
+            ],
+        )
+        # Named args → generic function call, not ternary
+        result = w._expr(expr)
+        assert "if" not in result
+        assert "SEL(" in result
+
+    def test_sel_wrong_arg_count_not_reconstructed(self):
+        """SEL with != 3 args should not be reconstructed."""
+        w = _make_writer()
+        expr = FunctionCallExpr(
+            function_name="SEL",
+            args=[
+                CallArg(value=VariableRef(name="cond")),
+                CallArg(value=LiteralExpr(value="0")),
+            ],
+        )
+        result = w._expr(expr)
+        assert "if" not in result
+
+    def test_round_trip_ternary(self):
+        from plx.framework._decorators import fb
+        from plx.framework._descriptors import Input, Output
+
+        @fb
+        class TernaryFB:
+            running: Input[bool]
+            speed: Output[int]
+
+            def logic(self):
+                self.speed = 100 if self.running else 0
+
+        pou = TernaryFB.compile()
+        proj = Project(name="TernaryTest", pous=[pou])
+        code = generate(proj)
+        compile(code, "<generated>", "exec")
+        assert "100 if self.running else 0" in code
+
+    def test_round_trip_ternary_in_expression(self):
+        from plx.framework._decorators import fb
+        from plx.framework._descriptors import Input, Output
+
+        @fb
+        class TernaryExprFB:
+            flag: Input[bool]
+            result: Output[int]
+
+            def logic(self):
+                self.result = (10 if self.flag else 5) + 1
+
+        pou = TernaryExprFB.compile()
+        proj = Project(name="TernaryExprTest", pous=[pou])
+        code = generate(proj)
+        compile(code, "<generated>", "exec")
+        assert "if self.flag else" in code

@@ -324,14 +324,14 @@ class TestPythonAnnotationResolution:
         assert pou.return_type == PrimitiveTypeRef(type=PrimitiveType.BOOL)
 
     def test_method_param_int(self):
-        from plx.framework._decorators import fb, method
+        from plx.framework._decorators import fb, fb_method
 
         @fb
         class ParamFB:
             def logic(self):
                 pass
 
-            @method
+            @fb_method
             def set_speed(self, value: int):
                 pass
 
@@ -340,14 +340,14 @@ class TestPythonAnnotationResolution:
         assert m.interface.input_vars[0].data_type == PrimitiveTypeRef(type=PrimitiveType.INT)
 
     def test_method_param_float(self):
-        from plx.framework._decorators import fb, method
+        from plx.framework._decorators import fb, fb_method
 
         @fb
         class ParamFB2:
             def logic(self):
                 pass
 
-            @method
+            @fb_method
             def set_value(self, value: float):
                 pass
 

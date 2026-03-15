@@ -6,7 +6,7 @@ import pytest
 
 from plx.framework._compiler import CompileError
 from plx.framework._data_types import enumeration, struct
-from plx.framework._decorators import fb, method, program
+from plx.framework._decorators import fb, fb_method, program
 from plx.framework._descriptors import Input, Field, Output, Static, TON, RTO, SR, RS, CTU, CTD
 from plx.framework._library import LibraryFB, LibraryStruct, LibraryEnum
 from plx.framework._project import project
@@ -50,7 +50,7 @@ class _FBWithMethod:
     def logic(self):
         pass
 
-    @method
+    @fb_method
     def start(self, target_speed: REAL) -> BOOL:
         self.speed = target_speed
         return True

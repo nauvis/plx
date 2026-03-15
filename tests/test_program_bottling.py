@@ -1,4 +1,4 @@
-"""Automated Bottling Line — exercises @method on FBs, pulse() sentinel,
+"""Automated Bottling Line — exercises @fb_method on FBs, pulse() sentinel,
 falling() edge detection, match/case state machines, and multiple @struct types.
 
 ~50 I/O: 18 DI, 12 DO, 6 AI, 4 AO across filler, capper, reject, conveyors.
@@ -17,7 +17,7 @@ from plx.framework import (
     falling,
     fb,
     Input,
-    method,
+    fb_method,
     Output,
     program,
     project,
@@ -69,7 +69,7 @@ class FillerConfig:
 class ConveyorStation:
     """Generic conveyor with jam detection, product counting, and motor control.
 
-    Demonstrates @method for reset_count.
+    Demonstrates @fb_method for reset_count.
     """
 
     run_cmd: Input[BOOL]
@@ -96,7 +96,7 @@ class ConveyorStation:
         if self.reset_cmd:
             self.product_count = 0
 
-    @method
+    @fb_method
     def reset_count(self):
         self.product_count = 0
 
@@ -108,7 +108,7 @@ class FillerStation:
     States: 0=IDLE, 1=FILLING, 2=CHECKING, 3=COMPLETE, 4=REJECT.
     Verifies fill level and weight against tolerances.
 
-    Demonstrates @method for get_reject_reason.
+    Demonstrates @fb_method for get_reject_reason.
     """
 
     start: Input[BOOL]
@@ -200,7 +200,7 @@ class FillerStation:
                 if not self.start:
                     self.state = 0
 
-    @method
+    @fb_method
     def get_reject_reason(self) -> INT:
         return self.reject_reason
 
@@ -972,12 +972,12 @@ class TestBottlingProjectCompilation:
         assert len(prj.tasks) == 2
         assert len(prj.data_types) == 3
 
-        # Verify @method on ConveyorStation
+        # Verify @fb_method on ConveyorStation
         pou_map = {p.name: p for p in prj.pous}
         conv_methods = pou_map["ConveyorStation"].methods
         assert any(m.name == "reset_count" for m in conv_methods)
 
-        # Verify @method on FillerStation
+        # Verify @fb_method on FillerStation
         filler_methods = pou_map["FillerStation"].methods
         assert any(m.name == "get_reject_reason" for m in filler_methods)
 
