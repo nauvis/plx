@@ -34,3 +34,6 @@ packages = ["src/plx"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "fuzz: property-based fuzz tests (may be slow)",
+]
