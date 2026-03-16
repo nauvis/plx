@@ -235,6 +235,12 @@ class _StatementMixin:
         return pending
 
     def _compile_for(self, node: ast.For) -> list[Statement]:
+        if node.orelse:
+            raise CompileError(
+                "for/else is not supported in PLC logic. "
+                "Use a flag variable to track whether the loop completed without break.",
+                node, self.ctx,
+            )
         if not isinstance(node.target, ast.Name):
             raise CompileError(
                 "For loop variable must be a simple name",
@@ -294,7 +300,7 @@ class _StatementMixin:
         if loop_var not in self.ctx.declared_vars:
             self.ctx.declared_vars[loop_var] = VarDirection.TEMP
             self.ctx.generated_temp_vars.append(
-                Variable(name=loop_var, data_type=PrimitiveTypeRef(type=PrimitiveType.DINT))
+                Variable(name=loop_var, data_type=PrimitiveTypeRef(type=PrimitiveType.INT))
             )
 
         body = self._compile_body_list(node.body)
@@ -308,6 +314,12 @@ class _StatementMixin:
         )]
 
     def _compile_while(self, node: ast.While) -> list[Statement]:
+        if node.orelse:
+            raise CompileError(
+                "while/else is not supported in PLC logic. "
+                "Use a flag variable to track whether the loop completed without break.",
+                node, self.ctx,
+            )
         cond, pending = self._compile_expr_and_flush(node.test)
         body = self._compile_body_list(node.body)
         pending.append(WhileStatement(condition=cond, body=body))

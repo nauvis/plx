@@ -145,9 +145,12 @@ def _resolve_type_ref(type_arg: PrimitiveType | TypeRef | type | str) -> TypeRef
     if type_arg is bool:
         return PrimitiveTypeRef(type=PrimitiveType.BOOL)
     if type_arg is int:
-        return PrimitiveTypeRef(type=PrimitiveType.DINT)
+        return PrimitiveTypeRef(type=PrimitiveType.INT)
     if type_arg is float:
-        return PrimitiveTypeRef(type=PrimitiveType.REAL)
+        from ._errors import DeclarationError
+        raise DeclarationError(
+            "float is ambiguous in PLC — use real (32-bit REAL) or lreal (64-bit LREAL)"
+        )
     if type_arg is str:
         return StringTypeRef(wide=False, max_length=255)
     if isinstance(type_arg, PrimitiveType):

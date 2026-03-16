@@ -10,7 +10,7 @@ annotations must be live objects for interface parsing.
 
 from plx.framework._descriptors import Input, Output
 from plx.framework._library import LibraryFB
-from plx.framework._types import BOOL, TIME
+from plx.framework._types import BOOL, INT, TIME
 
 
 # ---------------------------------------------------------------------------
@@ -226,10 +226,10 @@ class CTU(LibraryFB):
     """Up counter. Rising edge of CU increments CV. Q = CV >= PV."""
 
     CU: Input[BOOL]
-    PV: Input[TIME]
+    PV: Input[INT]
     RESET: Input[BOOL]
     Q: Output[BOOL]
-    CV: Output[TIME]
+    CV: Output[INT]
 
     @classmethod
     def initial_state(cls) -> dict:
@@ -254,10 +254,10 @@ class CTD(LibraryFB):
     """Down counter. Rising edge of CD decrements CV. Q = CV <= 0."""
 
     CD: Input[BOOL]
-    PV: Input[TIME]
+    PV: Input[INT]
     LOAD: Input[BOOL]
     Q: Output[BOOL]
-    CV: Output[TIME]
+    CV: Output[INT]
 
     @classmethod
     def initial_state(cls) -> dict:
@@ -286,12 +286,12 @@ class CTUD(LibraryFB):
 
     CU: Input[BOOL]
     CD: Input[BOOL]
-    PV: Input[TIME]
+    PV: Input[INT]
     RESET: Input[BOOL]
     LOAD: Input[BOOL]
     QU: Output[BOOL]
     QD: Output[BOOL]
-    CV: Output[TIME]
+    CV: Output[INT]
 
     @classmethod
     def initial_state(cls) -> dict:

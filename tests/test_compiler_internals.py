@@ -139,11 +139,12 @@ class TestResolveAnnotation:
         assert isinstance(result, PrimitiveTypeRef)
         assert result.type == PrimitiveType.INT
 
-    def test_python_builtin_float(self):
+    def test_python_builtin_float_rejected(self):
+        """float is ambiguous — users must use real or lreal."""
+        import pytest
         ann = ast.Name(id="float")
-        result = resolve_annotation(ann)
-        assert isinstance(result, PrimitiveTypeRef)
-        assert result.type == PrimitiveType.REAL
+        with pytest.raises(CompileError, match="float is ambiguous"):
+            resolve_annotation(ann)
 
     def test_named_type(self):
         ann = ast.Name(id="MyCustomType")

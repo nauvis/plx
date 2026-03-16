@@ -14,6 +14,7 @@ from plx.framework._data_types import (
 from plx.framework._decorators import fb, program
 from plx.framework._descriptors import Input, Field, Output
 from plx.framework._project import project
+from plx.framework._plc_types import real
 from plx.framework._types import (
     ARRAY,
     BOOL,
@@ -154,7 +155,7 @@ class TestStruct:
     def test_struct_python_types(self):
         @struct
         class PythonTyped:
-            speed: float = 0.0
+            speed: real = 0.0
             count: int = 0
             active: bool = False
             name: str = ""
@@ -164,7 +165,7 @@ class TestStruct:
         assert compiled.members[0].data_type == PrimitiveTypeRef(type=PrimitiveType.REAL)
         assert compiled.members[0].initial_value == "0.0"
         assert compiled.members[1].name == "count"
-        assert compiled.members[1].data_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
+        assert compiled.members[1].data_type == PrimitiveTypeRef(type=PrimitiveType.INT)
         assert compiled.members[1].initial_value == "0"
         assert compiled.members[2].name == "active"
         assert compiled.members[2].data_type == PrimitiveTypeRef(type=PrimitiveType.BOOL)
@@ -172,6 +173,15 @@ class TestStruct:
         assert compiled.members[3].name == "name"
         assert compiled.members[3].data_type == StringTypeRef(wide=False, max_length=255)
         assert compiled.members[3].initial_value == ""
+
+    def test_struct_float_rejected(self):
+        """float is ambiguous — must use real or lreal."""
+        import pytest
+        from plx.framework._errors import DeclarationError
+        with pytest.raises(DeclarationError, match="float is ambiguous"):
+            @struct
+            class BadStruct:
+                speed: float = 0.0
 
 
 # ---------------------------------------------------------------------------

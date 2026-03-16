@@ -68,11 +68,13 @@ class TestResolveTypeRef:
 
     def test_python_int(self):
         result = _resolve_type_ref(int)
-        assert result == PrimitiveTypeRef(type=PrimitiveType.DINT)
+        assert result == PrimitiveTypeRef(type=PrimitiveType.INT)
 
-    def test_python_float(self):
-        result = _resolve_type_ref(float)
-        assert result == PrimitiveTypeRef(type=PrimitiveType.REAL)
+    def test_python_float_rejected(self):
+        """float is ambiguous — must use real or lreal."""
+        from plx.framework._errors import DeclarationError
+        with pytest.raises(DeclarationError, match="float is ambiguous"):
+            _resolve_type_ref(float)
 
     def test_python_str(self):
         result = _resolve_type_ref(str)
@@ -81,12 +83,13 @@ class TestResolveTypeRef:
     def test_python_int_in_array(self):
         result = ARRAY(int, 10)
         assert isinstance(result, ArrayTypeRef)
-        assert result.element_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
+        assert result.element_type == PrimitiveTypeRef(type=PrimitiveType.INT)
 
-    def test_python_float_in_pointer(self):
-        result = POINTER_TO(float)
-        assert isinstance(result, PointerTypeRef)
-        assert result.target_type == PrimitiveTypeRef(type=PrimitiveType.REAL)
+    def test_python_float_in_pointer_rejected(self):
+        """float is ambiguous — must use real or lreal."""
+        from plx.framework._errors import DeclarationError
+        with pytest.raises(DeclarationError, match="float is ambiguous"):
+            POINTER_TO(float)
 
     def test_invalid_type_raises(self):
         with pytest.raises(TypeError, match="Expected a type"):
@@ -288,16 +291,27 @@ class TestREFERENCE_TO:
 class TestPythonAnnotationResolution:
     """Test that Python builtin types in annotations resolve correctly."""
 
-    def test_function_return_float(self):
+    def test_function_return_float_rejected(self):
+        """float is ambiguous — must use real or lreal as return type."""
+        from plx.framework._compiler_core import CompileError
         from plx.framework._decorators import function
-        from plx.framework._types import REAL
+
+        with pytest.raises(CompileError, match="float is ambiguous"):
+            @function
+            class FloatFunc:
+                def logic(self) -> float:
+                    return 1.0
+
+    def test_function_return_real(self):
+        from plx.framework._decorators import function
+        from plx.framework._plc_types import real
 
         @function
-        class FloatFunc:
-            def logic(self) -> float:
+        class RealFunc:
+            def logic(self) -> real:
                 return 1.0
 
-        pou = FloatFunc.compile()
+        pou = RealFunc.compile()
         assert pou.return_type == PrimitiveTypeRef(type=PrimitiveType.REAL)
 
     def test_function_return_int(self):
@@ -339,50 +353,61 @@ class TestPythonAnnotationResolution:
         m = pou.methods[0]
         assert m.interface.input_vars[0].data_type == PrimitiveTypeRef(type=PrimitiveType.INT)
 
-    def test_method_param_float(self):
+    def test_method_param_float_rejected(self):
+        """float is ambiguous — must use real or lreal as method param."""
+        from plx.framework._compiler_core import CompileError
         from plx.framework._decorators import fb, fb_method
 
+        with pytest.raises(CompileError, match="float is ambiguous"):
+            @fb
+            class ParamFB2:
+                def logic(self):
+                    pass
+
+                @fb_method
+                def set_value(self, value: float):
+                    pass
+
+    def test_method_param_real(self):
+        from plx.framework._decorators import fb, fb_method
+        from plx.framework._plc_types import real
+
         @fb
-        class ParamFB2:
+        class ParamFB2r:
             def logic(self):
                 pass
 
             @fb_method
-            def set_value(self, value: float):
+            def set_value(self, value: real):
                 pass
 
-        pou = ParamFB2.compile()
+        pou = ParamFB2r.compile()
         m = pou.methods[0]
         assert m.interface.input_vars[0].data_type == PrimitiveTypeRef(type=PrimitiveType.REAL)
 
 
 # ---------------------------------------------------------------------------
-# Python type conversions: int(), float(), bool()
+# Python type conversions: int(), bool()
 # ---------------------------------------------------------------------------
 
 class TestPythonTypeConversions:
-    """Test that int(x), float(x), bool(x) compile to TypeConversionExpr."""
+    """Test that int(x), bool(x) compile to TypeConversionExpr, float(x) is rejected."""
 
-    def test_float_conversion(self):
+    def test_float_conversion_rejected(self):
+        """float() is ambiguous — must use REAL() or LREAL()."""
+        from plx.framework._compiler_core import CompileError
         from plx.framework._decorators import fb
         from plx.framework._descriptors import Input, Output
         from plx.framework._types import DINT, REAL
-        from plx.model.expressions import TypeConversionExpr
-        from plx.model.statements import Assignment
 
-        @fb
-        class FloatConv:
-            x: Input[DINT]
-            y: Output[REAL]
+        with pytest.raises(CompileError, match="float.*ambiguous"):
+            @fb
+            class FloatConv:
+                x: Input[DINT]
+                y: Output[REAL]
 
-            def logic(self):
-                self.y = float(self.x)
-
-        pou = FloatConv.compile()
-        stmt = pou.networks[0].statements[0]
-        assert isinstance(stmt, Assignment)
-        assert isinstance(stmt.value, TypeConversionExpr)
-        assert stmt.value.target_type == PrimitiveTypeRef(type=PrimitiveType.REAL)
+                def logic(self):
+                    self.y = float(self.x)
 
     def test_int_conversion(self):
         from plx.framework._decorators import fb
@@ -426,13 +451,14 @@ class TestPythonTypeConversions:
         assert isinstance(stmt.value, TypeConversionExpr)
         assert stmt.value.target_type == PrimitiveTypeRef(type=PrimitiveType.BOOL)
 
-    def test_float_too_many_args(self):
+    def test_float_too_many_args_still_rejected(self):
+        """float() with multiple args is also rejected (ambiguous)."""
         from plx.framework._compiler_core import CompileError
         from plx.framework._decorators import fb
         from plx.framework._descriptors import Input, Output
         from plx.framework._types import DINT, REAL
 
-        with pytest.raises(CompileError, match="takes exactly 1 argument"):
+        with pytest.raises(CompileError, match="float.*ambiguous"):
             @fb
             class BadConv:
                 x: Input[DINT]

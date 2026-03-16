@@ -18,6 +18,7 @@ from plx.framework._descriptors import (
     _resolve_declaration,
 )
 from plx.framework._errors import DeclarationError
+from plx.framework._plc_types import real
 from datetime import timedelta
 from plx.framework._types import REAL, BOOL, INT, DINT, timedelta_to_iec
 from plx.model.types import (
@@ -175,12 +176,19 @@ class TestAnnotationWrappers:
 
     def test_output_annotation(self):
         class MyFB:
-            valve: Output[float]
+            valve: Output[real]
 
         groups = _collect_descriptors(MyFB)
         assert len(groups["output"]) == 1
         assert groups["output"][0].name == "valve"
         assert groups["output"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.REAL)
+
+    def test_float_annotation_rejected(self):
+        """float is ambiguous — must use real or lreal."""
+        with pytest.raises(DeclarationError, match="float is ambiguous"):
+            class MyFB:
+                valve: Output[float]
+            _collect_descriptors(MyFB)
 
     def test_inout_annotation(self):
         class MyFB:
@@ -189,7 +197,7 @@ class TestAnnotationWrappers:
         groups = _collect_descriptors(MyFB)
         assert len(groups["inout"]) == 1
         assert groups["inout"][0].name == "ref_speed"
-        assert groups["inout"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
+        assert groups["inout"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.INT)
 
     def test_static_wrapper(self):
         class MyFB:
@@ -198,7 +206,7 @@ class TestAnnotationWrappers:
         groups = _collect_descriptors(MyFB)
         assert len(groups["static"]) == 1
         assert groups["static"][0].name == "count"
-        assert groups["static"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
+        assert groups["static"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.INT)
 
     def test_temp_wrapper(self):
         class MyFB:
@@ -207,11 +215,11 @@ class TestAnnotationWrappers:
         groups = _collect_descriptors(MyFB)
         assert len(groups["temp"]) == 1
         assert groups["temp"][0].name == "scratch"
-        assert groups["temp"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
+        assert groups["temp"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.INT)
 
     def test_constant_via_field(self):
         class MyFB:
-            PI: float = Field(initial=3.14, constant=True)
+            PI: real = Field(initial=3.14, constant=True)
 
         groups = _collect_descriptors(MyFB)
         assert len(groups["constant"]) == 1
@@ -234,7 +242,7 @@ class TestAnnotationWrappers:
         groups = _collect_descriptors(MyFB)
         assert len(groups["static"]) == 1
         assert groups["static"][0].name == "count"
-        assert groups["static"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
+        assert groups["static"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.INT)
         assert groups["static"][0].initial_value == "0"
 
     def test_bare_annotation_no_default(self):
@@ -264,7 +272,7 @@ class TestAnnotationWithField:
 
     def test_output_with_field(self):
         class MyFB:
-            speed: Output[float] = Field(initial=60.0, retain=True)
+            speed: Output[real] = Field(initial=60.0, retain=True)
 
         groups = _collect_descriptors(MyFB)
         v = groups["output"][0]
@@ -292,7 +300,7 @@ class TestAnnotationWithField:
 
     def test_constant_with_field(self):
         class MyFB:
-            PI: float = Field(initial=3.14, description="Pi constant", constant=True)
+            PI: real = Field(initial=3.14, description="Pi constant", constant=True)
 
         groups = _collect_descriptors(MyFB)
         v = groups["constant"][0]
@@ -303,7 +311,7 @@ class TestAnnotationWithField:
 
     def test_input_with_initial_default(self):
         class MyFB:
-            speed: Input[float] = 0.0
+            speed: Input[real] = 0.0
 
         groups = _collect_descriptors(MyFB)
         v = groups["input"][0]
@@ -362,7 +370,7 @@ class TestFieldValidation:
     def test_constant_rejects_retain(self):
         with pytest.raises(DeclarationError, match="retain"):
             class MyFB:
-                x: float = Field(initial=3.14, retain=True, constant=True)
+                x: real = Field(initial=3.14, retain=True, constant=True)
             _collect_descriptors(MyFB)
 
     def test_constant_requires_initial(self):
@@ -386,13 +394,13 @@ class TestFieldValidation:
     def test_constant_rejects_hardware(self):
         with pytest.raises(DeclarationError, match="hardware"):
             class MyFB:
-                x: float = Field(initial=3.14, hardware="input", constant=True)
+                x: real = Field(initial=3.14, hardware="input", constant=True)
             _collect_descriptors(MyFB)
 
     def test_constant_rejects_external(self):
         with pytest.raises(DeclarationError, match="external"):
             class MyFB:
-                x: float = Field(initial=3.14, external=True, constant=True)
+                x: real = Field(initial=3.14, external=True, constant=True)
             _collect_descriptors(MyFB)
 
     def test_invalid_hardware_value(self):
@@ -457,12 +465,12 @@ class TestPythonBuiltinTypes:
         class MyFB:
             count: int = 0
         groups = _collect_descriptors(MyFB)
-        assert groups["static"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
+        assert groups["static"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.INT)
         assert groups["static"][0].initial_value == "0"
 
-    def test_output_float(self):
+    def test_output_real(self):
         class MyFB:
-            valve: Output[float]
+            valve: Output[real]
         groups = _collect_descriptors(MyFB)
         assert groups["output"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.REAL)
 
@@ -677,10 +685,10 @@ class TestExternalWrapper:
 class TestAnnotationInheritance:
     def test_annotation_inheritance(self):
         class Parent:
-            speed: Input[float]
+            speed: Input[real]
 
         class Child(Parent):
-            accel: Input[float]
+            accel: Input[real]
 
         groups = _collect_descriptors(Child)
         assert len(groups["input"]) == 2
@@ -693,7 +701,7 @@ class TestAnnotationInheritance:
             x: Input[int]
 
         class Child(Parent):
-            x: Output[float]
+            x: Output[real]
 
         groups = _collect_descriptors(Child)
         # x should be output (child overrides parent)
@@ -744,9 +752,9 @@ class TestDetermineDirection:
         assert inner is int
 
     def test_output(self):
-        d, inner = _determine_direction(Output[float])
+        d, inner = _determine_direction(Output[real])
         assert d == VarDirection.OUTPUT
-        assert inner is float
+        assert inner is real
 
     def test_inout(self):
         d, inner = _determine_direction(InOut[bool])
@@ -782,7 +790,7 @@ class TestResolveDeclaration:
     def test_each_wrapper_direction(self):
         for wrapper, expected in [
             (Input[int], VarDirection.INPUT),
-            (Output[float], VarDirection.OUTPUT),
+            (Output[real], VarDirection.OUTPUT),
             (InOut[bool], VarDirection.INOUT),
             (Static[int], VarDirection.STATIC),
             (Temp[int], VarDirection.TEMP),
@@ -793,7 +801,7 @@ class TestResolveDeclaration:
             assert desc.direction == expected
 
     def test_constant_field_with_initial(self):
-        desc = _resolve_declaration("PI", float, Field(initial=3.14, constant=True), type("D", (), {}))
+        desc = _resolve_declaration("PI", real, Field(initial=3.14, constant=True), type("D", (), {}))
         assert desc is not None
         assert desc.direction == VarDirection.STATIC
         assert desc.constant is True

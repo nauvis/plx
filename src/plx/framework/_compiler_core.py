@@ -209,7 +209,6 @@ _MATH_CONSTANTS: dict[str, str] = {
 _PYTHON_ANNOTATION_MAP: dict[str, TypeRef] = {
     "bool": PrimitiveTypeRef(type=PrimitiveType.BOOL),
     "int": PrimitiveTypeRef(type=PrimitiveType.INT),
-    "float": PrimitiveTypeRef(type=PrimitiveType.REAL),
     "str": StringTypeRef(wide=False, max_length=255),
     # Lowercase PLC types — integer
     "sint": PrimitiveTypeRef(type=PrimitiveType.SINT),
@@ -255,7 +254,6 @@ _PYTHON_ANNOTATION_MAP: dict[str, TypeRef] = {
 
 _PYTHON_TYPE_CONV_MAP: dict[str, TypeRef] = {
     "int": PrimitiveTypeRef(type=PrimitiveType.INT),
-    "float": PrimitiveTypeRef(type=PrimitiveType.REAL),
     "bool": PrimitiveTypeRef(type=PrimitiveType.BOOL),
 }
 
@@ -263,6 +261,7 @@ _REJECTED_BUILTINS: dict[str, str] = {
     "print": "print() does not exist in PLC logic.",
     "input": "input() does not exist in PLC logic.",
     "open": "open() does not exist in PLC logic.",
+    "float": "float() is ambiguous in PLC — use REAL(x) for 32-bit or LREAL(x) for 64-bit.",
     "str": "str() is not supported in PLC logic. Use INT_TO_STRING(), REAL_TO_STRING(), etc.",
     "type": "type() is not supported. PLCs are statically typed.",
     "isinstance": "isinstance() is not supported. PLCs are statically typed.",
@@ -405,6 +404,11 @@ def resolve_annotation(
     Used by both the ASTCompiler and ``_decorators.py``.
     """
     if isinstance(ann, ast.Name):
+        if ann.id == "float":
+            raise CompileError(
+                "float is ambiguous in PLC — use real (32-bit REAL) or lreal (64-bit LREAL)",
+                node, ctx,
+            )
         if ann.id in _PYTHON_ANNOTATION_MAP:
             return _PYTHON_ANNOTATION_MAP[ann.id]
         try:
@@ -436,7 +440,7 @@ def _infer_type(node: ast.expr, ctx: CompileContext) -> TypeRef | None:
         if isinstance(node.value, bool):
             return PrimitiveTypeRef(type=PrimitiveType.BOOL)
         if isinstance(node.value, int):
-            return PrimitiveTypeRef(type=PrimitiveType.DINT)
+            return PrimitiveTypeRef(type=PrimitiveType.INT)
         if isinstance(node.value, float):
             return PrimitiveTypeRef(type=PrimitiveType.REAL)
         if isinstance(node.value, str):

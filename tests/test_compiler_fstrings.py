@@ -190,12 +190,12 @@ class TestFStringExpressions:
         assert conv.source_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
 
     def test_int_literal(self):
-        """f"code: {42}" → CONCAT('code: ', DINT_TO_STRING(42))"""
+        """f"code: {42}" → CONCAT('code: ', INT_TO_STRING(42))"""
         result = compile_expr('f"code: {42}"')
         assert isinstance(result, FunctionCallExpr)
         conv = result.args[1].value
         assert isinstance(conv, TypeConversionExpr)
-        assert conv.source_type == PrimitiveTypeRef(type=PrimitiveType.DINT)
+        assert conv.source_type == PrimitiveTypeRef(type=PrimitiveType.INT)
 
     def test_float_literal(self):
         """f"val: {3.14}" → CONCAT('val: ', REAL_TO_STRING(3.14))"""

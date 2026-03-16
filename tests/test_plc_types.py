@@ -355,14 +355,17 @@ class TestResolveTypeRef:
         ref = _resolve_type_ref(udint)
         assert ref.type == PrimitiveType.UDINT
 
-    def test_builtin_int_still_dint(self):
-        """builtins.int should still map to DINT for backwards compat."""
+    def test_builtin_int_maps_to_int(self):
+        """builtins.int maps to INT (matching IEC name)."""
         ref = _resolve_type_ref(builtins.int)
-        assert ref.type == PrimitiveType.DINT
+        assert ref.type == PrimitiveType.INT
 
-    def test_builtin_float_still_real(self):
-        ref = _resolve_type_ref(builtins.float)
-        assert ref.type == PrimitiveType.REAL
+    def test_builtin_float_rejected(self):
+        """float is ambiguous — must use real or lreal."""
+        import pytest
+        from plx.framework._errors import DeclarationError
+        with pytest.raises(DeclarationError, match="float is ambiguous"):
+            _resolve_type_ref(builtins.float)
 
     def test_builtin_bool_still_bool(self):
         ref = _resolve_type_ref(builtins.bool)

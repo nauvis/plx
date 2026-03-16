@@ -51,8 +51,8 @@ class TestAssignment:
         assert len(stmts) == 1
         assert stmts[0].target.name == "x"
 
-    def test_bare_name_inferred_dint(self):
-        """Bare assignment with int literal infers DINT temp."""
+    def test_bare_name_inferred_int(self):
+        """Bare assignment with int literal infers INT temp."""
         ctx = CompileContext()
         stmts = compile_stmts("x = 10", ctx)
         assert len(stmts) == 1
@@ -60,7 +60,7 @@ class TestAssignment:
         assert ctx.declared_vars["x"] == VarDirection.TEMP
         assert len(ctx.generated_temp_vars) == 1
         assert ctx.generated_temp_vars[0].name == "x"
-        assert ctx.generated_temp_vars[0].data_type.type.value == "DINT"
+        assert ctx.generated_temp_vars[0].data_type.type.value == "INT"
 
     def test_bare_name_inferred_bitwise_ops(self):
         """Bitwise ops (& | ^) should infer type from operands."""
@@ -269,6 +269,17 @@ for i in range(10):
         assert "i" in ctx.declared_vars
         assert len(ctx.generated_temp_vars) == 1
 
+    def test_for_else_rejected(self):
+        import pytest
+        from plx.framework._compiler import CompileError
+        with pytest.raises(CompileError, match="for/else is not supported"):
+            compile_stmts("""\
+for i in range(10):
+    self.x = i
+else:
+    self.x = -1
+""")
+
 
 # ---------------------------------------------------------------------------
 # While loops
@@ -285,6 +296,17 @@ while self.running:
         assert isinstance(stmt, WhileStatement)
         assert isinstance(stmt.condition, VariableRef)
         assert len(stmt.body) == 1
+
+    def test_while_else_rejected(self):
+        import pytest
+        from plx.framework._compiler import CompileError
+        with pytest.raises(CompileError, match="while/else is not supported"):
+            compile_stmts("""\
+while self.running:
+    self.x += 1
+else:
+    self.x = 0
+""")
 
 
 # ---------------------------------------------------------------------------

@@ -165,7 +165,7 @@ class TestOptionalLogic:
         """@fb without logic() should compile with empty networks."""
         @fb
         class Config:
-            max_speed: Input[float]
+            max_speed: Input[real]
             timeout: Input[int]
             enabled: Output[bool]
 
@@ -179,7 +179,7 @@ class TestOptionalLogic:
         """Methods should still compile on data-only FBs."""
         @fb
         class DataBlock:
-            value: float = 0.0
+            value: real = 0.0
 
             @fb_method
             def reset(self):
@@ -195,7 +195,7 @@ class TestOptionalLogic:
         with pytest.raises(CompileError, match="must have a logic"):
             @function
             class BadFunc:
-                x: Input[float]
+                x: Input[real]
 
     def test_program_without_logic(self):
         """@program without logic() should compile with empty body."""
@@ -211,8 +211,8 @@ class TestOptionalLogic:
         """A data-only FB should be usable as a static var type."""
         @fb
         class Params:
-            max_speed: float = 100.0
-            accel: float = 10.0
+            max_speed: real = 100.0
+            accel: real = 10.0
 
         @fb
         class Motor:
@@ -229,7 +229,7 @@ class TestOptionalLogic:
         """Simulating a data-only FB should be a no-op scan."""
         @fb
         class Config:
-            speed: float = 50.0
+            speed: real = 50.0
             enabled: bool = True
 
         ctx = simulate(Config)
@@ -269,7 +269,7 @@ class TestAnnotatedMetadata:
         """Annotated[Output[float], Field(retain=True)] = 60.0"""
         @fb
         class Heater:
-            setpoint: Annotated[Output[float], Field(retain=True)] = 60.0
+            setpoint: Annotated[Output[real], Field(retain=True)] = 60.0
 
             def logic(self):
                 pass
@@ -360,7 +360,7 @@ class TestAnnotatedMetadata:
         @global_vars
         class IO:
             motor_run: Annotated[bool, Field(description="Motor run output")] = False
-            speed: Annotated[float, Field(retain=True)] = 50.0
+            speed: Annotated[real, Field(retain=True)] = 50.0
 
         gvl = IO.compile()
         motor = next(v for v in gvl.variables if v.name == "motor_run")
