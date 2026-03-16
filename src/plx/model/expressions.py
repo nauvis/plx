@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Annotated, Literal, Union
+from typing import Annotated, Literal, Self, Union
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from ._base import IRModel
 
@@ -118,11 +118,21 @@ class MemberAccessExpr(IRModel):
 
 
 class BitAccessExpr(IRModel):
-    """Bit-level access on an integer/word variable: var.bit5."""
+    """Bit-level access on an integer/word variable.
+
+    Static: ``var.5`` (bit_index is int).
+    Dynamic: ``var.[idx]`` (bit_index is Expression — AB syntax).
+    """
 
     kind: Literal["bit_access"] = "bit_access"
     target: Expression
-    bit_index: int = Field(ge=0)
+    bit_index: int | Expression
+
+    @model_validator(mode="after")
+    def _validate_bit_index(self) -> Self:
+        if isinstance(self.bit_index, int) and self.bit_index < 0:
+            raise ValueError("bit_index must be >= 0 for static bit access")
+        return self
 
 
 class TypeConversionExpr(IRModel):
