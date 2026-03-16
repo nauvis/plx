@@ -10,6 +10,7 @@ Demonstrates:
 from datetime import timedelta
 
 from plx.framework import (
+    REAL,
     fb,
     Input,
     Output,
@@ -65,9 +66,9 @@ class DoubleActingValve(BaseValve):
 
 @fb
 class ModulatingValve(DoubleActingValve):
-    position_sp: Input[float] = Field(description="Position setpoint 0-100%")
-    position_pv: Input[float] = Field(description="Position feedback 0-100%")
-    position_out: Output[float] = Field(description="Analog output 0-100%")
+    position_sp: Input[REAL] = Field(description="Position setpoint 0-100%")
+    position_pv: Input[REAL] = Field(description="Position feedback 0-100%")
+    position_out: Output[REAL] = Field(description="Analog output 0-100%")
     in_position: Output[bool] = Field(description="At setpoint")
 
     def logic(self):

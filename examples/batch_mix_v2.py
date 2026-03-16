@@ -7,6 +7,7 @@ FBs as static vars and calls them properly.
 from datetime import timedelta
 
 from plx.framework import (
+    REAL,
     TIME,
     fb,
     program,
@@ -54,9 +55,9 @@ class ValveCtrl:
 class VolumeDose:
     start: Input[bool]
     flow_pulse: Input[bool]
-    target_vol: Input[float]
+    target_vol: Input[REAL]
     done: Output[bool]
-    actual_vol: Output[float]
+    actual_vol: Output[REAL]
     valve_cmd: Output[bool]
 
     def logic(self):

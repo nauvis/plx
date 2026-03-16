@@ -8,6 +8,7 @@ and a CIP (clean-in-place) cycle flushes the system.
 from datetime import timedelta
 
 from plx.framework import (
+    REAL,
     TIME,
     fb,
     program,
@@ -69,11 +70,11 @@ class ValveCtrl:
 class VolumeDose:
     start: Input[bool] = Field(description="Start dosing")
     flow_pulse: Input[bool] = Field(description="Flowmeter pulse input")
-    target_vol: Input[float] = Field(description="Target volume (liters)")
-    vol_per_pulse: Input[float] = Field(initial=0.1, description="Liters per pulse")
+    target_vol: Input[REAL] = Field(description="Target volume (liters)")
+    vol_per_pulse: Input[REAL] = Field(initial=0.1, description="Liters per pulse")
 
     done: Output[bool] = Field(description="Target reached")
-    actual_vol: Output[float] = Field(description="Accumulated volume")
+    actual_vol: Output[REAL] = Field(description="Accumulated volume")
     valve_cmd: Output[bool] = Field(description="Open command to valve")
 
     def logic(self):
@@ -105,7 +106,7 @@ class BatchMix:
     cmd_cip: Input[bool] = Field(description="Start CIP cycle")
 
     # --- field I/O ---
-    level: Input[float] = Field(description="Tank level (liters)")
+    level: Input[REAL] = Field(description="Tank level (liters)")
     level_low: Input[bool] = Field(description="Low level switch")
     flow_a: Input[bool] = Field(description="Ingredient A flow pulse")
     flow_b: Input[bool] = Field(description="Ingredient B flow pulse")
