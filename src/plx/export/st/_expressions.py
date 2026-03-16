@@ -135,7 +135,11 @@ class _ExpressionWriterMixin:
         return f"{self._expr(expr.pointer, 10)}^"
 
     def _expr_bit_access(self, expr: BitAccessExpr, _prec: int) -> str:
-        return f"{self._expr(expr.target, 10)}.{expr.bit_index}"
+        target = self._expr(expr.target, 10)
+        if isinstance(expr.bit_index, int):
+            return f"{target}.{expr.bit_index}"
+        # Dynamic bit access: target.[expr]
+        return f"{target}.[{self._expr(expr.bit_index)}]"
 
     def _expr_type_conversion(self, expr: TypeConversionExpr, _prec: int) -> str:
         target = self._type_ref(expr.target_type)
