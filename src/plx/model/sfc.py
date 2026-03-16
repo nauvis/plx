@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from enum import Enum
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
-from ._base import IRModel
+from ._base import IRModel, validate_iec_identifier
 
 from .expressions import Expression
 from .statements import Statement
@@ -35,6 +35,11 @@ class Action(IRModel):
     body: list[Statement] = []
     action_name: str | None = None  # Reference to a named POUAction
 
+    @field_validator("name")
+    @classmethod
+    def _valid_name(cls, v: str) -> str:
+        return validate_iec_identifier(v)
+
     @model_validator(mode="after")
     def _body_exclusivity(self):
         has_body = bool(self.body)
@@ -52,6 +57,11 @@ class Step(IRModel):
     actions: list[Action] = []
     entry_actions: list[Action] = []
     exit_actions: list[Action] = []
+
+    @field_validator("name")
+    @classmethod
+    def _valid_name(cls, v: str) -> str:
+        return validate_iec_identifier(v)
 
 
 class Transition(IRModel):

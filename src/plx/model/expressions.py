@@ -108,6 +108,12 @@ class ArrayAccessExpr(IRModel):
     array: Expression
     indices: list[Expression]
 
+    @model_validator(mode="after")
+    def _non_empty_indices(self) -> "ArrayAccessExpr":
+        if not self.indices:
+            raise ValueError("ArrayAccessExpr must have at least one index")
+        return self
+
 
 class MemberAccessExpr(IRModel):
     """Struct/FB member access: expr.member."""

@@ -14,6 +14,7 @@ import ast
 import inspect
 import io
 import tokenize
+import warnings
 from dataclasses import dataclass
 from typing import Any
 
@@ -155,7 +156,9 @@ def _compile_method(
         if arg.annotation is None:
             raise CompileError(
                 f"Method parameter '{param_name}' in {context_name} "
-                f"must have a type annotation"
+                f"must have a type annotation",
+                source_file=source_file,
+                pou_name=cls.__name__,
             )
 
         type_ref = _resolve_method_annotation(arg.annotation, cls, method_name)
@@ -254,7 +257,6 @@ def _extract_comments(source: str) -> dict[int, str]:
             if text:
                 comments[tok.start[0]] = text
     except tokenize.TokenError as exc:
-        import warnings
         warnings.warn(
             f"plx: failed to tokenize source for comment extraction: {exc}",
             stacklevel=2,
@@ -345,8 +347,14 @@ def _parse_logic_source(cls: type) -> tuple[ast.FunctionDef, str, int]:
     Returns ``(func_def, source, start_lineno)``.
     """
     if not hasattr(cls, "logic"):
+        try:
+            _src = inspect.getfile(cls)
+        except (TypeError, OSError):
+            _src = None
         raise CompileError(
-            f"POU class '{cls.__name__}' must have a logic() method"
+            f"POU class '{cls.__name__}' must have a logic() method",
+            source_file=_src,
+            pou_name=cls.__name__,
         )
 
     return _parse_function_source(
@@ -433,9 +441,15 @@ def _compile_pou_class(
 
     # FUNCTION POUs always require logic() (return type comes from annotation)
     if not has_logic and pou_type == POUType.FUNCTION:
+        try:
+            _src = inspect.getfile(cls)
+        except (TypeError, OSError):
+            _src = None
         raise CompileError(
             f"FUNCTION '{cls.__name__}' must have a logic() method "
-            f"with a return type annotation"
+            f"with a return type annotation",
+            source_file=_src,
+            pou_name=cls.__name__,
         )
 
     networks: list[Network] = []
@@ -446,22 +460,25 @@ def _compile_pou_class(
     if has_logic:
         func_def, source, start_lineno = _parse_logic_source(cls)
 
+        try:
+            source_file = inspect.getfile(cls)
+        except (TypeError, OSError):
+            source_file = "<unknown>"
+
         # For FUNCTION POUs, extract return type from logic() annotation
         if pou_type == POUType.FUNCTION:
             if func_def.returns is None:
                 raise CompileError(
                     f"FUNCTION '{cls.__name__}' requires a return type — "
-                    f"annotate logic(): def logic(self) -> REAL:"
+                    f"annotate logic(): def logic(self) -> REAL:",
+                    node=func_def,
+                    source_file=source_file,
+                    pou_name=cls.__name__,
                 )
             return_type = resolve_annotation(
                 func_def.returns,
                 location_hint=f"{cls.__name__}.logic()",
             )
-
-        try:
-            source_file = inspect.getfile(cls)
-        except (TypeError, OSError):
-            source_file = "<unknown>"
 
         ctx = _build_compile_context(
             cls.logic, cls,

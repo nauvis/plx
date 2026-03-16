@@ -6,7 +6,7 @@ from typing import Annotated, Any, Literal, Union
 
 from pydantic import Field, model_validator
 
-from ._base import IRModel
+from ._base import IRModel, _IEC_IDENT_RE
 
 from .expressions import ArrayAccessExpr, BitAccessExpr, CallArg, Expression, MemberAccessExpr
 from .types import NamedTypeRef, TypeRef
@@ -157,6 +157,18 @@ class FBInvocation(IRModel):
                 data = dict(data)
                 data["fb_type"] = {"kind": "named", "name": val}
         return data
+
+    @model_validator(mode="after")
+    def _validate_instance_name(self) -> "FBInvocation":
+        if isinstance(self.instance_name, str):
+            if not self.instance_name:
+                raise ValueError("FBInvocation.instance_name must not be empty")
+            if not _IEC_IDENT_RE.match(self.instance_name):
+                raise ValueError(
+                    f"FBInvocation.instance_name '{self.instance_name}' "
+                    f"is not a valid IEC 61131-3 identifier"
+                )
+        return self
 
 
 class EmptyStatement(IRModel):

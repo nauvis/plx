@@ -53,15 +53,22 @@ def _parse_function_source(
     source = textwrap.dedent("".join(source_lines))
 
     try:
+        _src_file = inspect.getfile(func)
+    except (TypeError, OSError):
+        _src_file = None
+
+    try:
         tree = ast.parse(source)
     except SyntaxError as e:
         raise CompileError(
-            f"Syntax error in {context_name}: {e}"
+            f"Syntax error in {context_name}: {e}",
+            source_file=_src_file,
         ) from e
 
     if not tree.body or not isinstance(tree.body[0], ast.FunctionDef):
         raise CompileError(
-            f"Expected a function definition in {context_name}"
+            f"Expected a function definition in {context_name}",
+            source_file=_src_file,
         )
 
     func_def = tree.body[0]
@@ -70,11 +77,15 @@ def _parse_function_source(
         params = func_def.args
         if len(params.args) != 1 or params.args[0].arg != "self":
             raise CompileError(
-                f"{context_name} must take exactly one parameter (self)"
+                f"{context_name} must take exactly one parameter (self)",
+                node=func_def,
+                source_file=_src_file,
             )
         if params.vararg or params.kwarg or params.kwonlyargs or params.posonlyargs:
             raise CompileError(
-                f"{context_name} must take only 'self'"
+                f"{context_name} must take only 'self'",
+                node=func_def,
+                source_file=_src_file,
             )
 
     if validate_single_return:
@@ -82,11 +93,13 @@ def _parse_function_source(
         if len(body) != 1 or not isinstance(body[0], ast.Return):
             raise CompileError(
                 f"{context_name} must have exactly one statement: "
-                f"'return <condition>'"
+                f"'return <condition>'",
+                source_file=_src_file,
             )
         if body[0].value is None:
             raise CompileError(
-                f"{context_name} must return an expression (the condition)"
+                f"{context_name} must return an expression (the condition)",
+                source_file=_src_file,
             )
 
     return func_def, source, start_lineno

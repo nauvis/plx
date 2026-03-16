@@ -5,9 +5,9 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, Self
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
-from ._base import IRModel
+from ._base import IRModel, validate_iec_identifier
 
 from .sfc import SFCBody
 from .statements import Statement
@@ -111,6 +111,11 @@ class Property(IRModel):
     getter: PropertyAccessor | None = None
     setter: PropertyAccessor | None = None
 
+    @field_validator("name")
+    @classmethod
+    def _valid_name(cls, v: str) -> str:
+        return validate_iec_identifier(v)
+
 
 class Method(IRModel):
     """A method on a FUNCTION_BLOCK (OOP extension)."""
@@ -125,6 +130,11 @@ class Method(IRModel):
     interface: POUInterface = POUInterface()
     networks: list[Network] = []
     sfc_body: SFCBody | None = None
+
+    @field_validator("name")
+    @classmethod
+    def _valid_name(cls, v: str) -> str:
+        return validate_iec_identifier(v)
 
     @model_validator(mode="after")
     def _body_exclusivity(self) -> Self:
@@ -142,6 +152,11 @@ class POUAction(IRModel):
 
     name: str = Field(min_length=1)
     body: list[Network] = []
+
+    @field_validator("name")
+    @classmethod
+    def _valid_name(cls, v: str) -> str:
+        return validate_iec_identifier(v)
 
 
 class POU(IRModel):
@@ -173,6 +188,11 @@ class POU(IRModel):
     extends: str | None = None
     implements: list[str] = []
     metadata: dict[str, Any] = {}
+
+    @field_validator("name")
+    @classmethod
+    def _valid_name(cls, v: str) -> str:
+        return validate_iec_identifier(v)
 
     @model_validator(mode="after")
     def _body_exclusivity(self) -> Self:

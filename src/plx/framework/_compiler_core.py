@@ -41,18 +41,34 @@ from ._errors import PlxError
 class CompileError(PlxError):
     """Error during AST compilation with source location."""
 
-    def __init__(self, message: str, node: ast.AST | None = None, ctx: CompileContext | None = None):
-        self.source_file = "<unknown>"
+    def __init__(
+        self,
+        message: str,
+        node: ast.AST | None = None,
+        ctx: "CompileContext | None" = None,
+        source_file: str | None = None,
+        pou_name: str | None = None,
+    ):
+        self.source_file = source_file
         self.source_line: int | None = None
+        self.pou_name = pou_name
+
         if node is not None and ctx is not None:
             self.source_file = ctx.source_file
             lineno = getattr(node, "lineno", None)
             if lineno is not None:
                 self.source_line = lineno + ctx.source_line_offset
-        loc = ""
+
+        parts = []
+        if self.pou_name:
+            parts.append(f"[{self.pou_name}]")
+        if self.source_file:
+            parts.append(self.source_file)
         if self.source_line is not None:
-            loc = f" ({self.source_file}:{self.source_line})"
-        super().__init__(f"{message}{loc}")
+            parts.append(f"line {self.source_line}")
+
+        location = " ".join(parts)
+        super().__init__(f"{location}: {message}" if location else message)
 
 
 # ---------------------------------------------------------------------------

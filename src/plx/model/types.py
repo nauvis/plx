@@ -15,9 +15,9 @@ from __future__ import annotations
 from enum import Enum
 from typing import Annotated, Literal, Union
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
-from ._base import IRModel
+from ._base import IRModel, validate_iec_identifier
 
 
 # ---------------------------------------------------------------------------
@@ -173,6 +173,11 @@ class StructMember(IRModel):
     initial_value: str | None = None
     description: str = ""
 
+    @field_validator("name")
+    @classmethod
+    def _valid_name(cls, v: str) -> str:
+        return validate_iec_identifier(v)
+
 
 class StructType(IRModel):
     """Named struct type definition.
@@ -188,6 +193,11 @@ class StructType(IRModel):
     folder: str = ""
     extends: str | None = None
     members: list[StructMember]
+
+    @field_validator("name")
+    @classmethod
+    def _valid_name(cls, v: str) -> str:
+        return validate_iec_identifier(v)
 
     @model_validator(mode="after")
     def _no_duplicate_member_names(self):
@@ -207,6 +217,11 @@ class EnumMember(IRModel):
     name: str = Field(min_length=1)
     value: int | None = None
 
+    @field_validator("name")
+    @classmethod
+    def _valid_name(cls, v: str) -> str:
+        return validate_iec_identifier(v)
+
 
 class EnumType(IRModel):
     """Named enum type definition.
@@ -219,6 +234,11 @@ class EnumType(IRModel):
     folder: str = ""
     members: list[EnumMember]
     base_type: PrimitiveType | None = None
+
+    @field_validator("name")
+    @classmethod
+    def _valid_name(cls, v: str) -> str:
+        return validate_iec_identifier(v)
 
     @model_validator(mode="after")
     def _no_duplicate_member_names(self):
@@ -243,6 +263,11 @@ class UnionType(IRModel):
     folder: str = ""
     members: list[StructMember]
 
+    @field_validator("name")
+    @classmethod
+    def _valid_name(cls, v: str) -> str:
+        return validate_iec_identifier(v)
+
     @model_validator(mode="after")
     def _no_duplicate_member_names(self):
         seen: set[str] = set()
@@ -266,6 +291,11 @@ class AliasType(IRModel):
     folder: str = ""
     base_type: TypeRef
 
+    @field_validator("name")
+    @classmethod
+    def _valid_name(cls, v: str) -> str:
+        return validate_iec_identifier(v)
+
 
 class SubrangeType(IRModel):
     """Constrained numeric subrange: TYPE Pct : INT(0..100); END_TYPE.
@@ -279,6 +309,11 @@ class SubrangeType(IRModel):
     base_type: PrimitiveType
     lower_bound: int
     upper_bound: int
+
+    @field_validator("name")
+    @classmethod
+    def _valid_name(cls, v: str) -> str:
+        return validate_iec_identifier(v)
 
     @model_validator(mode="after")
     def _bounds_check(self):

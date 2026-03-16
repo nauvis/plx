@@ -34,7 +34,7 @@ class TestCompileError:
     def test_basic_message(self):
         err = CompileError("something failed")
         assert str(err) == "something failed"
-        assert err.source_file == "<unknown>"
+        assert err.source_file is None
         assert err.source_line is None
 
     def test_with_node_and_context(self):
@@ -46,7 +46,8 @@ class TestCompileError:
             source_line_offset=10,
         )
         err = CompileError("bad thing", node=node, ctx=ctx)
-        assert "test.py:15" in str(err)
+        assert "test.py" in str(err)
+        assert "line 15" in str(err)
         assert err.source_file == "test.py"
         assert err.source_line == 15
 

@@ -6,6 +6,7 @@ a ``Project`` IR node.
 
 from __future__ import annotations
 
+import warnings
 from typing import overload
 
 from plx.model.pou import POU, POUType
@@ -55,8 +56,8 @@ def _resolve_transitive_deps(
     names via the global registry; unresolved names (IEC standard types
     like TON, TOF, etc.) are silently skipped.
     """
-    pou_ids: set[int] = {id(c) for c in pou_classes}
-    type_ids: set[int] = {id(c) for c in data_type_classes}
+    pou_names: set[str] = {c._compiled_pou.name for c in pou_classes if hasattr(c, "_compiled_pou")}
+    type_names: set[str] = {c._compiled_type.name for c in data_type_classes if hasattr(c, "_compiled_type")}
 
     # Queue: POU classes whose dependencies haven't been examined yet
     queue = list(pou_classes)
@@ -106,15 +107,23 @@ def _resolve_transitive_deps(
         # Resolve each name
         for name in names:
             dep_pou = lookup_pou(name)
-            if dep_pou is not None and id(dep_pou) not in pou_ids:
-                pou_classes.append(dep_pou)
-                pou_ids.add(id(dep_pou))
-                queue.append(dep_pou)
+            if dep_pou is not None:
+                dep_pou_name = dep_pou._compiled_pou.name
+                if dep_pou_name in pou_names:
+                    warnings.warn(
+                        f"plx: duplicate POU name '{dep_pou_name}' — "
+                        f"second definition ignored",
+                        stacklevel=3,
+                    )
+                else:
+                    pou_classes.append(dep_pou)
+                    pou_names.add(dep_pou_name)
+                    queue.append(dep_pou)
 
             dep_type = lookup_type(name)
-            if dep_type is not None and id(dep_type) not in type_ids:
+            if dep_type is not None and dep_type._compiled_type.name not in type_names:
                 data_type_classes.append(dep_type)
-                type_ids.add(id(dep_type))
+                type_names.add(dep_type._compiled_type.name)
 
 
 # ---------------------------------------------------------------------------
@@ -181,29 +190,27 @@ class PlxProject:
         if self._packages:
             from ._discover import discover
             discovered = discover(*self._packages)
-            # Dedup by id — explicit entries take priority
-            explicit_ids = (
-                {id(c) for c in self._pou_classes}
-                | {id(c) for c in self._data_type_classes}
-                | {id(c) for c in self._gvl_classes}
-                | {id(t) for t in self._tasks}
-            )
+            # Dedup by compiled name — explicit entries take priority
+            explicit_pou_names = {c._compiled_pou.name for c in self._pou_classes if hasattr(c, "_compiled_pou")}
+            explicit_type_names = {c._compiled_type.name for c in self._data_type_classes if hasattr(c, "_compiled_type")}
+            explicit_gvl_names = {c._compiled_gvl.name for c in self._gvl_classes if hasattr(c, "_compiled_gvl")}
+            explicit_task_ids = {id(t) for t in self._tasks}
             for cls in discovered.pous:
-                if id(cls) not in explicit_ids:
+                if cls._compiled_pou.name not in explicit_pou_names:
                     self._pou_classes.append(cls)
-                    explicit_ids.add(id(cls))
+                    explicit_pou_names.add(cls._compiled_pou.name)
             for cls in discovered.data_types:
-                if id(cls) not in explicit_ids:
+                if cls._compiled_type.name not in explicit_type_names:
                     self._data_type_classes.append(cls)
-                    explicit_ids.add(id(cls))
+                    explicit_type_names.add(cls._compiled_type.name)
             for cls in discovered.global_var_lists:
-                if id(cls) not in explicit_ids:
+                if cls._compiled_gvl.name not in explicit_gvl_names:
                     self._gvl_classes.append(cls)
-                    explicit_ids.add(id(cls))
+                    explicit_gvl_names.add(cls._compiled_gvl.name)
             for t in discovered.tasks:
-                if id(t) not in explicit_ids:
+                if id(t) not in explicit_task_ids:
                     self._tasks.append(t)
-                    explicit_ids.add(id(t))
+                    explicit_task_ids.add(id(t))
 
         # Resolve transitive dependencies — auto-include POUs and types
         # referenced via NamedTypeRef in static vars, extends, implements, etc.

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from io import StringIO
 
 from plx.model.pou import (
@@ -163,19 +164,31 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
         elif isinstance(td, EnumType):
             self._write_enum(td)
         elif isinstance(td, UnionType):
-            self._line(f"# UnionType '{td.name}' — rarely used, no framework support")
+            self._line(f"# UnionType '{td.name}' — no Python framework equivalent")
             for m in td.members:
                 self._line(f"#   {m.name}: {self._type_ref(m.data_type)}")
+            warnings.warn(
+                f"plx export: UnionType '{td.name}' has no Python equivalent — emitted as comment",
+                stacklevel=2,
+            )
         elif isinstance(td, AliasType):
             self._line(
                 f"# AliasType '{td.name}' = {self._type_ref(td.base_type)}"
-                f" — rarely used, no framework support"
+                f" — no Python framework equivalent"
+            )
+            warnings.warn(
+                f"plx export: AliasType '{td.name}' has no Python equivalent — emitted as comment",
+                stacklevel=2,
             )
         elif isinstance(td, SubrangeType):
             self._line(
                 f"# SubrangeType '{td.name}': {td.base_type.value}"
                 f"({td.lower_bound}..{td.upper_bound})"
-                f" — rarely used, no framework support"
+                f" — no Python framework equivalent"
+            )
+            warnings.warn(
+                f"plx export: SubrangeType '{td.name}' has no Python equivalent — emitted as comment",
+                stacklevel=2,
             )
 
     def _write_struct(self, td: StructType) -> None:
@@ -683,6 +696,13 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
     def _write_action_comment(self, action: POUAction) -> None:
         """Emit a POU action as a commented stub."""
         self._line(f"# ACTION {action.name}")
+        if action.body:
+            warnings.warn(
+                f"plx export: POUAction '{action.name}' body cannot be represented in Python "
+                f"— emitted as comment",
+                stacklevel=2,
+            )
+            self._line(f"# (body omitted — {len(action.body)} network(s))")
 
     # ======================================================================
     # SFC POUs
@@ -761,6 +781,8 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
         if action.body:
             for stmt in action.body:
                 self._write_stmt(stmt)
+        elif action.action_name and not action.body:
+            self._line(f"pass  # references POUAction: {action.action_name}")
         else:
             self._line("pass")
         self._indent_dec()

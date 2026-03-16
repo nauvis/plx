@@ -87,8 +87,9 @@ def _walk_package(package_name: str) -> list[ModuleType]:
             mod = importlib.import_module(modname)
             modules.append(mod)
         except Exception as exc:
+            import traceback as _tb
             warnings.warn(
-                f"plx discover: failed to import {modname}: {exc}",
+                f"plx discover: failed to import {modname}: {exc}\n{_tb.format_exc()}",
                 stacklevel=2,
             )
             continue
