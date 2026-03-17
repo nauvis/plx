@@ -163,11 +163,15 @@ class FBInvocation(IRModel):
         if isinstance(self.instance_name, str):
             if not self.instance_name:
                 raise ValueError("FBInvocation.instance_name must not be empty")
-            if not _IEC_IDENT_RE.match(self.instance_name):
-                raise ValueError(
-                    f"FBInvocation.instance_name '{self.instance_name}' "
-                    f"is not a valid IEC 61131-3 identifier"
-                )
+            # Allow dotted paths (e.g. "parent.child.Method") and caret
+            # deref (e.g. "SUPER^") — each segment must be a valid identifier
+            clean = self.instance_name.replace("^", "")
+            for segment in clean.split("."):
+                if segment and not _IEC_IDENT_RE.match(segment):
+                    raise ValueError(
+                        f"FBInvocation.instance_name '{self.instance_name}' "
+                        f"contains invalid segment '{segment}'"
+                    )
         return self
 
 

@@ -184,10 +184,11 @@ class _StatementMixin:
         name = node.target.id
         type_ref = self._resolve_annotation(node.annotation, node)
 
-        # Register as temp var
+        # Register as temp var (deduplicate — same name in if/else branches)
+        if name not in self.ctx.declared_vars:
+            var = Variable(name=name, data_type=type_ref)
+            self.ctx.generated_temp_vars.append(var)
         self.ctx.declared_vars[name] = VarDirection.TEMP
-        var = Variable(name=name, data_type=type_ref)
-        self.ctx.generated_temp_vars.append(var)
 
         if node.value is not None:
             value, pending = self._compile_expr_and_flush(node.value)
