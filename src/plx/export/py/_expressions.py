@@ -331,7 +331,11 @@ class _ExpressionWriterMixin:
         return f"{self._expr(expr.pointer, 10)}.deref"
 
     def _expr_bit_access(self, expr: BitAccessExpr, _prec: int) -> str:
-        return f"{self._expr(expr.target, 10)}.bit{expr.bit_index}"
+        target = self._expr(expr.target, 10)
+        if isinstance(expr.bit_index, int):
+            return f"{target}.bit{expr.bit_index}"
+        # Dynamic bit access (vendor-specific, e.g. AB target.[expr])
+        return f"{target}.bit[{self._expr(expr.bit_index)}]"
 
     def _expr_type_conversion(self, expr: TypeConversionExpr, _prec: int) -> str:
         # Type conversions are implicit in the Python DSL -- variable declarations

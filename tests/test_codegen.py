@@ -536,6 +536,14 @@ class TestExpressions:
         )
         assert w._expr(expr) == "self.status.bit5"
 
+    def test_bit_access_dynamic(self):
+        w = _make_writer(self_vars={"status"})
+        expr = BitAccessExpr(
+            target=VariableRef(name="status"),
+            bit_index=VariableRef(name="idx"),
+        )
+        assert w._expr(expr) == "self.status.bit[idx]"
+
     def test_shift_ops(self):
         w = _make_writer()
         expr = BinaryExpr(
