@@ -525,6 +525,14 @@ class _ExpressionMixin:
         if isinstance(node.slice, ast.Slice):
             return self._compile_slice(node, node.slice)
 
+        # Dynamic bit access: self.status.bit[idx] → BitAccessExpr(target, bit_index=expr)
+        if (isinstance(node.value, ast.Attribute)
+                and node.value.attr == "bit"
+                and not isinstance(node.slice, ast.Tuple)):
+            target = self.compile_expression(node.value.value)
+            bit_index = self.compile_expression(node.slice)
+            return BitAccessExpr(target=target, bit_index=bit_index)
+
         # Single index — check if this is string indexing
         from ._compiler_core import _infer_type
         value_type = _infer_type(node.value, self.ctx)

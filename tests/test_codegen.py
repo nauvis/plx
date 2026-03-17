@@ -1526,6 +1526,57 @@ class TestRoundTrip:
         compile(code, "<generated>", "exec")
         assert "for i in range(" in code
 
+    def test_dynamic_bit_access_round_trip(self, tmp_path):
+        """Framework → IR → Python → recompile → IR: dynamic bit access preserved."""
+        from plx.framework._decorators import fb
+        from plx.framework._descriptors import Input, Output, Static
+        from plx.framework._plc_types import dword, dint
+
+        @fb
+        class BitAccessFB:
+            flags: Input[dword]
+            idx: Input[dint]
+            result: Output[bool]
+            status: Static[dword]
+
+            def logic(self):
+                # Static bit access
+                self.result = self.status.bit5
+                # Dynamic bit access
+                self.result = self.flags.bit[self.idx]
+
+        pou_ir = BitAccessFB.compile()
+        proj_ir = Project(name="BitRT", pous=[pou_ir])
+        code = generate(proj_ir)
+
+        # Generated code is valid Python
+        compile(code, "<generated>", "exec")
+
+        # Both bit access forms present
+        assert "self.status.bit5" in code
+        assert "self.flags.bit[self.idx]" in code
+
+        # Write to temp file and import to recompile
+        # (inspect.getsource needs a real file on disk)
+        import importlib.util
+        mod_path = tmp_path / "bit_access_rt.py"
+        mod_path.write_text(code)
+        spec = importlib.util.spec_from_file_location("bit_access_rt", mod_path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        pou_ir2 = mod.BitAccessFB.compile()
+
+        # Both static and dynamic bit access preserved
+        from plx.model.expressions import BitAccessExpr
+        all_stmts = [s for n in pou_ir2.networks for s in n.statements]
+        bit_stmts = [s for s in all_stmts if hasattr(s, "value") and isinstance(s.value, BitAccessExpr)]
+        assert len(bit_stmts) == 2
+        has_static = any(isinstance(s.value.bit_index, int) for s in bit_stmts)
+        has_dynamic = any(not isinstance(s.value.bit_index, int) for s in bit_stmts)
+        assert has_static, "Static bit access lost in round-trip"
+        assert has_dynamic, "Dynamic bit access lost in round-trip"
+
     def test_data_types_round_trip(self):
         from plx.framework._data_types import enumeration, struct
         from plx.framework._plc_types import real

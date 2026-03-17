@@ -575,6 +575,33 @@ class TestBitAccess:
         assert isinstance(result, BitAccessExpr)
         assert result.bit_index == 3
 
+    # --- Dynamic bit access: self.status.bit[idx] ---
+
+    def test_dynamic_bit_access_variable(self):
+        """self.status.bit[idx] → BitAccessExpr with Expression index."""
+        result = compile_expr("self.status.bit[idx]")
+        assert isinstance(result, BitAccessExpr)
+        assert isinstance(result.target, VariableRef)
+        assert result.target.name == "status"
+        assert isinstance(result.bit_index, VariableRef)
+        assert result.bit_index.name == "idx"
+
+    def test_dynamic_bit_access_expression(self):
+        """self.flags.bit[i + 1] → BitAccessExpr with BinaryExpr index."""
+        result = compile_expr("self.flags.bit[i + 1]")
+        assert isinstance(result, BitAccessExpr)
+        assert isinstance(result.target, VariableRef)
+        assert result.target.name == "flags"
+        assert isinstance(result.bit_index, BinaryExpr)
+
+    def test_dynamic_bit_access_nested_member(self):
+        """self.data.word.bit[idx] → BitAccessExpr on MemberAccessExpr."""
+        result = compile_expr("self.data.word.bit[idx]")
+        assert isinstance(result, BitAccessExpr)
+        assert isinstance(result.target, MemberAccessExpr)
+        assert result.target.member == "word"
+        assert isinstance(result.bit_index, VariableRef)
+
 
 # ---------------------------------------------------------------------------
 # IEC type name as type conversion
