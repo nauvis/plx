@@ -193,6 +193,56 @@ def _quote_string(s: str) -> str:
     return f'"{s}"'
 
 
+def _iec_string_to_python(value: str) -> str:
+    """Convert an IEC 61131-3 quoted string literal to a Python string literal.
+
+    Strips outer IEC quotes, un-escapes ``$`` sequences, and re-quotes for
+    Python using ``repr()`` which handles backslashes and special characters.
+
+    IEC escape sequences:
+      ``$'`` → ``'``, ``$"`` → ``"``, ``$$`` → ``$``,
+      ``$N``/``$L`` → newline, ``$R`` → carriage return,
+      ``$T`` → tab, ``$P`` → form feed
+    """
+    # Determine and strip outer quotes
+    if len(value) >= 2 and value[0] in ("'", '"') and value[-1] == value[0]:
+        inner = value[1:-1]
+    else:
+        return value  # not a quoted string — return as-is
+
+    # Un-escape IEC $ sequences
+    chars: list[str] = []
+    i = 0
+    while i < len(inner):
+        if inner[i] == "$" and i + 1 < len(inner):
+            nc = inner[i + 1]
+            if nc == "'":
+                chars.append("'")
+            elif nc == '"':
+                chars.append('"')
+            elif nc == "$":
+                chars.append("$")
+            elif nc in ("N", "n", "L", "l"):
+                chars.append("\n")
+            elif nc in ("R", "r"):
+                chars.append("\r")
+            elif nc in ("T", "t"):
+                chars.append("\t")
+            elif nc in ("P", "p"):
+                chars.append("\f")
+            else:
+                # Unknown $ escape — preserve both chars
+                chars.append("$")
+                chars.append(nc)
+            i += 2
+        else:
+            chars.append(inner[i])
+            i += 1
+
+    # Re-quote for Python (repr handles backslashes, quotes, control chars)
+    return repr("".join(chars))
+
+
 # ---------------------------------------------------------------------------
 # IEC time parsing
 # ---------------------------------------------------------------------------
@@ -340,9 +390,9 @@ def _format_initial_value(value: str) -> str | None:
     except ValueError:
         pass
 
-    # String literal -- pass through
+    # String literal -- convert IEC escapes to Python
     if value.startswith("'") or value.startswith('"'):
-        return value
+        return _iec_string_to_python(value)
 
     # IEC FB/struct initialization: (Param := Value, ...) -> dict(Param=Value, ...)
     fb_init = _try_format_fb_init(value)

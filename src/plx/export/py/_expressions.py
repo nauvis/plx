@@ -29,6 +29,7 @@ from ._helpers import (
     _BINOP_PYTHON,
     _FUNC_CALL_OPS,
     _FUNC_REMAP,
+    _iec_string_to_python,
     _parse_iec_time,
     _safe_name,
     _sanitize_identifier,
@@ -132,6 +133,10 @@ class _ExpressionWriterMixin:
             return v
         except ValueError:
             pass
+
+        # String literal -- convert IEC escapes to Python
+        if v.startswith("'") or v.startswith('"'):
+            return _iec_string_to_python(v)
 
         return v
 
