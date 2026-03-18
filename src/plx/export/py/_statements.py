@@ -27,7 +27,7 @@ from plx.model.statements import (
     WhileStatement,
 )
 
-from ._helpers import _FUNC_REMAP, _case_branch_condition
+from ._helpers import _FUNC_REMAP, _case_branch_condition, _safe_name
 
 
 class _StatementWriterMixin:
@@ -110,6 +110,21 @@ class _StatementWriterMixin:
             self._write_case_as_match(stmt)
 
     def _write_case_as_match(self, stmt: CaseStatement) -> None:
+        # Check if any branch has bare identifier labels (no dot) —
+        # Python match/case treats these as capture patterns, not comparisons.
+        # Fall back to if/elif when this happens.
+        has_bare_names = False
+        for branch in stmt.branches:
+            for v in branch.values:
+                if isinstance(v, str) and "." not in v:
+                    try:
+                        int(v)
+                    except ValueError:
+                        has_bare_names = True
+        if has_bare_names:
+            self._write_case_as_if(stmt)
+            return
+
         self._line(f"match {self._expr(stmt.selector)}:")
         self._indent_inc()
         for branch in stmt.branches:
@@ -209,8 +224,10 @@ class _StatementWriterMixin:
 
     def _write_function_call_stmt(self, stmt: FunctionCallStatement) -> None:
         name = stmt.function_name
-        # Beckhoff OOP: SUPER^.Method() -> super().Method()
-        if name.startswith("SUPER^."):
+        # Beckhoff OOP: SUPER^() -> super().logic(), SUPER^.Method() -> super().Method()
+        if name == "SUPER^":
+            name = "super().logic"
+        elif name.startswith("SUPER^."):
             name = f"super().{name[7:]}"
         elif name.startswith("THIS^."):
             name = f"self.{name[6:]}"
@@ -241,10 +258,11 @@ class _StatementWriterMixin:
         # Emit: self.instance(IN=val, PT=val)
         if isinstance(stmt.instance_name, str):
             inst_name = stmt.instance_name
-            # Beckhoff OOP: THIS^.fb.Method -> self.fb.Method
-            if inst_name.startswith("THIS^."):
+            # Beckhoff OOP: THIS^.fb.Method -> self.fb.Method (case-insensitive)
+            upper = inst_name.upper()
+            if upper.startswith("THIS^."):
                 instance = f"self.{inst_name[6:]}"
-            elif inst_name.startswith("SUPER^."):
+            elif upper.startswith("SUPER^."):
                 instance = f"super().{inst_name[7:]}"
             elif inst_name in self._self_vars:
                 instance = f"self.{inst_name}"
@@ -254,13 +272,13 @@ class _StatementWriterMixin:
             instance = self._expr(stmt.instance_name)
         parts: list[str] = []
         for name, expr in stmt.inputs.items():
-            parts.append(f"{name}={self._expr(expr)}")
+            parts.append(f"{_safe_name(name)}={self._expr(expr)}")
         args = ", ".join(parts)
         self._line(f"{instance}({args})")
 
         # Output assignments on separate lines
         for name, expr in stmt.outputs.items():
-            self._line(f"{self._expr(expr)} = {instance}.{name}")
+            self._line(f"{self._expr(expr)} = {instance}.{_safe_name(name)}")
 
     def _write_empty(self, stmt: EmptyStatement) -> None:
         if not stmt.comment:
@@ -297,12 +315,23 @@ class _StatementWriterMixin:
         self._line(f"# {stmt.name}:")
 
     def _write_body(self, body: list[Statement]) -> None:
-        """Write a statement list, emitting 'pass' if empty."""
+        """Write a statement list, emitting 'pass' if empty or comment-only."""
         if not body:
             self._line("pass")
         else:
+            # Check if body has any statements that produce executable Python.
+            # EmptyStatement (with comment), TryCatchStatement, JumpStatement,
+            # and LabelStatement only emit comments.
+            _COMMENT_ONLY_KINDS = {"empty", "try_catch", "jump", "label"}
+            has_executable = any(
+                s.kind not in _COMMENT_ONLY_KINDS
+                or (s.kind == "empty" and not s.comment)
+                for s in body
+            )
             for s in body:
                 self._write_stmt(s)
+            if not has_executable:
+                self._line("pass")
 
 
 # ---------------------------------------------------------------------------

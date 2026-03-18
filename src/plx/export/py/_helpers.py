@@ -211,7 +211,7 @@ _IEC_TIME_RE = re.compile(
 
 # Simpler per-unit patterns for IEC time
 _IEC_TIME_UNIT_RE = re.compile(
-    r"(\d+(?:\.\d+)?)\s*(ms|us|h|m(?!s)|s)",
+    r"(\d+(?:\.\d+)?)\s*(ms|us|h|d|m(?!s)|s)",
     re.IGNORECASE,
 )
 
@@ -226,6 +226,7 @@ def _parse_iec_time(value: str) -> str | None:
 
     # Map IEC unit abbreviations to timedelta kwarg names
     _UNIT_TO_KWARG = {
+        "d": "days",
         "h": "hours",
         "m": "minutes",
         "s": "seconds",
@@ -278,11 +279,54 @@ def _format_initial_value(value: str) -> str | None:
     if time_repr is not None:
         return time_repr
 
-    # Enum literal: EnumType#MEMBER -> EnumType.MEMBER
+    # Date/time typed literals: DATE#2024-01-15 -> "DATE#2024-01-15" (string)
+    _DATE_TIME_PREFIXES = {
+        "DATE", "LDATE", "TOD", "LTOD", "DT", "LDT",
+        "TIME_OF_DAY", "LTIME_OF_DAY", "DATE_AND_TIME", "LDATE_AND_TIME",
+        "D", "LD",  # short forms
+    }
+    if "#" in value:
+        prefix = value.split("#", 1)[0].upper()
+        if prefix in _DATE_TIME_PREFIXES:
+            return repr(value)
+
+    # Typed numeric literal: BYTE#255 -> 255, REAL#3.14 -> 3.14
+    # The prefix is an IEC type name; the suffix is a numeric value.
+    _NUMERIC_TYPE_PREFIXES = {
+        "BYTE", "WORD", "DWORD", "LWORD",
+        "SINT", "INT", "DINT", "LINT",
+        "USINT", "UINT", "UDINT", "ULINT",
+        "REAL", "LREAL", "BOOL",
+    }
+    if "#" in value and not value.startswith("16#") and not value.startswith("8#"):
+        prefix, _, suffix = value.partition("#")
+        if prefix.upper() in _NUMERIC_TYPE_PREFIXES and suffix:
+            # Strip nested base prefixes (e.g. BYTE#16#FF -> 0xFF)
+            if suffix.startswith("16#"):
+                return "0x" + suffix[3:]
+            if suffix.startswith("8#"):
+                return "0o" + suffix[2:]
+            if suffix.startswith("2#"):
+                return "0b" + suffix[2:]
+            # Plain numeric — try to parse, return as-is if valid
+            try:
+                int(suffix)
+                return suffix
+            except ValueError:
+                pass
+            try:
+                float(suffix)
+                return suffix
+            except ValueError:
+                pass
+            # Not a simple number — quote the whole thing
+            return repr(value)
+
+    # Enum literal: EnumType#MEMBER -> EnumType.MEMBER (sanitize member name)
     if "#" in value and not value.startswith("16#") and not value.startswith("8#"):
         parts = value.split("#", 1)
         if parts[0] and parts[1] and parts[0][0].isalpha():
-            return f"{parts[0]}.{parts[1]}"
+            return f"{parts[0]}.{_safe_name(parts[1])}"
 
     # Numeric -- try int then float
     try:
@@ -517,6 +561,31 @@ def _topo_sort_fbs(fbs: list[POU]) -> list[POU]:
     return result
 
 
+def _topo_sort_data_types(data_types: list) -> list:
+    """Sort data types so dependencies come before dependents."""
+    by_name: dict[str, object] = {dt.name: dt for dt in data_types}
+    visited: set[str] = set()
+    result: list = []
+
+    def visit(name: str) -> None:
+        if name in visited:
+            return
+        visited.add(name)
+        dt = by_name.get(name)
+        if dt is None:
+            return
+        if isinstance(dt, StructType):
+            for m in dt.members:
+                for dep in _collect_named_refs(m.data_type):
+                    if dep in by_name:
+                        visit(dep)
+        result.append(dt)
+
+    for dt in data_types:
+        visit(dt.name)
+    return result
+
+
 def _step_group_expr(steps: list[str]) -> str:
     """Format step list for SFC transition path."""
     if len(steps) == 1:
@@ -559,6 +628,18 @@ def _sanitize_identifier(name: str) -> str:
     if result in _PYTHON_KEYWORDS:
         result = result + "_"
     return result
+
+
+def _safe_name(name: str) -> str:
+    """Escape Python keywords used as IEC variable/parameter/member names.
+
+    IEC 61131-3 allows ``IN``, ``AS``, etc. as identifiers.  Python does not.
+    Appends ``_`` when the name (case-insensitively lowered, since the framework
+    uses lowercase PLC types) collides with a Python keyword or builtin constant.
+    """
+    if name in _PYTHON_KEYWORDS or name in ("None",):
+        return name + "_"
+    return name
 
 
 def _sanitize_folder(folder: str) -> str:

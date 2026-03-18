@@ -30,6 +30,7 @@ from ._helpers import (
     _FUNC_CALL_OPS,
     _FUNC_REMAP,
     _parse_iec_time,
+    _safe_name,
     _sanitize_identifier,
 )
 
@@ -75,11 +76,50 @@ class _ExpressionWriterMixin:
             except ValueError:
                 pass
 
-        # Enum literal: Type#MEMBER -> Type.MEMBER
+        # Date/time typed literal: DATE#2024-01-15 -> "DATE#2024-01-15"
+        _DATE_TIME_PREFIXES = {
+            "DATE", "LDATE", "TOD", "LTOD", "DT", "LDT",
+            "TIME_OF_DAY", "LTIME_OF_DAY", "DATE_AND_TIME", "LDATE_AND_TIME",
+            "D", "LD",
+        }
+        if "#" in v:
+            prefix = v.split("#", 1)[0].upper()
+            if prefix in _DATE_TIME_PREFIXES:
+                return repr(v)
+
+        # Typed numeric literal: BYTE#255 -> 255, REAL#3.14 -> 3.14
+        _NUMERIC_TYPE_PREFIXES = {
+            "BYTE", "WORD", "DWORD", "LWORD",
+            "SINT", "INT", "DINT", "LINT",
+            "USINT", "UINT", "UDINT", "ULINT",
+            "REAL", "LREAL", "BOOL",
+        }
+        if "#" in v:
+            prefix, _, suffix = v.partition("#")
+            if prefix.upper() in _NUMERIC_TYPE_PREFIXES and suffix:
+                if suffix.startswith("16#"):
+                    return "0x" + suffix[3:]
+                if suffix.startswith("8#"):
+                    return "0o" + suffix[2:]
+                if suffix.startswith("2#"):
+                    return "0b" + suffix[2:]
+                try:
+                    int(suffix)
+                    return suffix
+                except ValueError:
+                    pass
+                try:
+                    float(suffix)
+                    return suffix
+                except ValueError:
+                    pass
+                return repr(v)
+
+        # Enum literal: Type#MEMBER -> Type.MEMBER (sanitize member name)
         if "#" in v:
             parts = v.split("#", 1)
             if parts[0] and parts[1] and parts[0][0].isalpha():
-                return f"{parts[0]}.{parts[1]}"
+                return f"{parts[0]}.{_safe_name(parts[1])}"
 
         # Numeric
         try:
@@ -96,14 +136,17 @@ class _ExpressionWriterMixin:
         return v
 
     def _expr_variable_ref(self, expr: VariableRef, _prec: int) -> str:
-        if expr.name == "SUPER^":
+        upper = expr.name.upper()
+        if upper == "SUPER^":
             return "super()"
-        if expr.name == "THIS^":
+        if upper == "THIS^":
             return "self"
         name = expr.name
         # Sanitize names with invalid Python characters (e.g. I/O addresses: "FlexIO:3:I.Data")
         if not name.isidentifier() and ":" in name:
             name = _sanitize_identifier(name)
+        # Escape Python keywords (IEC allows IN, AS, etc. as identifiers)
+        name = _safe_name(name)
         if name in self._self_vars or expr.name in self._self_vars:
             return f"self.{name}"
         # For FBs with unresolved parents (library inheritance), assume
@@ -315,10 +358,10 @@ class _ExpressionWriterMixin:
         if isinstance(expr.struct, DerefExpr) and isinstance(expr.struct.pointer, VariableRef):
             name = expr.struct.pointer.name.upper()
             if name == "THIS":
-                return f"self.{expr.member}"
+                return f"self.{_safe_name(expr.member)}"
             if name == "SUPER":
-                return f"super().{expr.member}"
-        return f"{self._expr(expr.struct, 10)}.{expr.member}"
+                return f"super().{_safe_name(expr.member)}"
+        return f"{self._expr(expr.struct, 10)}.{_safe_name(expr.member)}"
 
     def _expr_deref(self, expr: DerefExpr, _prec: int) -> str:
         # Beckhoff OOP: bare THIS^ -> self, SUPER^ -> super()
@@ -364,7 +407,7 @@ class _ExpressionWriterMixin:
         positional = [a for a in args if a.name is None]
         named = [a for a in args if a.name is not None]
         parts = [self._expr(a.value) for a in positional]
-        parts += [f"{a.name}={self._expr(a.value)}" for a in named]
+        parts += [f"{_safe_name(a.name)}={self._expr(a.value)}" for a in named]
         return ", ".join(parts)
 
 

@@ -22,6 +22,8 @@ from ._helpers import (
     _format_initial_value,
     _parse_iec_time,
     _sanitize_folder,
+    _topo_sort_data_types,
+    _topo_sort_fbs,
 )
 
 
@@ -91,24 +93,19 @@ def generate_files(project: Project) -> dict[str, str]:
     pw = PyWriter()
     pw._line("from plx.framework import *")
 
-    # Only import programs referenced by tasks (needed for task pous= args)
+    # Import all POUs, data types, and GVLs referenced by the project
     def _module_path(folder: str, name: str) -> str:
         folder = _sanitize_folder(folder)
         if folder:
             return folder.replace("/", ".") + "." + name
         return name
 
-    task_pou_names: set[str] = set()
-    for t in project.tasks:
-        task_pou_names.update(t.assigned_pous)
-
-    if task_pou_names:
-        # Find the POU objects to get their folder paths
-        pou_by_name = {p.name: p for p in project.pous}
-        for name in sorted(task_pou_names):
-            pou = pou_by_name.get(name)
-            if pou:
-                pw._line(f"from {_module_path(pou.folder, pou.name)} import {pou.name}")
+    for dt in _topo_sort_data_types(project.data_types):
+        pw._line(f"from {_module_path(dt.folder, dt.name)} import {dt.name}")
+    for gvl in project.global_variable_lists:
+        pw._line(f"from {_module_path(gvl.folder, gvl.name)} import {gvl.name}")
+    for pou in _topo_sort_fbs(project.pous):
+        pw._line(f"from {_module_path(pou.folder, pou.name)} import {pou.name}")
 
     pw._line()
     pw._write_project_assembly(project)

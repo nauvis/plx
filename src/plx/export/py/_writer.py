@@ -56,9 +56,11 @@ from ._helpers import (
     _is_dict_literal,
     _parse_iec_time,
     _quote_string,
+    _safe_name,
     _sanitize_identifier,
     _standard_fb_types,
     _step_group_expr,
+    _topo_sort_data_types,
     _topo_sort_fbs,
 )
 
@@ -115,8 +117,8 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
         # Collect POU names for identifier reference
         pou_names = {p.name for p in proj.pous}
 
-        # Data types
-        for td in proj.data_types:
+        # Data types (sorted so dependencies come first)
+        for td in _topo_sort_data_types(proj.data_types):
             self._write_type_definition(td)
             self._line()
 
@@ -217,11 +219,13 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
             self._line("pass")
         next_val = 0
         for m in td.members:
+            mname = _safe_name(m.name)
             if m.value is not None:
-                self._line(f"{m.name} = {m.value}")
-                next_val = m.value + 1
+                self._line(f"{mname} = {m.value}")
+                if isinstance(m.value, int):
+                    next_val = m.value + 1
             else:
-                self._line(f"{m.name} = {next_val}")
+                self._line(f"{mname} = {next_val}")
                 next_val += 1
         self._indent_dec()
 
@@ -263,20 +267,21 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
     def _write_global_var(self, v: Variable) -> None:
         """Emit a single global variable declaration."""
         type_str = self._type_ref(v.data_type)
+        name = _safe_name(v.name)
 
         if self._has_metadata(v):
             field_args = self._build_field_kwargs(v)
-            self._line(f"{v.name}: {type_str} = Field({field_args})")
+            self._line(f"{name}: {type_str} = Field({field_args})")
         elif v.initial_value is not None:
             formatted = _format_initial_value(v.initial_value)
             if formatted is not None and _is_dict_literal(formatted):
-                self._line(f"{v.name}: {type_str} = Field(initial={formatted})")
+                self._line(f"{name}: {type_str} = Field(initial={formatted})")
             elif formatted is not None:
-                self._line(f"{v.name}: {type_str} = {formatted}")
+                self._line(f"{name}: {type_str} = {formatted}")
             else:
-                self._line(f"{v.name}: {type_str} = Field(initial={repr(v.initial_value)})")
+                self._line(f"{name}: {type_str} = Field(initial={repr(v.initial_value)})")
         else:
-            self._line(f"{v.name}: {type_str}")
+            self._line(f"{name}: {type_str}")
 
     # ======================================================================
     # POUs
@@ -370,6 +375,11 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
             for s in net.statements:
                 stmts.append(("stmt", s))
 
+        _COMMENT_ONLY = {"empty", "try_catch", "jump", "label"}
+        has_executable = any(
+            kind == "stmt" and (item.kind not in _COMMENT_ONLY or (item.kind == "empty" and not item.comment))
+            for kind, item in stmts
+        )
         if not stmts:
             self._line("pass")
         else:
@@ -381,6 +391,8 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
                         self._line(f"# {comment_line}")
                 else:
                     self._write_stmt(item)
+            if not has_executable:
+                self._line("pass")
 
         self._indent_dec()
         self._indent_dec()
@@ -504,33 +516,35 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
     def _write_annotation_var(self, v: Variable, wrapper: str) -> None:
         """Emit annotation syntax, using Field() when metadata is present."""
         type_str = self._type_ref(v.data_type)
+        name = _safe_name(v.name)
         if self._has_metadata(v):
             field_args = self._build_field_kwargs(v)
-            self._line(f"{v.name}: {wrapper}[{type_str}] = Field({field_args})")
+            self._line(f"{name}: {wrapper}[{type_str}] = Field({field_args})")
         elif v.initial_value is not None:
             formatted = _format_initial_value(v.initial_value)
             if formatted is not None and _is_dict_literal(formatted):
                 # Structured FB/struct init -> must use Field()
-                self._line(f"{v.name}: {wrapper}[{type_str}] = Field(initial={formatted})")
+                self._line(f"{name}: {wrapper}[{type_str}] = Field(initial={formatted})")
             elif formatted is not None:
-                self._line(f"{v.name}: {wrapper}[{type_str}] = {formatted}")
+                self._line(f"{name}: {wrapper}[{type_str}] = {formatted}")
             else:
-                self._line(f"{v.name}: {wrapper}[{type_str}] = Field(initial={repr(v.initial_value)})")
+                self._line(f"{name}: {wrapper}[{type_str}] = Field(initial={repr(v.initial_value)})")
         else:
-            self._line(f"{v.name}: {wrapper}[{type_str}]")
+            self._line(f"{name}: {wrapper}[{type_str}]")
 
     def _write_static_var(self, v: Variable) -> None:
         """Emit a static variable, using shorthand for standard FB types."""
+        name = _safe_name(v.name)
         if isinstance(v.data_type, NamedTypeRef) and v.data_type.name in _standard_fb_types():
             # Standard FB instance: timer: ton
             if not self._has_metadata(v) and v.initial_value is None:
-                self._line(f"{v.name}: {_NAMED_TYPE_PY_NAME[v.data_type.name]}")
+                self._line(f"{name}: {_NAMED_TYPE_PY_NAME[v.data_type.name]}")
                 return
         # With metadata -> use Field()
         if self._has_metadata(v):
             type_str = self._type_ref(v.data_type)
             field_args = self._build_field_kwargs(v)
-            self._line(f"{v.name}: {type_str} = Field({field_args})")
+            self._line(f"{name}: {type_str} = Field({field_args})")
             return
         # Simple annotation
         type_str = self._type_ref(v.data_type)
@@ -538,13 +552,13 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
             formatted = _format_initial_value(v.initial_value)
             if formatted is not None and _is_dict_literal(formatted):
                 # Structured FB/struct init -> must use Field()
-                self._line(f"{v.name}: {type_str} = Field(initial={formatted})")
+                self._line(f"{name}: {type_str} = Field(initial={formatted})")
             elif formatted is not None:
-                self._line(f"{v.name}: {type_str} = {formatted}")
+                self._line(f"{name}: {type_str} = {formatted}")
             else:
-                self._line(f"{v.name}: {type_str} = Field(initial={repr(v.initial_value)})")
+                self._line(f"{name}: {type_str} = Field(initial={repr(v.initial_value)})")
         else:
-            self._line(f"{v.name}: {type_str}")
+            self._line(f"{name}: {type_str}")
 
     # ======================================================================
     # Methods
@@ -573,9 +587,9 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
         # Signature -- input and inout params go in the method signature
         params: list[str] = ["self"]
         for v in m.interface.input_vars:
-            params.append(f"{v.name}: {self._type_ref(v.data_type)}")
+            params.append(f"{_safe_name(v.name)}: {self._type_ref(v.data_type)}")
         for v in m.interface.inout_vars:
-            params.append(f"{v.name}: {self._type_ref(v.data_type)}")
+            params.append(f"{_safe_name(v.name)}: {self._type_ref(v.data_type)}")
 
         ret = f" -> {self._type_ref(m.return_type)}" if m.return_type else ""
         self._line(f"def {m.name}({', '.join(params)}){ret}:")
@@ -597,7 +611,13 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
             for s in net.statements:
                 stmts.append(("stmt", s))
 
-        if not stmts and not m.interface.output_vars and not m.interface.static_vars and not m.interface.temp_vars:
+        _COMMENT_ONLY = {"empty", "try_catch", "jump", "label"}
+        has_executable = any(
+            kind == "stmt" and (item.kind not in _COMMENT_ONLY or (item.kind == "empty" and not item.comment))
+            for kind, item in stmts
+        )
+        has_local_vars = bool(m.interface.output_vars or m.interface.static_vars or m.interface.temp_vars)
+        if not stmts and not has_local_vars:
             self._line("pass")
         elif stmts:
             for i, (kind, item) in enumerate(stmts):
@@ -608,6 +628,8 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
                         self._line(f"# {comment_line}")
                 else:
                     self._write_stmt(item)
+            if not has_executable and not has_local_vars:
+                self._line("pass")
 
         self._indent_dec()
         self._self_vars = saved_self_vars
@@ -648,6 +670,7 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
                     stmts.append(("comment", net.comment))
                 for s in net.statements:
                     stmts.append(("stmt", s))
+            has_executable = any(kind == "stmt" for kind, _ in stmts)
             if not stmts:
                 self._line("pass")
             else:
@@ -659,6 +682,8 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
                             self._line(f"# {comment_line}")
                     else:
                         self._write_stmt(item)
+                if not has_executable and not prop.getter.local_vars:
+                    self._line("pass")
         else:
             self._line("pass")
         self._return_var = saved_return_var
@@ -678,6 +703,7 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
                     stmts.append(("comment", net.comment))
                 for s in net.statements:
                     stmts.append(("stmt", s))
+            has_executable = any(kind == "stmt" for kind, _ in stmts)
             if not stmts:
                 self._line("pass")
             else:
@@ -689,6 +715,8 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
                             self._line(f"# {comment_line}")
                     else:
                         self._write_stmt(item)
+                if not has_executable and not prop.setter.local_vars:
+                    self._line("pass")
             self._indent_dec()
 
         self._self_vars = saved_self_vars
