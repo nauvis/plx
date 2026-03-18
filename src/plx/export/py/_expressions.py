@@ -208,12 +208,18 @@ class _ExpressionWriterMixin:
                 return result
 
         name = expr.function_name
-        # Beckhoff OOP: SUPER^.Method() -> super().Method()
-        if name.startswith("SUPER^."):
+        upper = name.upper()
+        # Beckhoff OOP: SUPER^.Method() -> super().Method() (case-insensitive)
+        if upper.startswith("SUPER^."):
             name = f"super().{name[7:]}"
-        elif name.startswith("THIS^."):
+        elif upper.startswith("THIS^."):
             name = f"self.{name[6:]}"
         else:
+            # Convert remaining ptr^.member to ptr.deref.member
+            if "^." in name:
+                name = name.replace("^.", ".deref.")
+            if "^" in name:
+                name = name.replace("^", ".deref")
             name = _FUNC_REMAP.get(name, name)
         args = self._call_args_str(expr.args)
         return f"{name}({args})"

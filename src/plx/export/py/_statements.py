@@ -224,14 +224,20 @@ class _StatementWriterMixin:
 
     def _write_function_call_stmt(self, stmt: FunctionCallStatement) -> None:
         name = stmt.function_name
+        upper = name.upper()
         # Beckhoff OOP: SUPER^() -> super().logic(), SUPER^.Method() -> super().Method()
-        if name == "SUPER^":
+        if upper == "SUPER^":
             name = "super().logic"
-        elif name.startswith("SUPER^."):
+        elif upper.startswith("SUPER^."):
             name = f"super().{name[7:]}"
-        elif name.startswith("THIS^."):
+        elif upper.startswith("THIS^."):
             name = f"self.{name[6:]}"
         else:
+            # Convert remaining ptr^.member to ptr.deref.member
+            if "^." in name:
+                name = name.replace("^.", ".deref.")
+            if "^" in name:
+                name = name.replace("^", ".deref")
             name = _FUNC_REMAP.get(name, name)
             name = self._qualify_function_name(name)
         args = self._call_args_str(stmt.args)
@@ -268,6 +274,11 @@ class _StatementWriterMixin:
                 instance = f"self.{inst_name}"
             else:
                 instance = inst_name
+                # Convert remaining ptr^.member to ptr.deref.member
+                if "^." in instance:
+                    instance = instance.replace("^.", ".deref.")
+                if "^" in instance:
+                    instance = instance.replace("^", ".deref")
         else:
             instance = self._expr(stmt.instance_name)
         parts: list[str] = []
