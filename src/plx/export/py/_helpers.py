@@ -280,6 +280,21 @@ def _fix_embedded_iec(name: str) -> str:
 
     result = _IEC_OP_RE.sub(_replace_op, name)
 
+    # Convert THIS^/This^/this^ → self (case-insensitive) within embedded args
+    result = re.sub(r'\bTHIS\^\.', 'self.', result, flags=re.IGNORECASE)
+    result = re.sub(r'\bTHIS\^', 'self', result, flags=re.IGNORECASE)
+
+    # Convert remaining ptr^.member → ptr.deref.member
+    result = result.replace("^.", ".deref.")
+    result = result.replace("^", ".deref")
+
+    # Convert IEC <> (not-equal) to !=
+    result = result.replace("<>", "!=")
+
+    # Convert IEC = (comparison) to == where it appears as comparison
+    # (not := assignment, not == already, not at start of expression)
+    result = re.sub(r'(?<![:<>=!])=(?!=)', '==', result)
+
     # Convert IEC string escapes within embedded single-quoted strings
     def _fix_iec_string(m: re.Match) -> str:
         return _iec_string_to_python(m.group(0))

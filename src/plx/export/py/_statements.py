@@ -233,13 +233,13 @@ class _StatementWriterMixin:
         elif upper.startswith("THIS^."):
             name = f"self.{name[6:]}"
         else:
-            # Convert remaining ptr^.member to ptr.deref.member
-            if "^." in name:
-                name = name.replace("^.", ".deref.")
-            if "^" in name:
-                name = name.replace("^", ".deref")
             name = _FUNC_REMAP.get(name, name)
             name = self._qualify_function_name(name)
+        # Convert remaining ptr^.member to ptr.deref.member (always, not just else)
+        if "^." in name:
+            name = name.replace("^.", ".deref.")
+        if "^" in name:
+            name = name.replace("^", ".deref")
         # Convert IEC operators in embedded chained calls
         name = _fix_embedded_iec(name)
         args = self._call_args_str(stmt.args)
