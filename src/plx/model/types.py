@@ -89,9 +89,9 @@ class StringTypeRef(IRModel):
 
     @model_validator(mode="after")
     def _positive_max_length(self):
-        if self.max_length is not None and self.max_length < 1:
+        if self.max_length is not None and self.max_length < 0:
             raise ValueError(
-                f"max_length must be >= 1, got {self.max_length}"
+                f"max_length must be >= 0, got {self.max_length}"
             )
         return self
 
@@ -215,7 +215,7 @@ class EnumMember(IRModel):
     """Member of an enum type."""
 
     name: str = Field(min_length=1)
-    value: int | None = None
+    value: int | str | None = None
 
     @field_validator("name")
     @classmethod

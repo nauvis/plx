@@ -7,11 +7,11 @@ import pytest
 from plx.framework._compiler import CompileError
 from plx.framework._data_types import enumeration, struct
 from plx.framework._decorators import fb, fb_method, program
-from plx.framework._descriptors import Input, Field, Output, Static, TON, RTO, SR, RS, CTU, CTD
+from plx.framework._descriptors import Input, Field, Output, Static, Temp, TON, RTO, SR, RS, CTU, CTD, TP
 from plx.framework._library import LibraryFB, LibraryStruct, LibraryEnum
 from plx.framework._project import project
 from datetime import timedelta
-from plx.framework._types import ARRAY, BOOL, DINT, INT, POINTER_TO, REAL, REFERENCE_TO, TIME
+from plx.framework._types import ARRAY, BOOL, BYTE, CHAR, DATE, DINT, INT, POINTER_TO, REAL, REFERENCE_TO, TIME, TOD
 from plx.framework._vendor import (
     CompileResult,
     PortabilityWarning,
@@ -545,22 +545,47 @@ class TestPortabilityWarnings:
 
     # --- OOP flattening warnings ---
 
-    def test_extends_warns_for_ab(self):
-        result = project("P", pous=[_DerivedFB]).compile(target=Vendor.AB)
-        oop_warnings = [w for w in result.warnings if w.category == "oop_flattening"]
-        assert len(oop_warnings) == 1
-        assert oop_warnings[0].pou_name == "_DerivedFB"
-        assert "flattened" in oop_warnings[0].message
+    def test_extends_blocked_for_ab(self):
+        with pytest.raises(VendorValidationError) as exc_info:
+            project("P", pous=[_DerivedFB]).compile(target=Vendor.AB)
+        assert "extends" in str(exc_info.value).lower()
+        assert "round-trip" in str(exc_info.value).lower()
 
-    def test_extends_warns_for_siemens(self):
-        result = project("P", pous=[_DerivedFB]).compile(target=Vendor.SIEMENS)
-        oop_warnings = [w for w in result.warnings if w.category == "oop_flattening"]
-        assert len(oop_warnings) == 1
+    def test_extends_blocked_for_siemens(self):
+        with pytest.raises(VendorValidationError) as exc_info:
+            project("P", pous=[_DerivedFB]).compile(target=Vendor.SIEMENS)
+        assert "extends" in str(exc_info.value).lower()
+        assert "round-trip" in str(exc_info.value).lower()
 
-    def test_extends_no_warning_for_beckhoff(self):
+    def test_extends_allowed_for_beckhoff(self):
         result = project("P", pous=[_DerivedFB]).compile(target=Vendor.BECKHOFF)
-        oop_warnings = [w for w in result.warnings if w.category == "oop_flattening"]
-        assert len(oop_warnings) == 0
+        assert result.project.pous[0].name == "_DerivedFB"
+
+    # --- allow_lossy ---
+
+    def test_allow_lossy_permits_extends_ab(self):
+        result = project("P", pous=[_DerivedFB]).compile(
+            target=Vendor.AB, allow_lossy=True,
+        )
+        lossy = [w for w in result.warnings if w.category == "lossy_transform"]
+        assert len(lossy) == 1
+        assert not lossy[0].round_trippable
+        assert "extends" in lossy[0].message.lower()
+
+    def test_allow_lossy_permits_extends_siemens(self):
+        result = project("P", pous=[_DerivedFB]).compile(
+            target=Vendor.SIEMENS, allow_lossy=True,
+        )
+        lossy = [w for w in result.warnings if w.category == "lossy_transform"]
+        assert len(lossy) == 1
+        assert not lossy[0].round_trippable
+
+    def test_allow_lossy_does_not_suppress_hard_errors(self):
+        """allow_lossy only affects lossy checks, not structural impossibilities."""
+        with pytest.raises(VendorValidationError, match="methods"):
+            project("P", pous=[_FBWithMethod]).compile(
+                target=Vendor.AB, allow_lossy=True,
+            )
 
     # --- Hard errors still raise ---
 
@@ -580,6 +605,12 @@ class TestPortabilityWarnings:
     # --- validate_target returns warnings directly ---
 
     def test_validate_target_returns_warnings(self):
+        """validate_target() returns warnings for translatable features."""
+        result = project("P", pous=[_FBWithRTO]).compile(target=Vendor.BECKHOFF)
+        assert len(result.warnings) > 0
+        assert result.warnings[0].category == "fb_translation"
+
+    def test_validate_target_rejects_extends_ab(self):
         from plx.model.pou import POU, POUType, POUInterface
         pou = POU(
             pou_type=POUType.FUNCTION_BLOCK,
@@ -588,9 +619,22 @@ class TestPortabilityWarnings:
             interface=POUInterface(),
         )
         ir = Project(name="P", pous=[pou])
-        warnings = validate_target(ir, Vendor.AB)
-        assert len(warnings) == 1
-        assert warnings[0].category == "oop_flattening"
+        with pytest.raises(VendorValidationError) as exc_info:
+            validate_target(ir, Vendor.AB)
+        assert "round-trip" in str(exc_info.value).lower()
+
+    def test_validate_target_rejects_extends_siemens(self):
+        from plx.model.pou import POU, POUType, POUInterface
+        pou = POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="Child",
+            extends="Parent",
+            interface=POUInterface(),
+        )
+        ir = Project(name="P", pous=[pou])
+        with pytest.raises(VendorValidationError) as exc_info:
+            validate_target(ir, Vendor.SIEMENS)
+        assert "round-trip" in str(exc_info.value).lower()
 
     def test_validate_target_returns_empty_for_clean_project(self):
         ir = project("P", pous=[_SimpleFB]).compile()
@@ -836,3 +880,216 @@ class TestLibraryTypeValidation:
         # Should not raise — no vendor target means no validation
         ir = project("P", pous=[_MixedNoTarget]).compile()
         assert isinstance(ir, Project)
+
+
+# ---------------------------------------------------------------------------
+# AB unsupported primitive types
+# ---------------------------------------------------------------------------
+
+class TestABUnsupportedPrimitives:
+    """AB rejects CHAR, WCHAR, DATE, LDATE, TOD, LTOD, DT, LDT."""
+
+    def test_ab_rejects_char_var(self):
+        @fb
+        class _FBWithChar:
+            c: Input[CHAR]
+            def logic(self):
+                pass
+
+        with pytest.raises(VendorValidationError, match="CHAR"):
+            project("P", pous=[_FBWithChar]).compile(target=Vendor.AB)
+
+    def test_ab_rejects_date_var(self):
+        @fb
+        class _FBWithDate:
+            d: Static[DATE]
+            def logic(self):
+                pass
+
+        with pytest.raises(VendorValidationError, match="DATE"):
+            project("P", pous=[_FBWithDate]).compile(target=Vendor.AB)
+
+    def test_ab_rejects_tod_var(self):
+        @fb
+        class _FBWithTOD:
+            t: Output[TOD]
+            def logic(self):
+                pass
+
+        with pytest.raises(VendorValidationError, match="TOD"):
+            project("P", pous=[_FBWithTOD]).compile(target=Vendor.AB)
+
+    def test_ab_rejects_char_inside_array(self):
+        @fb
+        class _FBWithCharArray:
+            chars: Static[ARRAY(CHAR, 10)]
+            def logic(self):
+                pass
+
+        with pytest.raises(VendorValidationError, match="CHAR"):
+            project("P", pous=[_FBWithCharArray]).compile(target=Vendor.AB)
+
+    def test_ab_rejects_date_in_struct_member(self):
+        @struct
+        class _StructWithDate:
+            timestamp: DATE
+
+        with pytest.raises(VendorValidationError, match="DATE"):
+            project("P", pous=[_SimpleFB], data_types=[_StructWithDate]).compile(
+                target=Vendor.AB,
+            )
+
+    def test_siemens_allows_char(self):
+        @fb
+        class _FBWithCharSiemens:
+            c: Input[CHAR]
+            def logic(self):
+                pass
+
+        result = project("P", pous=[_FBWithCharSiemens]).compile(target=Vendor.SIEMENS)
+        assert result.project.pous[0].name == "_FBWithCharSiemens"
+
+    def test_beckhoff_allows_char(self):
+        @fb
+        class _FBWithCharBK:
+            c: Input[CHAR]
+            def logic(self):
+                pass
+
+        result = project("P", pous=[_FBWithCharBK]).compile(target=Vendor.BECKHOFF)
+        assert result.project.pous[0].name == "_FBWithCharBK"
+
+
+# ---------------------------------------------------------------------------
+# AB TP timer rejection
+# ---------------------------------------------------------------------------
+
+class TestABTPTimer:
+    """AB rejects TP (pulse timer) — no native equivalent."""
+
+    def test_ab_rejects_tp(self):
+        @fb
+        class _FBWithTP:
+            timer: TP
+            def logic(self):
+                self.timer(IN=True, PT=timedelta(milliseconds=100))
+
+        with pytest.raises(VendorValidationError, match="TP"):
+            project("P", pous=[_FBWithTP]).compile(target=Vendor.AB)
+
+    def test_siemens_allows_tp(self):
+        @fb
+        class _FBWithTPSiemens:
+            timer: TP
+            def logic(self):
+                self.timer(IN=True, PT=timedelta(milliseconds=100))
+
+        result = project("P", pous=[_FBWithTPSiemens]).compile(target=Vendor.SIEMENS)
+        assert result.project.pous[0].name == "_FBWithTPSiemens"
+
+    def test_beckhoff_allows_tp(self):
+        @fb
+        class _FBWithTPBK:
+            timer: TP
+            def logic(self):
+                self.timer(IN=True, PT=timedelta(milliseconds=100))
+
+        result = project("P", pous=[_FBWithTPBK]).compile(target=Vendor.BECKHOFF)
+        assert result.project.pous[0].name == "_FBWithTPBK"
+
+
+# ---------------------------------------------------------------------------
+# AB lossy type mapping warnings
+# ---------------------------------------------------------------------------
+
+class TestABLossyTypeMappings:
+    """AB warns for BYTE→SINT, WORD→INT, TIME→DINT, etc."""
+
+    def test_ab_warns_for_byte(self):
+        @fb
+        class _FBWithByte:
+            b: Input[BYTE]
+            def logic(self):
+                pass
+
+        result = project("P", pous=[_FBWithByte]).compile(target=Vendor.AB)
+        type_warnings = [w for w in result.warnings if w.category == "type_mapping"]
+        assert len(type_warnings) == 1
+        assert type_warnings[0].round_trippable is False
+        assert type_warnings[0].details["type"] == "BYTE"
+        assert type_warnings[0].details["mapped_to"] == "SINT"
+
+    def test_ab_warns_for_time(self):
+        @fb
+        class _FBWithTime:
+            t: Static[TIME]
+            def logic(self):
+                pass
+
+        result = project("P", pous=[_FBWithTime]).compile(target=Vendor.AB)
+        type_warnings = [w for w in result.warnings if w.category == "type_mapping"]
+        assert len(type_warnings) == 1
+        assert type_warnings[0].round_trippable is False
+        assert type_warnings[0].details["type"] == "TIME"
+        assert type_warnings[0].details["mapped_to"] == "DINT"
+
+    def test_beckhoff_no_type_mapping_warning(self):
+        @fb
+        class _FBWithByteBK:
+            b: Input[BYTE]
+            def logic(self):
+                pass
+
+        result = project("P", pous=[_FBWithByteBK]).compile(target=Vendor.BECKHOFF)
+        type_warnings = [w for w in result.warnings if w.category == "type_mapping"]
+        assert type_warnings == []
+
+
+# ---------------------------------------------------------------------------
+# AB temp var promotion warnings
+# ---------------------------------------------------------------------------
+
+class TestABTempVarPromotion:
+    """AB warns when POU has temp vars — promoted to static."""
+
+    def test_ab_warns_for_temp_vars(self):
+        @fb
+        class _FBWithTemp:
+            x: Input[BOOL]
+            tmp: Temp[DINT]
+
+            def logic(self):
+                self.tmp = 42
+
+        result = project("P", pous=[_FBWithTemp]).compile(target=Vendor.AB)
+        temp_warnings = [w for w in result.warnings if w.category == "temp_var_promotion"]
+        assert len(temp_warnings) == 1
+        assert temp_warnings[0].round_trippable is False
+        assert "_FBWithTemp" in temp_warnings[0].message
+        assert "tmp" in temp_warnings[0].message
+
+    def test_beckhoff_no_temp_var_warning(self):
+        @fb
+        class _FBWithTempBK:
+            x: Input[BOOL]
+            tmp: Temp[DINT]
+
+            def logic(self):
+                self.tmp = 42
+
+        result = project("P", pous=[_FBWithTempBK]).compile(target=Vendor.BECKHOFF)
+        temp_warnings = [w for w in result.warnings if w.category == "temp_var_promotion"]
+        assert temp_warnings == []
+
+    def test_siemens_no_temp_var_warning(self):
+        @fb
+        class _FBWithTempSiemens:
+            x: Input[BOOL]
+            tmp: Temp[DINT]
+
+            def logic(self):
+                self.tmp = 42
+
+        result = project("P", pous=[_FBWithTempSiemens]).compile(target=Vendor.SIEMENS)
+        temp_warnings = [w for w in result.warnings if w.category == "temp_var_promotion"]
+        assert temp_warnings == []

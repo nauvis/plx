@@ -79,8 +79,10 @@ class CaseStatement(IRModel):
 
     @model_validator(mode="after")
     def _non_empty_branches(self):
-        if not self.branches:
-            raise ValueError("CaseStatement must have at least one branch")
+        if not self.branches and not self.else_body:
+            raise ValueError(
+                "CaseStatement must have at least one branch or an else body"
+            )
         return self
 
 

@@ -36,16 +36,50 @@ from plx.model.expressions import (
     Expression,
     FunctionCallExpr,
 )
-from plx.model.types import NamedTypeRef
 from plx.model.statements import (
     Assignment,
+    ContinueStatement,
     FBInvocation,
     FunctionCallStatement,
+    RepeatStatement,
     Statement,
+    TryCatchStatement,
+)
+from plx.model.types import (
+    AliasType,
+    ArrayTypeRef,
+    NamedTypeRef,
+    PrimitiveType,
+    PrimitiveTypeRef,
+    StringTypeRef,
+    SubrangeType,
+    UnionType,
 )
 from plx.model.walk import walk_expressions, walk_pou
 
 from ._compiler_core import CompileError
+
+
+# ---------------------------------------------------------------------------
+# AB primitive type constraints
+# Duplicated from private/src/plx/ab/_type_mappings.py (can't import private)
+# ---------------------------------------------------------------------------
+
+_AB_UNSUPPORTED_PRIMITIVES = frozenset({
+    PrimitiveType.CHAR, PrimitiveType.WCHAR,
+    PrimitiveType.DATE, PrimitiveType.LDATE,
+    PrimitiveType.TOD, PrimitiveType.LTOD,
+    PrimitiveType.DT, PrimitiveType.LDT,
+})
+
+_AB_LOSSY_TYPE_MAP: dict[PrimitiveType, str] = {
+    PrimitiveType.BYTE: "SINT",
+    PrimitiveType.WORD: "INT",
+    PrimitiveType.DWORD: "DINT",
+    PrimitiveType.LWORD: "LINT",
+    PrimitiveType.TIME: "DINT",
+    PrimitiveType.LTIME: "LINT",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -130,7 +164,10 @@ class VendorValidationError(CompileError):
 # ---------------------------------------------------------------------------
 
 def validate_target(
-    project: Project, target: Vendor,
+    project: Project,
+    target: Vendor,
+    *,
+    allow_lossy: bool = False,
 ) -> list[PortabilityWarning]:
     """Validate that *project* only uses features supported by *target*.
 
@@ -139,9 +176,21 @@ def validate_target(
     ``VendorValidationError`` listing every problem.  Returns a list of
     non-blocking ``PortabilityWarning`` items for translatable features.
 
+    Parameters
+    ----------
+    allow_lossy:
+        When True, lossy transforms (e.g. inheritance flattening) are
+        permitted — they are downgraded from hard errors to
+        ``PortabilityWarning(round_trippable=False)``.  The resulting
+        vendor code will be valid but cannot be round-tripped back to
+        the original Python source.
+
     To add a new vendor-specific check, append a function to
     ``_CHECKS``.  Each check takes ``(project, target, errors)``
     and appends human-readable strings to *errors*.
+
+    To add a new lossy check, append to ``_LOSSY_CHECKS``.  Same
+    signature as ``_CHECKS``, but gated by ``allow_lossy``.
 
     To add a new portability warning, either add an entry to
     ``_FB_TRANSLATION_WARNINGS`` or append a function to ``_WARNINGS``.
@@ -164,6 +213,24 @@ def validate_target(
     warnings: list[PortabilityWarning] = []
     for warn_fn in _WARNINGS:
         warn_fn(project, target, warnings)
+
+    # Lossy checks — hard errors unless allow_lossy=True
+    if target != Vendor.BECKHOFF:
+        lossy_errors: list[str] = []
+        for check in _LOSSY_CHECKS:
+            check(project, target, lossy_errors)
+
+        if lossy_errors:
+            if not allow_lossy:
+                raise VendorValidationError(target, lossy_errors)
+            # Downgrade to non-round-trippable warnings
+            for msg in lossy_errors:
+                warnings.append(PortabilityWarning(
+                    category="lossy_transform",
+                    pou_name="",
+                    message=msg,
+                    round_trippable=False,
+                ))
 
     return warnings
 
@@ -303,6 +370,24 @@ def _type_contains(type_ref: object, kind: str) -> bool:
     return False
 
 
+def _type_contains_primitive(
+    type_ref: object, primitives: frozenset[PrimitiveType],
+) -> PrimitiveType | None:
+    """Recursively check if *type_ref* contains any of *primitives*.
+
+    Returns the first matching ``PrimitiveType`` or ``None``.
+    """
+    if isinstance(type_ref, PrimitiveTypeRef) and type_ref.type in primitives:
+        return type_ref.type
+    for attr in ("element_type", "target_type"):
+        inner = getattr(type_ref, attr, None)
+        if inner is not None:
+            result = _type_contains_primitive(inner, primitives)
+            if result is not None:
+                return result
+    return None
+
+
 def _check_pointer_reference_operations(
     project: Project, target: Vendor, errors: list[str],
 ) -> None:
@@ -343,6 +428,320 @@ def _check_pointer_reference_operations(
         walk_pou(pou, on_stmt=_on_stmt, on_expr=_on_expr)
 
 
+def _check_try_catch(
+    project: Project, target: Vendor, errors: list[str],
+) -> None:
+    """TRY/CATCH is Beckhoff-only (__TRY/__CATCH)."""
+    for pou in project.pous:
+        found = False
+
+        def _on_stmt(stmt: Statement) -> None:
+            nonlocal found
+            if not found and isinstance(stmt, TryCatchStatement):
+                errors.append(
+                    f"POU '{pou.name}' uses TRY/CATCH — "
+                    f"TRY/CATCH is Beckhoff-only"
+                )
+                found = True
+
+        walk_pou(pou, on_stmt=_on_stmt)
+
+
+def _check_continue_statement(
+    project: Project, target: Vendor, errors: list[str],
+) -> None:
+    """CONTINUE is not supported by AB Structured Text."""
+    if target != Vendor.AB:
+        return
+    for pou in project.pous:
+        found = False
+
+        def _on_stmt(stmt: Statement) -> None:
+            nonlocal found
+            if not found and isinstance(stmt, ContinueStatement):
+                errors.append(
+                    f"POU '{pou.name}' uses CONTINUE — "
+                    f"AB Structured Text does not support CONTINUE"
+                )
+                found = True
+
+        walk_pou(pou, on_stmt=_on_stmt)
+
+
+def _check_repeat_statement(
+    project: Project, target: Vendor, errors: list[str],
+) -> None:
+    """REPEAT..UNTIL is not supported by AB Structured Text."""
+    if target != Vendor.AB:
+        return
+    for pou in project.pous:
+        found = False
+
+        def _on_stmt(stmt: Statement) -> None:
+            nonlocal found
+            if not found and isinstance(stmt, RepeatStatement):
+                errors.append(
+                    f"POU '{pou.name}' uses REPEAT..UNTIL — "
+                    f"AB Structured Text does not support REPEAT..UNTIL"
+                )
+                found = True
+
+        walk_pou(pou, on_stmt=_on_stmt)
+
+
+def _check_wstring(
+    project: Project, target: Vendor, errors: list[str],
+) -> None:
+    """WSTRING is not supported by AB."""
+    if target != Vendor.AB:
+        return
+    for pou in project.pous:
+        all_vars = (
+            pou.interface.input_vars
+            + pou.interface.output_vars
+            + pou.interface.inout_vars
+            + pou.interface.static_vars
+            + pou.interface.temp_vars
+            + pou.interface.constant_vars
+        )
+        for var in all_vars:
+            if _type_contains_wstring(var.data_type):
+                errors.append(
+                    f"Variable '{pou.name}.{var.name}' uses WSTRING — "
+                    f"AB does not support WSTRING"
+                )
+
+
+def _type_contains_wstring(type_ref: object) -> bool:
+    """Check if a type tree contains WSTRING."""
+    if isinstance(type_ref, StringTypeRef) and type_ref.wide:
+        return True
+    for attr in ("element_type", "target_type"):
+        inner = getattr(type_ref, attr, None)
+        if inner is not None and _type_contains_wstring(inner):
+            return True
+    return False
+
+
+def _check_unsupported_data_types(
+    project: Project, target: Vendor, errors: list[str],
+) -> None:
+    """UnionType, AliasType, and SubrangeType are not supported by AB or Siemens."""
+    for dt in project.data_types:
+        if isinstance(dt, UnionType):
+            errors.append(
+                f"Data type '{dt.name}' is a UNION — "
+                f"{target.value} does not support union types"
+            )
+        elif isinstance(dt, AliasType):
+            errors.append(
+                f"Data type '{dt.name}' is a type alias — "
+                f"{target.value} does not support type aliases"
+            )
+        elif isinstance(dt, SubrangeType):
+            errors.append(
+                f"Data type '{dt.name}' is a subrange type — "
+                f"{target.value} does not support subrange types"
+            )
+
+
+def _check_array_constraints(
+    project: Project, target: Vendor, errors: list[str],
+) -> None:
+    """AB arrays must start at index 0 and use literal bounds."""
+    if target != Vendor.AB:
+        return
+    for pou in project.pous:
+        all_vars = (
+            pou.interface.input_vars
+            + pou.interface.output_vars
+            + pou.interface.inout_vars
+            + pou.interface.static_vars
+            + pou.interface.temp_vars
+            + pou.interface.constant_vars
+        )
+        for var in all_vars:
+            _check_array_type(var.data_type, pou.name, var.name, errors)
+
+    for dt in project.data_types:
+        from plx.model.types import StructType
+        if isinstance(dt, StructType):
+            for member in dt.members:
+                _check_array_type(member.data_type, dt.name, member.name, errors)
+
+
+def _check_array_type(
+    type_ref: object, scope_name: str, var_name: str, errors: list[str],
+) -> None:
+    """Recursively check array types for AB constraints."""
+    if isinstance(type_ref, ArrayTypeRef):
+        for dim in type_ref.dimensions:
+            if not isinstance(dim.lower, int) or not isinstance(dim.upper, int):
+                errors.append(
+                    f"Variable '{scope_name}.{var_name}' uses expression-based "
+                    f"array bounds — AB does not support expression-based array bounds"
+                )
+                return
+            if dim.lower != 0:
+                errors.append(
+                    f"Variable '{scope_name}.{var_name}' has array lower bound "
+                    f"{dim.lower} — AB arrays must start at index 0"
+                )
+                return
+        # Also check element type (for nested arrays)
+        _check_array_type(type_ref.element_type, scope_name, var_name, errors)
+
+
+def _check_ab_siemens_extends(
+    project: Project, target: Vendor, errors: list[str],
+) -> None:
+    """FB inheritance (EXTENDS) is not supported by AB or Siemens.
+
+    Neither vendor has native inheritance — the raise pass flattens
+    the hierarchy into a single AOI/FB.  This flattening is lossy
+    and cannot be round-tripped, so it is blocked as a hard error.
+    """
+    if target not in (Vendor.AB, Vendor.SIEMENS):
+        return
+    for pou in project.pous:
+        if pou.extends:
+            errors.append(
+                f"POU '{pou.name}' extends '{pou.extends}' — "
+                f"FB inheritance is not supported by {target.value}. "
+                f"Flattening is lossy and cannot be round-tripped."
+            )
+
+
+def _check_sfc_body(
+    project: Project, target: Vendor, errors: list[str],
+) -> None:
+    """SFC bodies are not yet supported by the AB or Siemens raise passes.
+
+    The raise passes silently drop sfc_body — this check prevents
+    silent data loss by rejecting SFC POUs early.
+    """
+    if target not in (Vendor.AB, Vendor.SIEMENS):
+        return
+    for pou in project.pous:
+        if pou.sfc_body is not None:
+            errors.append(
+                f"POU '{pou.name}' uses SFC (Sequential Function Chart) — "
+                f"SFC is not yet supported for {target.value}"
+            )
+
+
+def _check_pou_actions(
+    project: Project, target: Vendor, errors: list[str],
+) -> None:
+    """POU actions are not yet supported by the AB or Siemens raise passes.
+
+    The raise passes silently drop pou.actions — this check prevents
+    silent data loss by rejecting POUs with actions early.
+    """
+    if target not in (Vendor.AB, Vendor.SIEMENS):
+        return
+    for pou in project.pous:
+        if pou.actions:
+            names = ", ".join(a.name for a in pou.actions)
+            errors.append(
+                f"POU '{pou.name}' has actions ({names}) — "
+                f"POU actions are not yet supported for {target.value}"
+            )
+
+
+def _check_startup_task(
+    project: Project, target: Vendor, errors: list[str],
+) -> None:
+    """AB has no native startup task — would be silently mapped to periodic."""
+    if target != Vendor.AB:
+        return
+    from plx.model.task import StartupTask
+    for task in project.tasks:
+        if isinstance(task, StartupTask):
+            errors.append(
+                f"Task '{task.name}' is a startup task — "
+                f"AB has no native startup task type"
+            )
+
+
+def _check_multiple_gvls(
+    project: Project, target: Vendor, errors: list[str],
+) -> None:
+    """AB supports only a single global variable list (controller tags)."""
+    if target != Vendor.AB:
+        return
+    if len(project.global_variable_lists) > 1:
+        names = ", ".join(g.name for g in project.global_variable_lists)
+        errors.append(
+            f"AB supports only a single global variable list (controller tags). "
+            f"Project has {len(project.global_variable_lists)} GVLs: {names}. "
+            f"Merge them into one before targeting AB."
+        )
+
+
+def _check_ab_unsupported_primitives(
+    project: Project, target: Vendor, errors: list[str],
+) -> None:
+    """Reject CHAR, WCHAR, DATE, LDATE, TOD, LTOD, DT, LDT on AB."""
+    if target != Vendor.AB:
+        return
+
+    # POU variables
+    for pou in project.pous:
+        all_vars = (
+            pou.interface.input_vars
+            + pou.interface.output_vars
+            + pou.interface.inout_vars
+            + pou.interface.static_vars
+            + pou.interface.temp_vars
+            + pou.interface.constant_vars
+        )
+        for var in all_vars:
+            found = _type_contains_primitive(var.data_type, _AB_UNSUPPORTED_PRIMITIVES)
+            if found is not None:
+                errors.append(
+                    f"Variable '{pou.name}.{var.name}' uses {found.value} — "
+                    f"AB does not support {found.value}"
+                )
+
+    # Struct members
+    from plx.model.types import StructType
+    for dt in project.data_types:
+        if isinstance(dt, StructType):
+            for member in dt.members:
+                found = _type_contains_primitive(member.data_type, _AB_UNSUPPORTED_PRIMITIVES)
+                if found is not None:
+                    errors.append(
+                        f"Struct member '{dt.name}.{member.name}' uses {found.value} — "
+                        f"AB does not support {found.value}"
+                    )
+
+    # GVL variables
+    for gvl in project.global_variable_lists:
+        for var in gvl.variables:
+            found = _type_contains_primitive(var.data_type, _AB_UNSUPPORTED_PRIMITIVES)
+            if found is not None:
+                errors.append(
+                    f"GVL variable '{gvl.name}.{var.name}' uses {found.value} — "
+                    f"AB does not support {found.value}"
+                )
+
+
+def _check_ab_tp_timer(
+    project: Project, target: Vendor, errors: list[str],
+) -> None:
+    """Reject TP (pulse timer) on AB — no native TP and no synthesis path."""
+    if target != Vendor.AB:
+        return
+    fb_types = _collect_fb_types(project)
+    if "TP" in fb_types:
+        for pou_name in sorted(fb_types["TP"]):
+            errors.append(
+                f"POU '{pou_name}' uses TP (pulse timer) — "
+                f"AB does not support TP and there is no synthesis path"
+            )
+
+
 # ---------------------------------------------------------------------------
 # Check registry — add new checks here
 # ---------------------------------------------------------------------------
@@ -355,6 +754,25 @@ _CHECKS = [
     _check_struct_extends,
     _check_pointer_reference_types,
     _check_pointer_reference_operations,
+    _check_try_catch,
+    _check_continue_statement,
+    _check_repeat_statement,
+    _check_wstring,
+    _check_unsupported_data_types,
+    _check_array_constraints,
+    _check_multiple_gvls,
+    _check_sfc_body,
+    _check_pou_actions,
+    _check_startup_task,
+    _check_ab_unsupported_primitives,
+    _check_ab_tp_timer,
+]
+
+# Lossy checks — blocked by default, allowed with allow_lossy=True.
+# These represent transforms that produce valid vendor code but cannot
+# be round-tripped back to the original source.
+_LOSSY_CHECKS = [
+    _check_ab_siemens_extends,
 ]
 
 
@@ -595,29 +1013,75 @@ def _check_math_function_portability(
                 ))
 
 
-def _check_oop_flattening(
+def _warn_ab_lossy_type_mappings(
     project: Project,
     target: Vendor,
     warnings: list[PortabilityWarning],
 ) -> None:
-    """Warn about FB inheritance that must be flattened for AB/Siemens."""
-    if target == Vendor.BECKHOFF:
-        return  # Beckhoff supports EXTENDS natively
+    """Warn when AB maps BYTE→SINT, WORD→INT, TIME→DINT, etc."""
+    if target != Vendor.AB:
+        return
+    _lossy_primitives = frozenset(_AB_LOSSY_TYPE_MAP.keys())
 
     for pou in project.pous:
-        if pou.extends:
+        all_vars = (
+            pou.interface.input_vars
+            + pou.interface.output_vars
+            + pou.interface.inout_vars
+            + pou.interface.static_vars
+            + pou.interface.temp_vars
+            + pou.interface.constant_vars
+        )
+        for var in all_vars:
+            found = _type_contains_primitive(var.data_type, _lossy_primitives)
+            if found is not None:
+                warnings.append(PortabilityWarning(
+                    category="type_mapping",
+                    pou_name=pou.name,
+                    message=(
+                        f"Variable '{var.name}' uses {found.value} which AB maps "
+                        f"to {_AB_LOSSY_TYPE_MAP[found]}. This mapping is lossy."
+                    ),
+                    details={"type": found.value, "mapped_to": _AB_LOSSY_TYPE_MAP[found]},
+                    round_trippable=False,
+                ))
+
+    # GVL variables
+    for gvl in project.global_variable_lists:
+        for var in gvl.variables:
+            found = _type_contains_primitive(var.data_type, _lossy_primitives)
+            if found is not None:
+                warnings.append(PortabilityWarning(
+                    category="type_mapping",
+                    pou_name=gvl.name,
+                    message=(
+                        f"GVL variable '{var.name}' uses {found.value} which AB maps "
+                        f"to {_AB_LOSSY_TYPE_MAP[found]}. This mapping is lossy."
+                    ),
+                    details={"type": found.value, "mapped_to": _AB_LOSSY_TYPE_MAP[found]},
+                    round_trippable=False,
+                ))
+
+
+def _warn_ab_temp_var_promotion(
+    project: Project,
+    target: Vendor,
+    warnings: list[PortabilityWarning],
+) -> None:
+    """Warn when a POU has temp vars — AB promotes them to static."""
+    if target != Vendor.AB:
+        return
+    for pou in project.pous:
+        if pou.interface.temp_vars:
+            names = ", ".join(v.name for v in pou.interface.temp_vars)
             warnings.append(PortabilityWarning(
-                category="oop_flattening",
+                category="temp_var_promotion",
                 pou_name=pou.name,
                 message=(
-                    f"POU '{pou.name}' extends '{pou.extends}' — "
-                    f"FB inheritance will be flattened for {target.value} "
-                    f"(the raise pass inlines the parent hierarchy)."
+                    f"POU '{pou.name}' has VAR_TEMP variables ({names}) — "
+                    f"AB does not support VAR_TEMP; these will be promoted to static variables"
                 ),
-                details={
-                    "extends": pou.extends,
-                    "target": target.value,
-                },
+                round_trippable=False,
             ))
 
 
@@ -628,7 +1092,8 @@ def _check_oop_flattening(
 _WARNINGS = [
     _check_fb_translation,
     _check_math_function_portability,
-    _check_oop_flattening,
+    _warn_ab_lossy_type_mappings,
+    _warn_ab_temp_var_promotion,
 ]
 
 
@@ -637,6 +1102,7 @@ _WARNINGS = [
 # ---------------------------------------------------------------------------
 
 _BUILTIN_CHECK_COUNT = len(_CHECKS)
+_BUILTIN_LOSSY_CHECK_COUNT = len(_LOSSY_CHECKS)
 _BUILTIN_LIBRARY_CHECK_COUNT = len(_LIBRARY_CHECKS)
 _BUILTIN_WARNING_COUNT = len(_WARNINGS)
 _BUILTIN_FB_WARNINGS: dict[str, dict[Vendor, str]] = {
@@ -650,6 +1116,16 @@ def register_vendor_check(check_fn) -> None:
     check_fn signature: (project: Project, target: Vendor, errors: list) -> None
     """
     _CHECKS.append(check_fn)
+
+
+def register_lossy_check(check_fn) -> None:
+    """Register an additional lossy validation check.
+
+    Same signature as ``register_vendor_check``.  Lossy checks are
+    hard errors by default but downgraded to warnings when the user
+    passes ``allow_lossy=True``.
+    """
+    _LOSSY_CHECKS.append(check_fn)
 
 
 def register_vendor_warning(warning_fn) -> None:
@@ -668,6 +1144,7 @@ def register_fb_translation_warning(fb_type: str, vendor: Vendor, message: str) 
 def _clear_vendor_extensions() -> None:
     """Remove all registered extensions, restoring built-in checks only. For tests."""
     del _CHECKS[_BUILTIN_CHECK_COUNT:]
+    del _LOSSY_CHECKS[_BUILTIN_LOSSY_CHECK_COUNT:]
     del _LIBRARY_CHECKS[_BUILTIN_LIBRARY_CHECK_COUNT:]
     del _WARNINGS[_BUILTIN_WARNING_COUNT:]
     _FB_TRANSLATION_WARNINGS.clear()

@@ -438,12 +438,13 @@ class TestCaseStatementBranches:
 # ---------- StringTypeRef: positive max_length ----------
 
 class TestStringTypeRefMaxLength:
-    def test_zero_max_length_rejected(self):
-        with pytest.raises(ValueError, match="max_length must be >= 1"):
-            StringTypeRef(max_length=0)
+    def test_zero_max_length_accepted(self):
+        """STRING(0) is valid TwinCAT ST — unsized string for use with POINTER TO."""
+        s = StringTypeRef(max_length=0)
+        assert s.max_length == 0
 
     def test_negative_max_length_rejected(self):
-        with pytest.raises(ValueError, match="max_length must be >= 1"):
+        with pytest.raises(ValueError, match="max_length must be >= 0"):
             StringTypeRef(max_length=-5)
 
     def test_positive_max_length_accepted(self):

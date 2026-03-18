@@ -169,11 +169,11 @@ class PlxProject:
         self._packages: list[str] = list(packages) if packages else []
 
     @overload
-    def compile(self, *, target: None = None) -> Project: ...
+    def compile(self, *, target: None = None, allow_lossy: bool = ...) -> Project: ...
     @overload
-    def compile(self, *, target: Vendor) -> CompileResult: ...
+    def compile(self, *, target: Vendor, allow_lossy: bool = ...) -> CompileResult: ...
 
-    def compile(self, *, target: Vendor | None = None) -> Project | CompileResult:
+    def compile(self, *, target: Vendor | None = None, allow_lossy: bool = False) -> Project | CompileResult:
         """Compile all registered POUs and data types, return a Project IR node.
 
         Parameters
@@ -185,6 +185,11 @@ class PlxProject:
             ``VendorValidationError`` if unsupported features are found.
             Returns a ``CompileResult`` wrapping the project and any
             portability warnings.
+        allow_lossy
+            When True, lossy transforms (e.g. inheritance flattening)
+            are permitted.  They are downgraded from hard errors to
+            ``PortabilityWarning(round_trippable=False)``.  The resulting
+            vendor code will be valid but cannot be round-tripped.
         """
         # Merge discovered items from packages (if any)
         if self._packages:
@@ -278,7 +283,7 @@ class PlxProject:
         )
 
         if target is not None:
-            warnings = validate_target(result, target)
+            warnings = validate_target(result, target, allow_lossy=allow_lossy)
             return CompileResult(result, warnings)
 
         return result
