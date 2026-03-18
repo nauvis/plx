@@ -29,6 +29,7 @@ from ._helpers import (
     _BINOP_PYTHON,
     _FUNC_CALL_OPS,
     _FUNC_REMAP,
+    _fix_embedded_iec,
     _iec_string_to_python,
     _parse_iec_time,
     _safe_name,
@@ -221,6 +222,8 @@ class _ExpressionWriterMixin:
             if "^" in name:
                 name = name.replace("^", ".deref")
             name = _FUNC_REMAP.get(name, name)
+        # Convert IEC operators in embedded chained calls
+        name = _fix_embedded_iec(name)
         args = self._call_args_str(expr.args)
         return f"{name}({args})"
 

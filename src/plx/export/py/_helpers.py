@@ -243,6 +243,52 @@ def _iec_string_to_python(value: str) -> str:
     return repr("".join(chars))
 
 
+# IEC boolean/arithmetic operator pattern — matches standalone keywords only
+_IEC_OP_RE = re.compile(
+    r"""
+    (?<![A-Za-z0-9_])   # not preceded by identifier char
+    (AND_THEN|OR_ELSE|AND|OR|NOT|XOR|MOD)
+    (?![A-Za-z0-9_])    # not followed by identifier char
+    """,
+    re.VERBOSE,
+)
+
+_IEC_OP_MAP = {
+    "AND": "and",
+    "OR": "or",
+    "NOT": "not",
+    "XOR": "^",
+    "MOD": "%",
+    "AND_THEN": "and",
+    "OR_ELSE": "or",
+}
+
+
+def _fix_embedded_iec(name: str) -> str:
+    """Convert IEC operators and string escapes inside an embedded function_name.
+
+    When the Beckhoff parser flattens chained method calls into a single
+    ``function_name`` string (e.g. ``Messenger.OnCondition(x AND NOT y).Error('msg')``),
+    the embedded IEC operators and string literals need conversion to Python syntax.
+    """
+    if "(" not in name:
+        return name  # simple dotted name — no embedded call syntax
+
+    # Convert IEC boolean/arithmetic operators to Python
+    def _replace_op(m: re.Match) -> str:
+        return _IEC_OP_MAP[m.group(1)]
+
+    result = _IEC_OP_RE.sub(_replace_op, name)
+
+    # Convert IEC string escapes within embedded single-quoted strings
+    def _fix_iec_string(m: re.Match) -> str:
+        return _iec_string_to_python(m.group(0))
+
+    result = re.sub(r"'[^']*(?:\$.[^']*)*'", _fix_iec_string, result)
+
+    return result
+
+
 # ---------------------------------------------------------------------------
 # IEC time parsing
 # ---------------------------------------------------------------------------

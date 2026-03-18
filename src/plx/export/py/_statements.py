@@ -27,7 +27,7 @@ from plx.model.statements import (
     WhileStatement,
 )
 
-from ._helpers import _FUNC_REMAP, _case_branch_condition, _safe_name
+from ._helpers import _FUNC_REMAP, _case_branch_condition, _fix_embedded_iec, _safe_name
 
 
 class _StatementWriterMixin:
@@ -240,6 +240,8 @@ class _StatementWriterMixin:
                 name = name.replace("^", ".deref")
             name = _FUNC_REMAP.get(name, name)
             name = self._qualify_function_name(name)
+        # Convert IEC operators in embedded chained calls
+        name = _fix_embedded_iec(name)
         args = self._call_args_str(stmt.args)
         self._line(f"{name}({args})")
 
