@@ -28,6 +28,10 @@ Repository = "https://github.com/macleapatrick/plx"
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0", "hypothesis>=6.0"]
+runtime = ["asyncua>=1.0", "watchfiles>=0.20"]
+
+[project.scripts]
+plx = "plx.runtime._cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/plx"]
