@@ -16,12 +16,44 @@ from plx.model.pou import POU
 from plx.model.project import Project
 
 from ._results import AnalysisResult, Finding, Severity
-from ._rules import DeadSfcStepRule, UnguardedOutputRule
+from ._rules import (
+    DeadSfcStepRule,
+    EmptyBodyRule,
+    ForCounterWriteRule,
+    MissingCaseElseRule,
+    MultipleOutputWriteRule,
+    RealEqualityRule,
+    SfcMultipleInitialStepsRule,
+    SfcNoInitialStepRule,
+    TempFBInstanceRule,
+    UnguardedOutputRule,
+    UnusedInputRule,
+    UnusedOutputRule,
+    UnusedVariableRule,
+    WriteToInputRule,
+)
+from ._types import TypeEnvironment
 from ._visitor import AnalysisVisitor
 
 ALL_RULES: list[type[AnalysisVisitor]] = [
+    # Safety
     UnguardedOutputRule,
+    MultipleOutputWriteRule,
+    WriteToInputRule,
+    # Correctness
+    RealEqualityRule,
+    MissingCaseElseRule,
+    ForCounterWriteRule,
+    TempFBInstanceRule,
+    # Style / Unused
+    UnusedVariableRule,
+    UnusedInputRule,
+    UnusedOutputRule,
+    EmptyBodyRule,
+    # SFC
     DeadSfcStepRule,
+    SfcNoInitialStepRule,
+    SfcMultipleInitialStepsRule,
 ]
 
 
@@ -67,5 +99,6 @@ __all__ = [
     "AnalysisVisitor",
     "Finding",
     "Severity",
+    "TypeEnvironment",
     "ALL_RULES",
 ]

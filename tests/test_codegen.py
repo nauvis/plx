@@ -472,6 +472,66 @@ class TestExpressions:
         )
         assert w._expr(band) == "(a | b) & c"
 
+    def test_bitwise_needs_parens_in_add(self):
+        """a + (b | c) — BOR binds less tightly than ADD in Python."""
+        w = _make_writer()
+        bor = BinaryExpr(
+            op=BinaryOp.BOR,
+            left=VariableRef(name="b"),
+            right=VariableRef(name="c"),
+        )
+        add = BinaryExpr(
+            op=BinaryOp.ADD,
+            left=VariableRef(name="a"),
+            right=bor,
+        )
+        assert w._expr(add) == "a + (b | c)"
+
+    def test_add_no_parens_in_bor(self):
+        """a | b + c — ADD binds tighter than BOR, no parens needed."""
+        w = _make_writer()
+        add = BinaryExpr(
+            op=BinaryOp.ADD,
+            left=VariableRef(name="b"),
+            right=VariableRef(name="c"),
+        )
+        bor = BinaryExpr(
+            op=BinaryOp.BOR,
+            left=VariableRef(name="a"),
+            right=add,
+        )
+        assert w._expr(bor) == "a | b + c"
+
+    def test_band_needs_parens_in_mul(self):
+        """a * (b & c) — BAND binds less tightly than MUL in Python."""
+        w = _make_writer()
+        band = BinaryExpr(
+            op=BinaryOp.BAND,
+            left=VariableRef(name="b"),
+            right=VariableRef(name="c"),
+        )
+        mul = BinaryExpr(
+            op=BinaryOp.MUL,
+            left=VariableRef(name="a"),
+            right=band,
+        )
+        assert w._expr(mul) == "a * (b & c)"
+
+    def test_xor_needs_parens_in_add(self):
+        """a + (b ^ c) — XOR binds less tightly than ADD in Python."""
+        w = _make_writer()
+        xor = BinaryExpr(
+            op=BinaryOp.XOR,
+            left=VariableRef(name="b"),
+            right=VariableRef(name="c"),
+        )
+        add = BinaryExpr(
+            op=BinaryOp.ADD,
+            left=VariableRef(name="a"),
+            right=xor,
+        )
+        assert w._expr(add) == "a + (b ^ c)"
+
     def test_function_call(self):
         w = _make_writer()
         expr = FunctionCallExpr(

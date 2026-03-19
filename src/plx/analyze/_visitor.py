@@ -23,7 +23,7 @@ from plx.model.expressions import (
     VariableRef,
     SystemFlagExpr,
 )
-from plx.model.pou import POU, Network
+from plx.model.pou import POU, Method, Network, Property
 from plx.model.project import Project
 from plx.model.sfc import SFCBody, Step, Transition
 from plx.model.statements import (
@@ -40,7 +40,7 @@ from plx.model.statements import (
     WhileStatement,
 )
 
-from ._context import AnalysisContext, WriteInfo
+from ._context import AnalysisContext, ReadInfo, WriteInfo
 from ._results import AnalysisResult, Finding
 
 
@@ -72,14 +72,41 @@ class AnalysisVisitor:
         ctx = self._make_context(pou)
         self.on_pou_enter(ctx)
 
-        if pou.sfc_body is not None:
-            self._visit_sfc(ctx, pou.sfc_body)
-        else:
-            for i, network in enumerate(pou.networks):
+        # Main body
+        self._visit_body(ctx, pou.networks, pou.sfc_body)
+
+        # Actions — share the parent POU's context (execute in parent scope)
+        for action in pou.actions:
+            ctx.current_stmt_path.append(f"action:{action.name}")
+            for i, network in enumerate(action.body):
                 ctx.current_network_idx = i
                 self._visit_network(ctx, network)
+            ctx.current_stmt_path.pop()
 
         self.on_pou_exit(ctx)
+
+        # Methods — each gets its own context (independent scope)
+        for method in pou.methods:
+            method_ctx = self._make_method_context(pou, method)
+            self.on_pou_enter(method_ctx)
+            self._visit_body(method_ctx, method.networks, method.sfc_body)
+            self.on_pou_exit(method_ctx)
+            ctx.findings.extend(method_ctx.findings)
+
+        # Properties — getter/setter each get own context
+        for prop in pou.properties:
+            for accessor_name, accessor in [
+                ("getter", prop.getter),
+                ("setter", prop.setter),
+            ]:
+                if accessor is None:
+                    continue
+                prop_ctx = self._make_property_context(pou, prop, accessor_name)
+                self.on_pou_enter(prop_ctx)
+                self._visit_body(prop_ctx, accessor.networks, sfc_body=None)
+                self.on_pou_exit(prop_ctx)
+                ctx.findings.extend(prop_ctx.findings)
+
         return ctx.findings
 
     # ------------------------------------------------------------------
@@ -91,6 +118,8 @@ class AnalysisVisitor:
     def on_assignment(self, ctx: AnalysisContext, stmt: Assignment) -> None: ...
     def on_if_enter(self, ctx: AnalysisContext, stmt: IfStatement) -> None: ...
     def on_if_exit(self, ctx: AnalysisContext, stmt: IfStatement) -> None: ...
+    def on_case(self, ctx: AnalysisContext, stmt: CaseStatement) -> None: ...
+    def on_for(self, ctx: AnalysisContext, stmt: ForStatement) -> None: ...
     def on_return(self, ctx: AnalysisContext, stmt: ReturnStatement) -> None: ...
     def on_fb_invocation(self, ctx: AnalysisContext, stmt: FBInvocation) -> None: ...
     def on_try_catch(self, ctx: AnalysisContext, stmt: TryCatchStatement) -> None: ...
@@ -105,13 +134,58 @@ class AnalysisVisitor:
 
     @staticmethod
     def _make_context(pou: POU) -> AnalysisContext:
+        from ._types import TypeEnvironment
+
         iface = pou.interface
         return AnalysisContext(
             pou=pou,
             pou_name=pou.name,
             output_names={v.name for v in iface.output_vars},
             input_names={v.name for v in iface.input_vars},
+            type_env=TypeEnvironment(iface),
         )
+
+    @staticmethod
+    def _make_method_context(pou: POU, method: Method) -> AnalysisContext:
+        from ._types import TypeEnvironment
+
+        iface = method.interface
+        return AnalysisContext(
+            pou=pou,
+            pou_name=f"{pou.name}.{method.name}",
+            output_names={v.name for v in iface.output_vars},
+            input_names={v.name for v in iface.input_vars},
+            type_env=TypeEnvironment(iface),
+        )
+
+    @staticmethod
+    def _make_property_context(
+        pou: POU, prop: Property, accessor_name: str,
+    ) -> AnalysisContext:
+        return AnalysisContext(
+            pou=pou,
+            pou_name=f"{pou.name}.{prop.name}.{accessor_name}",
+            output_names=set(),
+            input_names=set(),
+        )
+
+    # ------------------------------------------------------------------
+    # Body traversal
+    # ------------------------------------------------------------------
+
+    def _visit_body(
+        self,
+        ctx: AnalysisContext,
+        networks: list[Network],
+        sfc_body: SFCBody | None,
+    ) -> None:
+        """Walk a POU/method body (either networks or SFC)."""
+        if sfc_body is not None:
+            self._visit_sfc(ctx, sfc_body)
+        else:
+            for i, network in enumerate(networks):
+                ctx.current_network_idx = i
+                self._visit_network(ctx, network)
 
     # ------------------------------------------------------------------
     # Statement traversal
@@ -184,6 +258,7 @@ class AnalysisVisitor:
         self.on_if_exit(ctx, stmt)
 
     def _visit_case(self, ctx: AnalysisContext, stmt: CaseStatement) -> None:
+        self.on_case(ctx, stmt)
         self._collect_reads(ctx, stmt.selector)
         for i, branch in enumerate(stmt.branches):
             ctx.nesting_depth += 1
@@ -206,6 +281,7 @@ class AnalysisVisitor:
             ctx.nesting_depth -= 1
 
     def _visit_for(self, ctx: AnalysisContext, stmt: ForStatement) -> None:
+        self.on_for(ctx, stmt)
         self._collect_reads(ctx, stmt.from_expr)
         self._collect_reads(ctx, stmt.to_expr)
         if stmt.by_expr:
@@ -243,6 +319,20 @@ class AnalysisVisitor:
     def _visit_fb_invocation(self, ctx: AnalysisContext, stmt: FBInvocation) -> None:
         for expr in stmt.inputs.values():
             self._collect_reads(ctx, expr)
+
+        # Record output targets as writes
+        for _param_name, target_expr in stmt.outputs.items():
+            target_name = self._extract_target_name(target_expr)
+            if target_name is not None:
+                info = WriteInfo(
+                    guarded=ctx.nesting_depth > 0,
+                    nesting_depth=ctx.nesting_depth,
+                    guard_conditions=list(ctx.guard_conditions),
+                    value_is_true=None,
+                    location=self._location(ctx),
+                )
+                ctx.writes.setdefault(target_name, []).append(info)
+
         self.on_fb_invocation(ctx, stmt)
 
     def _visit_function_call_stmt(
@@ -338,25 +428,26 @@ class AnalysisVisitor:
 
     @staticmethod
     def _extract_target_name(expr: Expression) -> str | None:
-        """Extract the root variable name from an assignment target."""
-        if isinstance(expr, VariableRef):
-            return expr.name
-        if isinstance(expr, MemberAccessExpr):
-            # Walk down to the root: a.b.c -> a
-            current = expr
-            while isinstance(current, MemberAccessExpr):
-                current = current.struct
+        """Extract the root variable name from an assignment target.
+
+        Recursively descends through MemberAccessExpr, ArrayAccessExpr,
+        BitAccessExpr, and DerefExpr to find the underlying VariableRef.
+        Examples: a[0].b -> 'a', a.b[0] -> 'a', a[0][1] -> 'a', ptr^.x -> 'ptr'
+        """
+        current: Expression = expr
+        while True:
             if isinstance(current, VariableRef):
                 return current.name
-        if isinstance(expr, ArrayAccessExpr):
-            if isinstance(expr.array, VariableRef):
-                return expr.array.name
-        if isinstance(expr, BitAccessExpr):
-            if isinstance(expr.target, VariableRef):
-                return expr.target.name
-        if isinstance(expr, DerefExpr):
-            return AnalysisVisitor._extract_target_name(expr.pointer)
-        return None
+            if isinstance(current, MemberAccessExpr):
+                current = current.struct
+            elif isinstance(current, ArrayAccessExpr):
+                current = current.array
+            elif isinstance(current, BitAccessExpr):
+                current = current.target
+            elif isinstance(current, DerefExpr):
+                current = current.pointer
+            else:
+                return None
 
     @staticmethod
     def _is_bool_literal(expr: Expression) -> bool | None:
@@ -371,7 +462,11 @@ class AnalysisVisitor:
     def _collect_reads(self, ctx: AnalysisContext, expr: Expression) -> None:
         """Recursively collect all variable references in an expression."""
         if isinstance(expr, VariableRef):
-            ctx.reads.add(expr.name)
+            info = ReadInfo(
+                location=self._location(ctx),
+                guarded=ctx.nesting_depth > 0,
+            )
+            ctx.reads.setdefault(expr.name, []).append(info)
         elif isinstance(expr, BinaryExpr):
             self._collect_reads(ctx, expr.left)
             self._collect_reads(ctx, expr.right)
