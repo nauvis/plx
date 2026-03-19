@@ -819,3 +819,63 @@ class TestStringSlicing:
         """Single index on untyped variables still produces ArrayAccessExpr."""
         result = compile_expr("arr[0]")
         assert isinstance(result, ArrayAccessExpr)
+
+
+# ---------------------------------------------------------------------------
+# Module-level constant resolution
+# ---------------------------------------------------------------------------
+
+class TestModuleLevelConstants:
+    def test_int_constant_resolves_to_literal(self):
+        """Module-level int constant → LiteralExpr."""
+        ctx = CompileContext(known_constants={"FILLING": 10})
+        result = compile_expr("FILLING", ctx)
+        assert isinstance(result, LiteralExpr)
+        assert result.value == "10"
+
+    def test_float_constant_resolves_to_literal(self):
+        ctx = CompileContext(known_constants={"MAX_SPEED": 1500.0})
+        result = compile_expr("MAX_SPEED", ctx)
+        assert isinstance(result, LiteralExpr)
+        assert result.value == "1500.0"
+
+    def test_bool_constant_resolves_to_literal(self):
+        ctx = CompileContext(known_constants={"ENABLED": True})
+        result = compile_expr("ENABLED", ctx)
+        assert isinstance(result, LiteralExpr)
+        assert result.value == "TRUE"
+        assert result.data_type == PrimitiveTypeRef(type=PrimitiveType.BOOL)
+
+    def test_str_constant_resolves_to_literal(self):
+        ctx = CompileContext(known_constants={"MSG": "hello"})
+        result = compile_expr("MSG", ctx)
+        assert isinstance(result, LiteralExpr)
+        assert result.value == "'hello'"
+
+    def test_declared_var_shadows_constant(self):
+        """Declared variables take priority over known constants."""
+        from plx.framework._descriptors import VarDirection
+        ctx = CompileContext(
+            declared_vars={"FILLING": VarDirection.STATIC},
+            known_constants={"FILLING": 10},
+        )
+        result = compile_expr("self.FILLING", ctx)
+        assert isinstance(result, VariableRef)
+        assert result.name == "FILLING"
+
+    def test_no_known_constants_falls_through(self):
+        """Without known_constants, bare names become VariableRef."""
+        ctx = CompileContext()
+        result = compile_expr("FILLING", ctx)
+        assert isinstance(result, VariableRef)
+        assert result.name == "FILLING"
+
+    def test_constant_in_assignment(self):
+        """Module-level constant used in assignment compiles correctly."""
+        ctx = CompileContext(known_constants={"IDLE": 0, "RUNNING": 10})
+        stmts = compile_stmts("self.step = RUNNING", ctx)
+        assert len(stmts) == 1
+        from plx.model.statements import Assignment
+        assert isinstance(stmts[0], Assignment)
+        assert isinstance(stmts[0].value, LiteralExpr)
+        assert stmts[0].value.value == "10"

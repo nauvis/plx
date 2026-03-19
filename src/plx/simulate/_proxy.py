@@ -8,6 +8,8 @@ underlying dicts.
 
 from __future__ import annotations
 
+from plx.simulate._values import _coerce_input_value
+
 
 class StructProxy:
     """Wraps a plain dict to provide ``proxy.field`` attribute access.
@@ -49,7 +51,7 @@ class StructProxy:
     def __setattr__(self, name: str, value: object) -> None:
         d = object.__getattribute__(self, "_dict")
         if name in d:
-            d[name] = value
+            d[name] = _coerce_input_value(value)
         else:
             raise AttributeError(
                 f"Struct has no field '{name}'. Available: {sorted(d.keys())}"
@@ -66,7 +68,7 @@ class StructProxy:
 
     def __setitem__(self, key: str, value: object) -> None:
         d = object.__getattribute__(self, "_dict")
-        d[key] = value
+        d[key] = _coerce_input_value(value)
 
     def __contains__(self, key: object) -> bool:
         d = object.__getattribute__(self, "_dict")

@@ -711,3 +711,17 @@ class TestNamedSentinels:
         ctx = CompileContext()
         with pytest.raises(Exception, match="takes no arguments"):
             compile_stmts('self.flag = first_scan(name="init")', ctx)
+
+
+# ---------------------------------------------------------------------------
+# Timedelta error messages
+# ---------------------------------------------------------------------------
+
+class TestTimedeltaErrors:
+    def test_variable_duration_error_mentions_duration_keyword(self):
+        """Error for timedelta(seconds=self.x) should suggest duration= pattern."""
+        import pytest
+        from plx.framework._compiler_core import CompileError
+        ctx = CompileContext()
+        with pytest.raises(CompileError, match="duration="):
+            compile_stmts("self.out = delayed(True, timedelta(seconds=self.timeout))", ctx)

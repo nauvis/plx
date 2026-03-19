@@ -258,3 +258,53 @@ class TestScan:
         ctx.inp = True
         ctx.scan()
         assert ctx.out is True
+
+
+# ---------------------------------------------------------------------------
+# Timedelta coercion
+# ---------------------------------------------------------------------------
+
+class TestTimedeltaCoercion:
+    def test_setattr_coerces_timedelta(self):
+        """Setting a TIME variable via timedelta stores int milliseconds."""
+        from datetime import timedelta
+        pou = make_pou(input_vars=[
+            Variable(name="delay", data_type=ptype(PrimitiveType.TIME)),
+        ])
+        ctx = SimulationContext(pou)
+        ctx.delay = timedelta(seconds=10)
+        assert ctx.delay == 10000
+
+    def test_set_method_coerces_timedelta(self):
+        from datetime import timedelta
+        pou = make_pou(input_vars=[
+            Variable(name="timeout", data_type=ptype(PrimitiveType.TIME)),
+        ])
+        ctx = SimulationContext(pou)
+        ctx.set(timeout=timedelta(milliseconds=500))
+        assert ctx.timeout == 500
+
+    def test_set_external_coerces_timedelta(self):
+        from datetime import timedelta
+        pou = make_pou(static_vars=[
+            Variable(name="ext_time", data_type=ptype(PrimitiveType.TIME)),
+        ])
+        ctx = SimulationContext(pou)
+        ctx.set_external("ext_time", timedelta(seconds=2))
+        assert ctx.ext_time == 2000
+
+    def test_struct_proxy_setattr_coerces_timedelta(self):
+        from datetime import timedelta
+        from plx.simulate._proxy import StructProxy
+        d = {"pt": 0}
+        proxy = StructProxy(d)
+        proxy.pt = timedelta(seconds=5)
+        assert d["pt"] == 5000
+
+    def test_struct_proxy_setitem_coerces_timedelta(self):
+        from datetime import timedelta
+        from plx.simulate._proxy import StructProxy
+        d = {"pt": 0}
+        proxy = StructProxy(d)
+        proxy["pt"] = timedelta(seconds=3)
+        assert d["pt"] == 3000

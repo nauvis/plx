@@ -100,6 +100,9 @@ class CompileContext:
     known_enums: dict[str, dict[str, int]] = field(default_factory=dict)
     """enum_name -> {member_name: int_value} for enum literal resolution"""
 
+    known_constants: dict[str, int | float | bool | str] = field(default_factory=dict)
+    """name -> value for module-level literal constants (resolved to LiteralExpr)"""
+
     known_methods: set[str] = field(default_factory=set)
     """Names of @fb_method-decorated functions on the POU being compiled"""
 

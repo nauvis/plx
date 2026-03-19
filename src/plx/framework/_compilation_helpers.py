@@ -137,6 +137,7 @@ def _build_compile_context(
         Path to the source file.
     """
     known_enums = _discover_enums(enum_source)
+    known_constants = _discover_constants(enum_source)
     return CompileContext(
         declared_vars=declared_vars,
         static_var_types=static_var_types,
@@ -144,6 +145,7 @@ def _build_compile_context(
         source_line_offset=start_lineno - 1,
         source_file=source_file,
         known_enums=known_enums,
+        known_constants=known_constants,
     )
 
 
@@ -178,6 +180,48 @@ def _discover_enums(func: Any) -> dict[str, dict[str, int]]:
                 known[name] = obj._enum_values
             elif isinstance(obj, type) and issubclass(obj, IntEnum) and obj is not IntEnum:
                 known[name] = {m.name: m.value for m in obj}
+    return known
+
+
+# ---------------------------------------------------------------------------
+# Constant discovery
+# ---------------------------------------------------------------------------
+
+# Names to exclude — Python builtins, dunder names, and common non-constant
+# module-level objects that happen to be int/str/bool.
+_CONSTANT_EXCLUDES = frozenset({
+    "True", "False", "None",
+    # Common module-level names that aren't user constants
+    "__name__", "__doc__", "__file__", "__spec__", "__loader__",
+    "__package__", "__builtins__", "__cached__",
+})
+
+
+def _discover_constants(func: Any) -> dict[str, int | float | bool | str]:
+    """Discover module-level literal constants visible to *func*.
+
+    Only picks up ``int``, ``float``, ``bool``, and ``str`` values whose
+    names look like constants (UPPER_CASE or Title_Case — specifically,
+    names that don't start with ``_``).  Enum classes and their members
+    are excluded so they don't shadow the enum-resolution path.
+    """
+    known: dict[str, int | float | bool | str] = {}
+    if not hasattr(func, "__globals__"):
+        return known
+    for name, val in func.__globals__.items():
+        if name.startswith("_"):
+            continue
+        if name in _CONSTANT_EXCLUDES:
+            continue
+        # Skip classes, functions, modules — only want bare literals
+        if isinstance(val, type) or callable(val):
+            continue
+        # Skip enum members (IntEnum subclass instances)
+        if isinstance(val, IntEnum):
+            continue
+        if isinstance(val, (int, float, str)):
+            # bool is a subclass of int — include it
+            known[name] = val
     return known
 
 

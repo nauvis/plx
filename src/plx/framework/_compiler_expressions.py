@@ -92,6 +92,18 @@ class _ExpressionMixin:
             return LiteralExpr(value="TRUE", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL))
         if name in ("False", "FALSE"):
             return LiteralExpr(value="FALSE", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL))
+        # Resolve module-level constants (only when not shadowed by a declared var)
+        if name not in self.ctx.declared_vars and name in self.ctx.known_constants:
+            value = self.ctx.known_constants[name]
+            if isinstance(value, bool):
+                return LiteralExpr(value="TRUE" if value else "FALSE",
+                                   data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL))
+            if isinstance(value, int):
+                return LiteralExpr(value=str(value))
+            if isinstance(value, float):
+                return LiteralExpr(value=str(value))
+            if isinstance(value, str):
+                return LiteralExpr(value=f"'{value}'")
         return VariableRef(name=name)
 
     def _compile_attribute(self, node: ast.Attribute) -> Expression:
@@ -662,7 +674,9 @@ class _ExpressionMixin:
                 )
             if not isinstance(kw.value, ast.Constant) or not isinstance(kw.value.value, (int, float)):
                 raise CompileError(
-                    f"timedelta({kw.arg}=...) must be a numeric literal",
+                    f"timedelta({kw.arg}=...) must be a numeric literal. "
+                    f"For variable durations, use the duration= keyword: "
+                    f"delayed(signal, duration=self.cfg_timeout)",
                     node, self.ctx,
                 )
             kwargs[kw.arg] = kw.value.value

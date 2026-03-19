@@ -28,7 +28,7 @@ from ._pointers import PointerTable
 from ._proxy import StructProxy
 from ._trace import ScanTrace
 from ._triggers import ScanTrigger, SimulationTimeout
-from ._values import SimulationError, parse_literal, type_default
+from ._values import SimulationError, _coerce_input_value, parse_literal, type_default
 
 
 class SimulationContext:
@@ -417,10 +417,11 @@ class SimulationContext:
         """
         if gvl not in self._global_state:
             self._global_state[gvl] = {}
-        self._global_state[gvl][var_name] = value
+        coerced = _coerce_input_value(value)
+        self._global_state[gvl][var_name] = coerced
         # Also update local state immediately for consistency
         if var_name in self._state:
-            self._state[var_name] = value
+            self._state[var_name] = coerced
 
     # -----------------------------------------------------------------------
     # Context manager
@@ -453,7 +454,7 @@ class SimulationContext:
                     f"'{type(self).__name__}' has no variable '{name}'. "
                     f"Available: {sorted(known)}"
                 )
-            self._state[name] = value
+            self._state[name] = _coerce_input_value(value)
 
     # -----------------------------------------------------------------------
     # Attribute access
@@ -483,6 +484,6 @@ class SimulationContext:
             return
 
         if name in known:
-            self._state[name] = value
+            self._state[name] = _coerce_input_value(value)
         else:
             object.__setattr__(self, name, value)

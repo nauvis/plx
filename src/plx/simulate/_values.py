@@ -7,7 +7,7 @@ foundation for all runtime value handling.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from plx.framework._errors import PlxError
 from plx.model.types import (
@@ -305,4 +305,19 @@ def coerce_type(value: object, target_type: TypeRef) -> object:
             return float(value)
         return value
 
+    return value
+
+
+# ---------------------------------------------------------------------------
+# Input value coercion
+# ---------------------------------------------------------------------------
+
+def _coerce_input_value(value: object) -> object:
+    """Coerce user-supplied values at the simulator boundary.
+
+    Converts ``timedelta`` objects to int milliseconds (the internal
+    representation for TIME/LTIME) so that TON/TOF comparisons work.
+    """
+    if isinstance(value, timedelta):
+        return int(value.total_seconds() * 1000)
     return value
