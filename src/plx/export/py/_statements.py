@@ -131,8 +131,12 @@ class _StatementWriterMixin:
             labels: list[str] = []
             for v in branch.values:
                 if isinstance(v, str):
-                    # Enum reference: E_State.Idle -> use as-is (Python dotted name)
-                    labels.append(v)
+                    # Enum reference: E_State.Idle — sanitize member part
+                    if "." in v:
+                        parts = v.rsplit(".", 1)
+                        labels.append(f"{parts[0]}.{_safe_name(parts[1])}")
+                    else:
+                        labels.append(v)
                 else:
                     labels.append(str(v))
             pattern = " | ".join(labels) if labels else "_"

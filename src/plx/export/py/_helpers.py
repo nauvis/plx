@@ -709,6 +709,10 @@ def _case_branch_condition(sel: str, branch: CaseBranch) -> str:
     parts: list[str] = []
     for v in branch.values:
         if isinstance(v, str):
+            # Sanitize member part of dotted enum names (e.g. Enum.None → Enum.None_)
+            if "." in v:
+                prefix, member = v.rsplit(".", 1)
+                v = f"{prefix}.{_safe_name(member)}"
             parts.append(f"{sel} == {v}")
         else:
             parts.append(f"{sel} == {v}")
