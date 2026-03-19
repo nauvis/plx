@@ -34,19 +34,23 @@ def _mux(k: int, *values: object) -> object:
 
 
 def _shl(value: int, n: int) -> int:
+    """SHL — shift left."""
     return value << n
 
 
 def _shr(value: int, n: int) -> int:
+    """SHR — shift right."""
     return value >> n
 
 
 def _rol(value: int, n: int) -> int:
+    """ROL — rotate left (32-bit)."""
     value, n = int(value) & 0xFFFFFFFF, int(n) % 32
     return ((value << n) | (value >> (32 - n))) & 0xFFFFFFFF
 
 
 def _ror(value: int, n: int) -> int:
+    """ROR — rotate right (32-bit)."""
     value, n = int(value) & 0xFFFFFFFF, int(n) % 32
     return ((value >> n) | (value << (32 - n))) & 0xFFFFFFFF
 
@@ -103,24 +107,28 @@ def _delete(s: str, n: int, pos: int) -> str:
 # ---------------------------------------------------------------------------
 
 def _and_func(a: object, b: object) -> object:
+    """AND — logical for bools, bitwise for integers."""
     if isinstance(a, bool) and isinstance(b, bool):
         return a and b
     return int(a) & int(b)
 
 
 def _or_func(a: object, b: object) -> object:
+    """OR — logical for bools, bitwise for integers."""
     if isinstance(a, bool) and isinstance(b, bool):
         return a or b
     return int(a) | int(b)
 
 
 def _xor_func(a: object, b: object) -> object:
+    """XOR — logical for bools, bitwise for integers."""
     if isinstance(a, bool) and isinstance(b, bool):
         return a ^ b
     return int(a) ^ int(b)
 
 
 def _not_func(a: object) -> object:
+    """NOT — logical for bools, bitwise complement for integers."""
     if isinstance(a, bool):
         return not a
     return ~int(a)

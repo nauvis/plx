@@ -10,6 +10,8 @@ from ._base import IRModel
 
 
 class PeriodicTask(IRModel):
+    """Task that runs at a fixed interval (e.g. every 10ms)."""
+
     kind: Literal["periodic"] = "periodic"
     name: str = Field(min_length=1)
     priority: int = 0
@@ -18,6 +20,8 @@ class PeriodicTask(IRModel):
 
 
 class ContinuousTask(IRModel):
+    """Task that runs continuously (every scan cycle)."""
+
     kind: Literal["continuous"] = "continuous"
     name: str = Field(min_length=1)
     priority: int = 0
@@ -25,6 +29,8 @@ class ContinuousTask(IRModel):
 
 
 class EventTask(IRModel):
+    """Task triggered by a rising edge on trigger_variable."""
+
     kind: Literal["event"] = "event"
     name: str = Field(min_length=1)
     priority: int = 0
@@ -33,6 +39,8 @@ class EventTask(IRModel):
 
 
 class StartupTask(IRModel):
+    """Task that runs once at controller startup."""
+
     kind: Literal["startup"] = "startup"
     name: str = Field(min_length=1)
     priority: int = 0

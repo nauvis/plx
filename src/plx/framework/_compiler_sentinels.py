@@ -47,7 +47,7 @@ def _extract_name_kwarg(
     for kw in call_node.keywords:
         if kw.arg == "name":
             if not isinstance(kw.value, ast.Constant) or not isinstance(kw.value.value, str):
-                raise CompileError("name= must be a string literal", call_node, ctx)
+                raise CompileError("The name= argument must be a string literal", call_node, ctx)
             name = kw.value.value
             if not name.isidentifier():
                 raise CompileError(

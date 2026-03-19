@@ -29,6 +29,8 @@ class ActionQualifier(str, Enum):
 
 
 class Action(IRModel):
+    """An action association on an SFC step (inline body or reference to a POUAction)."""
+
     name: str = Field(min_length=1)
     qualifier: ActionQualifier = ActionQualifier.N
     duration: str | None = None
@@ -52,6 +54,8 @@ class Action(IRModel):
 
 
 class Step(IRModel):
+    """An SFC step with optional entry, exit, and body actions."""
+
     name: str = Field(min_length=1)
     is_initial: bool = False
     actions: list[Action] = []
@@ -91,6 +95,8 @@ class Transition(IRModel):
 
 
 class SFCBody(IRModel):
+    """Sequential Function Chart body — a graph of steps connected by transitions."""
+
     steps: list[Step] = []
     transitions: list[Transition] = []
 

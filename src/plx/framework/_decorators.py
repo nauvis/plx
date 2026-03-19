@@ -684,9 +684,14 @@ def interface(cls: type = None, *, folder: str = "") -> Any:
                 if arg.arg == "self":
                     continue
                 if arg.annotation is None:
+                    try:
+                        _src = inspect.getfile(cls)
+                    except (TypeError, OSError):
+                        _src = None
                     raise CompileError(
                         f"Interface method parameter '{arg.arg}' in "
-                        f"{cls.__name__}.{method_name}() must have a type annotation"
+                        f"{cls.__name__}.{method_name}() must have a type annotation",
+                        source_file=_src, pou_name=cls.__name__,
                     )
                 type_ref = resolve_annotation(
                     arg.annotation,

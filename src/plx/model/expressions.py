@@ -13,6 +13,8 @@ from .types import TypeRef
 
 
 class SystemFlag(str, Enum):
+    """PLC system-level flags accessible in logic."""
+
     FIRST_SCAN = "first_scan"
 
 
@@ -24,6 +26,8 @@ class SystemFlagExpr(IRModel):
 
 
 class BinaryOp(str, Enum):
+    """Binary operators for arithmetic, logic, comparison, and bit manipulation."""
+
     ADD = "ADD"
     SUB = "SUB"
     MUL = "MUL"
@@ -50,6 +54,8 @@ class BinaryOp(str, Enum):
 
 
 class UnaryOp(str, Enum):
+    """Unary operators: negation, logical NOT, bitwise complement."""
+
     NEG = "NEG"
     NOT = "NOT"
     BNOT = "BNOT"  # Bitwise NOT / complement (from Python ~)
@@ -71,6 +77,8 @@ class VariableRef(IRModel):
 
 
 class BinaryExpr(IRModel):
+    """Binary operation: left op right."""
+
     kind: Literal["binary"] = "binary"
     op: BinaryOp
     left: Expression
@@ -78,6 +86,8 @@ class BinaryExpr(IRModel):
 
 
 class UnaryExpr(IRModel):
+    """Unary operation: op operand."""
+
     kind: Literal["unary"] = "unary"
     op: UnaryOp
     operand: Expression

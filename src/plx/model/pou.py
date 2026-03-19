@@ -26,6 +26,8 @@ def _check_body_exclusivity(networks: list, sfc_body: object | None, context: st
 
 
 class POUType(str, Enum):
+    """IEC 61131-3 POU classification."""
+
     PROGRAM = "PROGRAM"
     FUNCTION_BLOCK = "FUNCTION_BLOCK"
     FUNCTION = "FUNCTION"
@@ -33,6 +35,8 @@ class POUType(str, Enum):
 
 
 class AccessSpecifier(str, Enum):
+    """OOP visibility for methods and properties."""
+
     PUBLIC = "PUBLIC"
     PRIVATE = "PRIVATE"
     PROTECTED = "PROTECTED"
@@ -118,7 +122,10 @@ class Property(IRModel):
 
 
 class Method(IRModel):
-    """A method on a FUNCTION_BLOCK (OOP extension)."""
+    """A method on a FUNCTION_BLOCK (OOP extension).
+
+    Has its own variable interface and body, independent of the parent POU.
+    """
 
     name: str = Field(min_length=1)
     language: Language | None = None

@@ -48,6 +48,8 @@ class GlobalVariableList(IRModel):
 
 
 class Project(IRModel):
+    """Top-level container: a complete PLC project with POUs, types, GVLs, and tasks."""
+
     name: str = Field(min_length=1)
     vendor: str = ""
     vendor_version: str = ""

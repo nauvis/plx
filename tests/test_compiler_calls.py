@@ -681,7 +681,7 @@ class TestNamedSentinels:
     def test_name_must_be_string_literal(self):
         import pytest
         ctx = CompileContext()
-        with pytest.raises(Exception, match="name= must be a string literal"):
+        with pytest.raises(Exception, match="name= argument must be a string literal"):
             compile_stmts("self.output = delayed(self.input, timedelta(seconds=5), name=my_var)", ctx)
 
     def test_name_must_be_valid_identifier(self):

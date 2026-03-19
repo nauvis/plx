@@ -13,6 +13,8 @@ from .types import NamedTypeRef, TypeRef
 
 
 class Assignment(IRModel):
+    """Assign a value to a target: target := value."""
+
     kind: Literal["assignment"] = "assignment"
     target: Expression
     value: Expression
@@ -23,11 +25,15 @@ class Assignment(IRModel):
 
 
 class IfBranch(IRModel):
+    """A single IF or ELSIF branch (condition + body)."""
+
     condition: Expression
     body: list[Statement]
 
 
 class IfStatement(IRModel):
+    """IF / ELSIF / ELSE conditional."""
+
     kind: Literal["if"] = "if"
     if_branch: IfBranch
     elsif_branches: list[IfBranch] = []
@@ -71,6 +77,8 @@ class CaseBranch(IRModel):
 
 
 class CaseStatement(IRModel):
+    """CASE selector OF ... END_CASE multi-way branch."""
+
     kind: Literal["case"] = "case"
     selector: Expression
     branches: list[CaseBranch]
@@ -87,6 +95,8 @@ class CaseStatement(IRModel):
 
 
 class ForStatement(IRModel):
+    """FOR loop_var := from TO to [BY step] DO ... END_FOR."""
+
     kind: Literal["for"] = "for"
     loop_var: str = Field(min_length=1)
     from_expr: Expression
@@ -97,6 +107,8 @@ class ForStatement(IRModel):
 
 
 class WhileStatement(IRModel):
+    """WHILE condition DO ... END_WHILE loop."""
+
     kind: Literal["while"] = "while"
     condition: Expression
     body: list[Statement]
@@ -104,6 +116,8 @@ class WhileStatement(IRModel):
 
 
 class RepeatStatement(IRModel):
+    """REPEAT ... UNTIL condition END_REPEAT loop."""
+
     kind: Literal["repeat"] = "repeat"
     body: list[Statement]
     until: Expression
@@ -111,16 +125,22 @@ class RepeatStatement(IRModel):
 
 
 class ExitStatement(IRModel):
+    """EXIT — break out of the innermost loop."""
+
     kind: Literal["exit"] = "exit"
     comment: str = ""
 
 
 class ContinueStatement(IRModel):
+    """CONTINUE — skip to next loop iteration (Beckhoff ExST extension)."""
+
     kind: Literal["continue"] = "continue"
     comment: str = ""
 
 
 class ReturnStatement(IRModel):
+    """RETURN — early exit from POU/method, optionally with a value (functions)."""
+
     kind: Literal["return"] = "return"
     value: Expression | None = None
     comment: str = ""
@@ -178,6 +198,8 @@ class FBInvocation(IRModel):
 
 
 class EmptyStatement(IRModel):
+    """Placeholder statement (`;`) — preserves empty branches and comment-only lines."""
+
     kind: Literal["empty"] = "empty"
     comment: str = ""
 

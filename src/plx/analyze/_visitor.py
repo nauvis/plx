@@ -57,6 +57,7 @@ class AnalysisVisitor:
     # ------------------------------------------------------------------
 
     def analyze_project(self, project: Project) -> AnalysisResult:
+        """Run this rule against every POU in a project."""
         all_findings: list[Finding] = []
         for pou in project.pous:
             all_findings.extend(self.analyze_pou(pou))
@@ -67,6 +68,7 @@ class AnalysisVisitor:
         )
 
     def analyze_pou(self, pou: POU) -> list[Finding]:
+        """Run this rule against a single POU, returning any findings."""
         ctx = self._make_context(pou)
         self.on_pou_enter(ctx)
 

@@ -71,25 +71,25 @@ class TransitionPath:
     # -- Guard operators against precedence / chaining mistakes --
 
     def __and__(self, other: Any) -> Any:
-        raise TypeError(
+        raise CompileError(
             "Operator precedence error: `A >> B & C` binds as `(A >> B) & C`. "
             "Use parentheses: `A >> (B & C)`"
         )
 
     def __rand__(self, other: Any) -> Any:
-        raise TypeError(
+        raise CompileError(
             "Operator precedence error: `A & B >> C` binds as `A & (B >> C)`. "
             "Use parentheses: `(A & B) >> C`"
         )
 
     def __rshift__(self, other: Any) -> Any:
-        raise TypeError(
+        raise CompileError(
             "Cannot chain `>>`: `A >> B >> C` is not supported. "
             "Use separate @transition decorators for each step-to-step path."
         )
 
     def __rrshift__(self, other: Any) -> Any:
-        raise TypeError(
+        raise CompileError(
             "Cannot chain `>>`: `A >> B >> C` is not supported. "
             "Use separate @transition decorators for each step-to-step path."
         )
@@ -304,7 +304,7 @@ def _format_duration(duration: Any) -> str:
         return timedelta_to_iec(duration)
     if isinstance(duration, str):
         return duration
-    raise TypeError(
+    raise CompileError(
         f"Duration must be a timedelta or IEC duration string, "
         f"got {type(duration).__name__}"
     )
@@ -314,8 +314,17 @@ def _format_duration(duration: Any) -> str:
 # SFC compilation helpers
 # ---------------------------------------------------------------------------
 
+def _get_source_file(cls: type) -> str | None:
+    """Get source file for a class, or None if unavailable."""
+    try:
+        return inspect.getfile(cls)
+    except (TypeError, OSError):
+        return None
+
+
 def _collect_and_validate_steps(
     cls: type,
+    source_file: str | None = None,
 ) -> tuple[dict[str, StepDescriptor], dict[int, str]]:
     """Gather StepDescriptors from *cls*, validate initial step exists.
 
@@ -332,19 +341,22 @@ def _collect_and_validate_steps(
     if not step_descriptors:
         raise CompileError(
             f"@sfc class '{cls.__name__}' must define at least one step "
-            f"(e.g. IDLE = step(initial=True))"
+            f"(e.g. IDLE = step(initial=True))",
+            source_file=source_file, pou_name=cls.__name__,
         )
 
     initial_steps = [n for n, s in step_descriptors.items() if s.initial]
     if len(initial_steps) == 0:
         raise CompileError(
             f"@sfc class '{cls.__name__}' must have exactly one initial step "
-            f"(use step(initial=True))"
+            f"(use step(initial=True))",
+            source_file=source_file, pou_name=cls.__name__,
         )
     if len(initial_steps) > 1:
         raise CompileError(
             f"@sfc class '{cls.__name__}' has multiple initial steps: "
-            f"{initial_steps}. Only one is allowed."
+            f"{initial_steps}. Only one is allowed.",
+            source_file=source_file, pou_name=cls.__name__,
         )
 
     return step_descriptors, desc_to_name
@@ -372,7 +384,8 @@ def _categorize_sfc_methods(
         if name is None or name not in step_names:
             raise CompileError(
                 f"Step descriptor could not be resolved to a step name "
-                f"in @sfc class '{cls.__name__}'"
+                f"in @sfc class '{cls.__name__}'",
+                source_file=_get_source_file(cls), pou_name=cls.__name__,
             )
         return name
 
@@ -484,21 +497,19 @@ def _build_sfc_steps(
 def _compile_sfc_class(cls: type, pou_type: POUType, folder: str = "") -> type:
     """Compile an @sfc-decorated class into a POU with sfc_body."""
 
+    source_file = _get_source_file(cls) or "<unknown>"
+
     if "logic" in cls.__dict__:
         raise CompileError(
             f"@sfc class '{cls.__name__}' must not define a logic() method. "
-            f"SFC uses steps and transitions instead."
+            f"SFC uses steps and transitions instead.",
+            source_file=source_file, pou_name=cls.__name__,
         )
 
     extends = _detect_parent_pou(cls)
     var_groups, declared_vars, static_var_types = _build_var_context(cls)
 
-    try:
-        source_file = inspect.getfile(cls)
-    except (TypeError, OSError):
-        source_file = "<unknown>"
-
-    step_descriptors, desc_to_name = _collect_and_validate_steps(cls)
+    step_descriptors, desc_to_name = _collect_and_validate_steps(cls, source_file)
     action_infos, transition_infos = _categorize_sfc_methods(
         cls, desc_to_name, set(step_descriptors.keys()),
     )

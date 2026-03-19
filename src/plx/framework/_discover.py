@@ -87,10 +87,12 @@ def _walk_package(package_name: str) -> list[ModuleType]:
             mod = importlib.import_module(modname)
             modules.append(mod)
         except Exception as exc:
-            import traceback as _tb
-            warnings.warn(
-                f"plx discover: failed to import {modname}: {exc}\n{_tb.format_exc()}",
-                stacklevel=2,
+            import logging as _logging
+            _logger = _logging.getLogger("plx.discover")
+            _logger.error(
+                "Failed to import %s — any POUs defined in this module "
+                "will be missing from the project: %s",
+                modname, exc, exc_info=True,
             )
             continue
 

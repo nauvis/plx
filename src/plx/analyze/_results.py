@@ -8,6 +8,8 @@ from plx.model._base import IRModel
 
 
 class Severity(str, Enum):
+    """Severity level for analysis findings."""
+
     INFO = "info"
     WARNING = "warning"
     ERROR = "error"

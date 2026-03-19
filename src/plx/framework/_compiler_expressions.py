@@ -62,6 +62,7 @@ class _ExpressionMixin:
     """Mixin providing expression compilation methods for ASTCompiler."""
 
     def _compile_constant(self, node: ast.Constant) -> Expression:
+        """Compile a Python literal (bool, int, float, str) to a LiteralExpr."""
         value = node.value
         # bool check before int (bool is subclass of int)
         if isinstance(value, bool):
@@ -78,7 +79,11 @@ class _ExpressionMixin:
                 "None does not exist in PLC logic. Use 0, 0.0, FALSE, or '' depending on type.",
                 node, self.ctx,
             )
-        raise CompileError(f"Unsupported constant type: {type(value).__name__}", node, self.ctx)
+        raise CompileError(
+            f"Unsupported constant type: {type(value).__name__}. "
+            f"PLC logic supports bool, int, float, and str literals.",
+            node, self.ctx,
+        )
 
     def _compile_name(self, node: ast.Name) -> Expression:
         name = node.id
@@ -90,6 +95,7 @@ class _ExpressionMixin:
         return VariableRef(name=name)
 
     def _compile_attribute(self, node: ast.Attribute) -> Expression:
+        """Compile attribute access: self.x, Enum.MEMBER, math.pi, ptr.deref, var.bit5, or struct.field."""
         # self.x → VariableRef(name="x")
         if isinstance(node.value, ast.Name) and node.value.id == "self":
             return VariableRef(name=node.attr)
@@ -162,6 +168,7 @@ class _ExpressionMixin:
         return MemberAccessExpr(struct=struct, member=node.attr)
 
     def _compile_binop(self, node: ast.BinOp) -> Expression:
+        """Compile binary operator. Handles // as TRUNC(a/b) and rejects string +."""
         rejected_msg = _REJECTED_BINOP_MESSAGES.get(type(node.op))
         if rejected_msg is not None:
             raise CompileError(rejected_msg, node, self.ctx)
@@ -194,6 +201,7 @@ class _ExpressionMixin:
         return BinaryExpr(op=op, left=left, right=right)
 
     def _compile_boolop(self, node: ast.BoolOp) -> Expression:
+        """Compile ``and``/``or`` chains as left-folded BinaryExpr."""
         op = BinaryOp.AND if isinstance(node.op, ast.And) else BinaryOp.OR
         # Left-fold: a and b and c → AND(AND(a, b), c)
         result = self.compile_expression(node.values[0])
@@ -203,6 +211,7 @@ class _ExpressionMixin:
         return result
 
     def _compile_compare(self, node: ast.Compare) -> Expression:
+        """Compile comparisons including chained (a < b < c) and membership (x in (...))."""
         # a < b < c → (a < b) and (b < c)
         parts: list[Expression] = []
         left = self.compile_expression(node.left)
@@ -318,7 +327,8 @@ class _ExpressionMixin:
         if isinstance(func, ast.Attribute):
             return self._compile_call_attribute(func, node)
         raise CompileError(
-            f"Unsupported call target: {type(func).__name__}",
+            f"Unsupported call target: {type(func).__name__}. "
+            f"Call a function by name, self.fb_instance(), or self.method().",
             node, self.ctx,
         )
 
@@ -521,6 +531,7 @@ class _ExpressionMixin:
         return FunctionCallExpr(function_name=iec_name, args=args)
 
     def _compile_subscript(self, node: ast.Subscript) -> Expression:
+        """Compile subscript: string slice, dynamic bit access (var.bit[i]), or array access."""
         # Slice operation (e.g. s[1:3], s[:n], s[n:])
         if isinstance(node.slice, ast.Slice):
             return self._compile_slice(node, node.slice)

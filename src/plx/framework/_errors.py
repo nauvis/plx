@@ -13,6 +13,12 @@ class PlxError(Exception):
 class DeclarationError(PlxError):
     """Invalid variable declaration (wrong Field() options for the variable direction)."""
 
+    def __init__(self, message: str, *, class_name: str | None = None):
+        if class_name:
+            message = f"[{class_name}] {message}"
+        self.class_name = class_name
+        super().__init__(message)
+
 
 class DefinitionError(PlxError):
     """Invalid type or GVL definition (empty @struct, bad @enumeration member, etc.)."""

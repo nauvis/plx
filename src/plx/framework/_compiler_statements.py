@@ -80,6 +80,7 @@ class _StatementMixin:
     """Mixin providing statement compilation methods for ASTCompiler."""
 
     def _compile_assign(self, node: ast.Assign) -> list[Statement]:
+        """Compile assignment. Auto-declares temp vars when type is inferable from RHS."""
         if len(node.targets) > 1:
             raise CompileError(
                 "Multiple assignment targets (a = b = value) are not supported. "
@@ -125,11 +126,13 @@ class _StatementMixin:
                 stmt_node, self.ctx,
             )
         raise CompileError(
-            f"Unsupported assignment target: {type(target_node).__name__}",
+            f"Unsupported assignment target: {type(target_node).__name__}. "
+            f"Assign to self.var, a local name, or a subscript (arr[i]).",
             stmt_node, self.ctx,
         )
 
     def _compile_augassign(self, node: ast.AugAssign) -> list[Statement]:
+        """Compile augmented assignment. ``@=`` maps to REF=, ``//=`` to TRUNC(a/b)."""
         # @= → reference assignment (REF=)
         if isinstance(node.op, ast.MatMult):
             target = self._compile_target(node.target, node)
@@ -236,6 +239,7 @@ class _StatementMixin:
         return pending
 
     def _compile_for(self, node: ast.For) -> list[Statement]:
+        """Compile ``for x in range(...)`` to ForStatement with Python-to-IEC bounds conversion."""
         if node.orelse:
             raise CompileError(
                 "for/else is not supported in PLC logic. "
@@ -327,6 +331,7 @@ class _StatementMixin:
         return pending
 
     def _compile_match(self, node: ast.Match) -> list[Statement]:
+        """Compile ``match/case`` to CaseStatement with integer/enum patterns."""
         selector, pending = self._compile_expr_and_flush(node.subject)
 
         branches: list[CaseBranch] = []
@@ -416,7 +421,7 @@ class _StatementMixin:
         return []
 
     def _compile_expr_stmt(self, node: ast.Expr) -> list[Statement]:
-        """Compile an expression used as a statement (e.g. function call)."""
+        """Compile an expression statement: FB calls, function calls, or super().logic()."""
         expr_node = node.value
 
         # super().logic() — inline parent's compiled logic

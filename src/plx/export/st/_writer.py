@@ -71,6 +71,7 @@ class STWriter(_ExpressionWriterMixin, _StatementWriterMixin):
     # ======================================================================
 
     def write_project(self, proj: Project) -> None:
+        """Write a complete project: type definitions, GVLs, then POUs."""
         first = True
 
         # Type definitions
@@ -99,6 +100,7 @@ class STWriter(_ExpressionWriterMixin, _StatementWriterMixin):
     # ======================================================================
 
     def write_type_definition(self, td: TypeDefinition) -> None:
+        """Write a TYPE ... END_TYPE block (struct, enum, union, alias, or subrange)."""
         if isinstance(td, StructType):
             self._write_struct_type(td)
         elif isinstance(td, EnumType):
@@ -188,6 +190,7 @@ class STWriter(_ExpressionWriterMixin, _StatementWriterMixin):
     # ======================================================================
 
     def write_pou(self, pou: POU) -> None:
+        """Write a POU with header, var blocks, body, actions, methods, and properties."""
         if pou.pou_type == POUType.INTERFACE:
             self._write_interface_pou(pou)
             return
@@ -291,6 +294,7 @@ class STWriter(_ExpressionWriterMixin, _StatementWriterMixin):
     # ======================================================================
 
     def _type_ref(self, tr: TypeRef) -> str:
+        """Format a TypeRef as an IEC 61131-3 type string."""
         if isinstance(tr, PrimitiveTypeRef):
             return tr.type.value
         if isinstance(tr, StringTypeRef):

@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 from datetime import datetime, timezone
 
+from plx.framework._errors import PlxError
 from plx.model.types import (
     ArrayTypeRef,
     NamedTypeRef,
@@ -21,7 +22,7 @@ from plx.model.types import (
 )
 
 
-class SimulationError(Exception):
+class SimulationError(PlxError):
     """Runtime error during simulation."""
 
 

@@ -435,7 +435,7 @@ def resolve_annotation(
         return NamedTypeRef(name=ann.attr)
     if isinstance(ann, ast.Constant) and ann.value is None:
         return None
-    msg = f"Unsupported type annotation: {ast.dump(ann)}"
+    msg = f"Unsupported type annotation: {ast.dump(ann)}. Use a PLC type (BOOL, INT, REAL, etc.), @struct, or @fb class."
     if location_hint:
         msg = f"{msg} ({location_hint})"
     raise CompileError(msg, node, ctx)

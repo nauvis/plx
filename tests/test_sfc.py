@@ -532,7 +532,7 @@ class TestTransitionPathOperatorGuards:
         B = step()
         C = step()
         path = A >> B
-        with pytest.raises(TypeError, match="precedence"):
+        with pytest.raises(CompileError, match="precedence"):
             path & C
 
     def test_transition_path_and_step_group(self):
@@ -543,7 +543,7 @@ class TestTransitionPathOperatorGuards:
         D = step()
         path = A >> B
         group = C & D
-        with pytest.raises(TypeError, match="precedence"):
+        with pytest.raises(CompileError, match="precedence"):
             path & group
 
     def test_step_and_transition_path(self):
@@ -552,7 +552,7 @@ class TestTransitionPathOperatorGuards:
         B = step()
         C = step()
         path = A >> B
-        with pytest.raises(TypeError, match="precedence"):
+        with pytest.raises(CompileError, match="precedence"):
             C & path
 
     def test_step_group_and_transition_path(self):
@@ -563,7 +563,7 @@ class TestTransitionPathOperatorGuards:
         D = step()
         path = A >> B
         group = C & D
-        with pytest.raises(TypeError, match="precedence"):
+        with pytest.raises(CompileError, match="precedence"):
             group & path
 
     def test_chain_rshift(self):
@@ -572,7 +572,7 @@ class TestTransitionPathOperatorGuards:
         B = step()
         C = step()
         path = A >> B
-        with pytest.raises(TypeError, match="Cannot chain"):
+        with pytest.raises(CompileError, match="Cannot chain"):
             path >> C
 
     def test_chain_rrshift(self):
@@ -581,7 +581,7 @@ class TestTransitionPathOperatorGuards:
         B = step()
         C = step()
         path = B >> C
-        with pytest.raises(TypeError, match="Cannot chain"):
+        with pytest.raises(CompileError, match="Cannot chain"):
             A >> path
 
     def test_correct_parenthesized_divergence_still_works(self):

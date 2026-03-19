@@ -270,49 +270,49 @@ def _validate_field_for_direction(
     field: FieldDescriptor,
     direction: VarDirection,
     attr_name: str,
+    class_name: str | None = None,
 ) -> None:
     """Validate that Field() kwargs are legal for the given direction."""
+    def _err(msg: str) -> DeclarationError:
+        return DeclarationError(msg, class_name=class_name)
+
     # hardware/external not allowed on Temp or constant fields
     is_constant = field.constant or direction == VarDirection.CONSTANT
     if direction == VarDirection.TEMP or is_constant:
         label = "Constant" if is_constant else "Temp"
         if field.hardware is not None:
-            raise DeclarationError(
-                f"{label} variable '{attr_name}' cannot use hardware"
-            )
+            raise _err(f"{label} variable '{attr_name}' cannot use hardware")
         if field.external is not None:
-            raise DeclarationError(
-                f"{label} variable '{attr_name}' cannot use external"
-            )
+            raise _err(f"{label} variable '{attr_name}' cannot use external")
 
     if direction == VarDirection.TEMP:
         if field.retain:
-            raise DeclarationError(f"Temp variable '{attr_name}' cannot use retain")
+            raise _err(f"Temp variable '{attr_name}' cannot use retain")
         if field.persistent:
-            raise DeclarationError(f"Temp variable '{attr_name}' cannot use persistent")
+            raise _err(f"Temp variable '{attr_name}' cannot use persistent")
         if field.description:
-            raise DeclarationError(f"Temp variable '{attr_name}' cannot use description")
+            raise _err(f"Temp variable '{attr_name}' cannot use description")
     elif direction == VarDirection.INOUT:
         if field.initial_value is not None:
-            raise DeclarationError(f"InOut variable '{attr_name}' cannot use initial")
+            raise _err(f"InOut variable '{attr_name}' cannot use initial")
         if field.retain:
-            raise DeclarationError(f"InOut variable '{attr_name}' cannot use retain")
+            raise _err(f"InOut variable '{attr_name}' cannot use retain")
         if field.persistent:
-            raise DeclarationError(f"InOut variable '{attr_name}' cannot use persistent")
+            raise _err(f"InOut variable '{attr_name}' cannot use persistent")
     elif direction == VarDirection.EXTERNAL:
         if field.initial_value is not None:
-            raise DeclarationError(f"External variable '{attr_name}' cannot use initial")
+            raise _err(f"External variable '{attr_name}' cannot use initial")
         if field.retain:
-            raise DeclarationError(f"External variable '{attr_name}' cannot use retain")
+            raise _err(f"External variable '{attr_name}' cannot use retain")
         if field.persistent:
-            raise DeclarationError(f"External variable '{attr_name}' cannot use persistent")
+            raise _err(f"External variable '{attr_name}' cannot use persistent")
 
     # Constant-specific validation (whether from VarDirection.CONSTANT or field.constant)
     if is_constant:
         if field.retain:
-            raise DeclarationError(f"Constant variable '{attr_name}' cannot use retain")
+            raise _err(f"Constant variable '{attr_name}' cannot use retain")
         if field.persistent:
-            raise DeclarationError(f"Constant variable '{attr_name}' cannot use persistent")
+            raise _err(f"Constant variable '{attr_name}' cannot use persistent")
 
 
 # ---------------------------------------------------------------------------
@@ -451,6 +451,12 @@ def _resolve_declaration(
     try:
         data_type = _resolve_type_ref(inner_type)
     except TypeError:
+        import warnings
+        warnings.warn(
+            f"plx: variable '{attr_name}' on {declaring_cls.__name__} has "
+            f"unrecognizable type {inner_type!r} — skipped",
+            stacklevel=4,
+        )
         return None
 
     # Resolve field descriptor from Annotated[T, Field()] or = Field() default
@@ -460,12 +466,13 @@ def _resolve_declaration(
         default = None  # FieldDescriptor IS the default, not a value
 
     if field is not None:
-        _validate_field_for_direction(field, direction, attr_name)
+        _validate_field_for_direction(field, direction, attr_name, class_name=declaring_cls.__name__)
         is_constant = direction == VarDirection.CONSTANT or field.constant
         var = _field_to_variable(attr_name, data_type, field, default, is_constant=is_constant)
         if is_constant and var.initial_value is None:
             raise DeclarationError(
-                f"Constant variable '{attr_name}' requires an initial value"
+                f"Constant variable '{attr_name}' requires an initial value",
+                class_name=declaring_cls.__name__,
             )
         return VarDescriptor(
             direction=direction,
@@ -487,7 +494,8 @@ def _resolve_declaration(
     is_constant = direction == VarDirection.CONSTANT
     if is_constant and initial_value is None:
         raise DeclarationError(
-            f"Constant variable '{attr_name}' requires an initial value"
+            f"Constant variable '{attr_name}' requires an initial value",
+            class_name=declaring_cls.__name__,
         )
 
     return VarDescriptor(

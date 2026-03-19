@@ -16,6 +16,8 @@ from pydantic import BaseModel, ConfigDict
 
 
 class ChannelDirection(str, Enum):
+    """Whether an IO channel is a physical input or output."""
+
     INPUT = "input"
     OUTPUT = "output"
 
