@@ -273,14 +273,17 @@ Layer 1:  Vendor Files      ← L5X, SimaticML, TcPOU/tsproj on disk
 - **Python Framework** (`plx.framework`): You write native Python. The framework uses `inspect.getsource()` + `ast.parse()` to compile `logic()` methods into IR — the source is parsed, never executed.
 - **Universal IR** (`plx.model`): Vendor-agnostic Pydantic models covering the full IEC 61131-3 type system, expressions, statements, POUs, SFC, and tasks. The compilation target — not intended for direct authoring.
 - **Vendor IRs**: Typed Pydantic models mirroring each vendor's native schema exactly. Lossless round-tripping at this layer.
-- **Translation**: Direct vendor-to-vendor translators operating on vendor IRs (not through the Universal IR) for maximum fidelity.
+
+See [docs/architecture.md](docs/architecture.md) for the full architecture reference, including vendor-specific feature tiers, safety PLC isolation, and the project source model.
 
 ### Key design principles
 
 - **Native Python** — `if`/`for`/`while`/`and`/`or`/`not`, no context managers, no proxy objects
 - **AST transformation** — source is parsed, never executed. IDE support works naturally.
 - **No abstractions in the IR** — the IR represents what the PLC executes (CASE, IF/ELSE, FBInvocation). Timing helpers and edge detection compile away to plain IR nodes.
+- **The framework is the portability layer, not the IR** — the IR is honest about vendor differences. The framework knows the compile target and emits the correct vendor-specific IR nodes.
 - **Structural variable encoding** — variables carry no redundant direction/scope enums. An input is an input because it's in the `input_vars` list.
+- **Safety logic is never touched** — there is no API to declare a safety POU. Safety content is authored in vendor-native safety tooling and merged as a file overlay at build time. See [docs/architecture.md](docs/architecture.md#safety-plc-isolation).
 
 ## Framework API
 
@@ -528,13 +531,99 @@ main = task("MainTask", periodic=timedelta(ms=10), pous=[Main])
 fast = task("FastIO",   periodic=timedelta(ms=1),  pous=[IOHandler], priority=1)
 ```
 
+## Export
+
+plx can generate code from compiled IR in multiple formats.
+
+### Structured Text
+
+```python
+from plx.export.st import to_structured_text
+
+st_code = to_structured_text(ir)                    # Project or single POU
+st_code, source_map = to_structured_text(ir, source_map=True)  # with variable location map
+```
+
+Generates standard IEC 61131-3 Structured Text with correct operator precedence, proper parenthesization, and all statement/expression types.
+
+### Python (round-trip)
+
+```python
+from plx.export.py import generate, generate_files
+
+code = generate(ir)               # single string
+files = generate_files(ir)        # dict of {filename: code} preserving project structure
+```
+
+Generates valid plx Python framework code from IR. Produces byte-identical output for the same input — deterministic ordering, topological sorting of dependencies, and lossless initial value formatting. Used for round-trip export (vendor files → IR → Python).
+
+### Ladder Diagram (display only)
+
+```python
+from plx.export.ld import ir_to_ld
+
+ld_networks = ir_to_ld(networks)  # list of LDNetwork with rungs
+```
+
+Converts IR to a simplified ladder diagram element tree for visual rendering. Boolean expressions become contact/coil circuits; non-LD constructs fall back to inline ST text boxes. This is a display model — not suitable for generating vendor-native LD.
+
+## Static analysis
+
+```python
+from plx.analyze import analyze
+
+result = analyze(ir)
+for finding in result.findings:
+    print(f"{finding.severity.value}: {finding.pou_name}: {finding.message}")
+```
+
+Visitor-based rule engine that walks compiled IR. Built-in rules:
+
+| Rule | What it finds |
+|------|---------------|
+| `UnguardedOutputRule` | Outputs written unconditionally (not inside if/case/loop) |
+| `DeadSfcStepRule` | SFC steps that are unreachable (no transition targets them, not initial) |
+
+Custom rules extend `AnalysisVisitor` with hooks like `on_pou_enter`, `on_statement`, `on_expression`. The visitor automatically tracks write locations, guard conditions, and nesting depth.
+
+## Universal IR
+
+The IR (`plx.model`) is a standalone, serializable data model covering the full IEC 61131-3 standard. It can be used independently of the framework.
+
+```python
+from plx.model import (
+    Project, POU, POUType, POUInterface, Network,
+    Variable, NamedTypeRef, PrimitiveTypeRef, PrimitiveType,
+    Assignment, IfStatement, FBInvocation, VariableRef, LiteralExpr,
+    walk_project, walk_statements,
+)
+
+# Traverse all statements in a project
+for stmt in walk_statements(pou):
+    ...
+
+# Serialize to JSON and back
+json_str = project.model_dump_json()
+project2 = Project.model_validate_json(json_str)
+```
+
+77 model classes with 56 validators. All models use `extra="forbid"` — unknown fields are rejected at construction time. Discriminated unions (`Expression`, `Statement`, `TypeRef`, `TypeDefinition`, `Task`) use explicit `kind` fields for safe JSON deserialization.
+
+See [docs/architecture.md](docs/architecture.md#layer-3-universal-ir) for the full IR reference.
+
 ## Package structure
 
 ```
 src/plx/
 ├── model/       # Universal IR — Pydantic v2 models (types, expressions, statements, POUs, SFC)
-├── framework/   # Python DSL — AST compiler, decorators, type constructors, project assembly
-└── simulate/    # Scan-cycle simulator — tree-walking IR interpreter, deterministic time
+├── framework/   # Python DSL — AST compiler, decorators, sentinels, project assembly
+├── export/      # Code generation from IR
+│   ├── st/      #   → IEC 61131-3 Structured Text
+│   ├── py/      #   → plx Python framework code (lossless round-trip)
+│   └── ld/      #   → Ladder Diagram visual model (display only)
+├── simulate/    # Scan-cycle simulator — tree-walking IR interpreter, deterministic time
+├── analyze/     # Static analysis — visitor-based rule engine
+└── stdlib/      # Standard library of reusable POU templates (motors, valves, analog, discrete)
 ```
 
 ## Development
@@ -546,7 +635,7 @@ pip install -e ".[dev]"
 pytest
 ```
 
-2296 tests across 54 test files.
+2686 tests across 65 test files, plus property-based fuzz tests via Hypothesis.
 
 ## Tech stack
 
@@ -557,7 +646,10 @@ pytest
 ## Status
 
 **Implemented:**
-- Universal IR with full IEC 61131-3 type system, expressions, statements, POUs, SFC, tasks
-- Python framework v1: types, descriptors, AST compiler, POU decorators, FB inheritance, `@method`, `@struct`, `@enumeration`, `@global_vars`, `@sfc`, task scheduling, project assembly
-- Open-loop scan-cycle simulator with deterministic time
+- Universal IR with full IEC 61131-3 coverage (77 model classes, 56 validators)
+- Python framework v1: AST compiler, POU decorators (`@fb`, `@program`, `@function`, `@interface`, `@sfc`), FB inheritance, methods, properties, sentinels (12), `@struct`, `@enumeration`, `@global_vars`, task scheduling, project assembly, vendor targeting
+- Export layer: Structured Text, Python (lossless round-trip), Ladder Diagram (display)
+- Open-loop scan-cycle simulator with deterministic time, SFC support, project-level simulation
+- Static analysis with visitor-based rule engine
+- Standard library templates (motors, valves, analog, discrete)
 
