@@ -392,6 +392,16 @@ class ExecutionEngine:
             self._exec_ref_assign(stmt)
             return
         value = self._eval(stmt.value)
+        if stmt.latch == "S":
+            # S= (set/latch): set target to TRUE only when value is truthy
+            if self._scalar(value):
+                self._write_target(stmt.target, True)
+            return
+        if stmt.latch == "R":
+            # R= (reset/unlatch): reset target to FALSE only when value is truthy
+            if self._scalar(value):
+                self._write_target(stmt.target, False)
+            return
         self._write_target(stmt.target, value)
 
     def _exec_ref_assign(self, stmt: Assignment) -> None:
@@ -463,8 +473,18 @@ class ExecutionEngine:
                 pass
             i += by_val
 
+    #: Maximum iterations for while/repeat before raising SimulationError.
+    MAX_LOOP_ITERATIONS: int = 1_000_000
+
     def _exec_while(self, stmt: WhileStatement) -> None:
+        iterations = 0
         while self._scalar(self._eval(stmt.condition)):
+            iterations += 1
+            if iterations > self.MAX_LOOP_ITERATIONS:
+                raise SimulationError(
+                    f"WHILE loop exceeded {self.MAX_LOOP_ITERATIONS} iterations "
+                    f"(possible infinite loop)"
+                )
             try:
                 self._exec_body(stmt.body)
             except _ExitSignal:
@@ -473,7 +493,14 @@ class ExecutionEngine:
                 pass
 
     def _exec_repeat(self, stmt: RepeatStatement) -> None:
+        iterations = 0
         while True:
+            iterations += 1
+            if iterations > self.MAX_LOOP_ITERATIONS:
+                raise SimulationError(
+                    f"REPEAT loop exceeded {self.MAX_LOOP_ITERATIONS} iterations "
+                    f"(possible infinite loop)"
+                )
             try:
                 self._exec_body(stmt.body)
             except _ExitSignal:
@@ -602,11 +629,10 @@ class ExecutionEngine:
             elif i < len(input_vars):
                 method_state[input_vars[i].name] = arg
 
-        # Initialize temp vars
+        # Initialize temp vars (always fresh per invocation)
         temp_vars = method.interface.temp_vars if method.interface else []
         for var in temp_vars:
-            if var.name not in method_state:
-                method_state[var.name] = type_default(var.data_type)
+            method_state[var.name] = type_default(var.data_type)
 
         # Execute method networks directly (avoid execute() which swallows ReturnSignal)
         try:
@@ -627,6 +653,9 @@ class ExecutionEngine:
     def _exec_empty(self, _stmt: Statement) -> None:
         pass
 
+    def _exec_pragma(self, _stmt: Statement) -> None:
+        pass  # Pragmas are compiler directives — no runtime effect
+
     # Statement dispatch table
     _STMT_DISPATCH: dict[str, Callable[[ExecutionEngine, Statement], None]] = {
         "assignment": _exec_assignment,
@@ -641,6 +670,7 @@ class ExecutionEngine:
         "fb_invocation": _exec_fb_invocation,
         "function_call_stmt": _exec_function_call_stmt,
         "empty": _exec_empty,
+        "pragma": _exec_pragma,
     }
 
     def _exec_body(self, stmts: list[Statement]) -> None:
@@ -687,7 +717,14 @@ class ExecutionEngine:
         return value
 
     def _eval_binary(self, expr: BinaryExpr) -> object:
-        # No short-circuit — evaluate both sides (PLC semantics)
+        # AND_THEN / OR_ELSE: short-circuit evaluation (Beckhoff ExST extension)
+        if expr.op == BinaryOp.AND_THEN:
+            left = self._scalar(self._eval(expr.left))
+            return bool(left) and bool(self._scalar(self._eval(expr.right)))
+        if expr.op == BinaryOp.OR_ELSE:
+            left = self._scalar(self._eval(expr.left))
+            return bool(left) or bool(self._scalar(self._eval(expr.right)))
+        # Standard PLC semantics — evaluate both sides (no short-circuit)
         left = self._scalar(self._eval(expr.left))
         right = self._scalar(self._eval(expr.right))
         return self._apply_binop(expr.op, left, right)
