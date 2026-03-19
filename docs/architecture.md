@@ -35,10 +35,10 @@ The IR is not intended for direct authoring. It is a structured, serializable, a
 |--------|----------|
 | **Types** | All 23 IEC 61131-3 primitives, STRING/WSTRING with max length, ARRAY (multi-dimensional, symbolic bounds), POINTER_TO, REFERENCE_TO, STRUCT, ENUM, UNION, ALIAS, SUBRANGE |
 | **Variables** | Input, output, in-out, static, temp, constant, external — encoded structurally (no redundant direction/scope enums) |
-| **Expressions** | Binary (27 ops), unary (3 ops), function calls, array/member/bit access, type conversion, dereference, substring, system flags |
+| **Expressions** | Binary (23 ops incl. AND_THEN/OR_ELSE), unary (3 ops), function calls, array/member/bit access (dynamic), type conversion, dereference, substring, system flags |
 | **Statements** | Assignment (with ref-assign and latch variants), IF/CASE/FOR/WHILE/REPEAT, FB invocation, function call, return, exit, continue, jump/label, try/catch, pragma, empty |
 | **POUs** | Function blocks, programs, functions, interfaces — with methods, properties, actions, access specifiers, inheritance (`extends`/`implements`) |
-| **SFC** | Steps (with entry/exit actions), transitions, all 10 IEC action qualifiers (N, R, S, P, L, D, P0, P1, SD, DS, SL) |
+| **SFC** | Steps (with entry/exit actions), transitions, all 11 IEC action qualifiers (N, R, S, P, L, D, P0, P1, SD, DS, SL) |
 | **Tasks** | Periodic, continuous, event-driven, startup — as a discriminated union |
 | **Project** | POUs, data types, global variable lists, tasks, library references |
 

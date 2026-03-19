@@ -595,12 +595,15 @@ from plx.model import (
     Project, POU, POUType, POUInterface, Network,
     Variable, NamedTypeRef, PrimitiveTypeRef, PrimitiveType,
     Assignment, IfStatement, FBInvocation, VariableRef, LiteralExpr,
-    walk_project, walk_statements,
+    walk_project, walk_pou,
 )
 
-# Traverse all statements in a project
-for stmt in walk_statements(pou):
-    ...
+# Collect all FB invocation types in a project
+fb_types: set[str] = set()
+def on_stmt(stmt):
+    if isinstance(stmt, FBInvocation) and isinstance(stmt.fb_type, NamedTypeRef):
+        fb_types.add(stmt.fb_type.name)
+walk_project(project, on_stmt=on_stmt)
 
 # Serialize to JSON and back
 json_str = project.model_dump_json()
