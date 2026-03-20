@@ -302,7 +302,13 @@ class ProjectSimulationContext:
     # -----------------------------------------------------------------------
 
     def scan(self, n: int = 1) -> None:
-        """Execute *n* base-period scan cycles with task scheduling."""
+        """Execute *n* base-period scan cycles with task scheduling.
+
+        Parameters
+        ----------
+        n : int, optional
+            Number of base-period scans to execute. Default is 1.
+        """
         for _ in range(n):
             self._execute_one_scan()
 
@@ -437,6 +443,14 @@ class ProjectSimulationContext:
     ) -> None:
         """Scan until *condition(ctx)* is truthy, with a timeout.
 
+        Parameters
+        ----------
+        condition : Callable[[ProjectSimulationContext], object]
+            A function that receives this context and returns a truthy
+            value when the wait is over.
+        timeout_seconds : float, optional
+            Maximum simulated time to wait in seconds. Default is 60.
+
         Raises
         ------
         SimulationTimeout
@@ -468,6 +482,25 @@ class ProjectSimulationContext:
         return dict(self._programs)
 
     def __getattr__(self, name: str) -> SimulationContext:
+        """Provide attribute-style access to program simulation contexts.
+
+        Allows ``ctx.Main`` instead of ``ctx.programs["Main"]``.
+
+        Parameters
+        ----------
+        name : str
+            Program name to look up.
+
+        Returns
+        -------
+        SimulationContext
+            The simulation context for the named program.
+
+        Raises
+        ------
+        AttributeError
+            If *name* does not match any program in the project.
+        """
         try:
             programs = object.__getattribute__(self, "_programs")
         except AttributeError:

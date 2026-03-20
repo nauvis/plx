@@ -849,6 +849,11 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
             # If we have project context, quote types not defined in this project
             # to avoid NameError for vendor FBs and cross-file UDT references
             if self._known_types and tr.name not in self._known_types:
+                # Check library registry before quoting — library types
+                # will be imported by _collect_library_imports
+                from plx.framework._library import get_library_type
+                if get_library_type(tr.name) is not None:
+                    return tr.name
                 return repr(tr.name)
             return tr.name
         if isinstance(tr, ArrayTypeRef):

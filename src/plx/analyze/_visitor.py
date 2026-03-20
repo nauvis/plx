@@ -57,7 +57,18 @@ class AnalysisVisitor:
     # ------------------------------------------------------------------
 
     def analyze_project(self, project: Project) -> AnalysisResult:
-        """Run this rule against every POU in a project."""
+        """Run this rule against every POU in a project.
+
+        Parameters
+        ----------
+        project : Project
+            Compiled project IR to analyze.
+
+        Returns
+        -------
+        AnalysisResult
+            Aggregated findings from all POUs.
+        """
         all_findings: list[Finding] = []
         for pou in project.pous:
             all_findings.extend(self.analyze_pou(pou))
@@ -68,7 +79,20 @@ class AnalysisVisitor:
         )
 
     def analyze_pou(self, pou: POU) -> list[Finding]:
-        """Run this rule against a single POU, returning any findings."""
+        """Run this rule against a single POU, returning any findings.
+
+        Visits the POU's main body, actions, methods, and properties.
+
+        Parameters
+        ----------
+        pou : POU
+            The POU to analyze.
+
+        Returns
+        -------
+        list[Finding]
+            All findings produced by this rule for the POU.
+        """
         ctx = self._make_context(pou)
         self.on_pou_enter(ctx)
 
@@ -113,24 +137,202 @@ class AnalysisVisitor:
     # Hook methods (subclasses override these)
     # ------------------------------------------------------------------
 
-    def on_pou_enter(self, ctx: AnalysisContext) -> None: ...
-    def on_pou_exit(self, ctx: AnalysisContext) -> None: ...
-    def on_assignment(self, ctx: AnalysisContext, stmt: Assignment) -> None: ...
-    def on_if_enter(self, ctx: AnalysisContext, stmt: IfStatement) -> None: ...
-    def on_if_exit(self, ctx: AnalysisContext, stmt: IfStatement) -> None: ...
-    def on_case(self, ctx: AnalysisContext, stmt: CaseStatement) -> None: ...
-    def on_for(self, ctx: AnalysisContext, stmt: ForStatement) -> None: ...
-    def on_for_exit(self, ctx: AnalysisContext, stmt: ForStatement) -> None: ...
-    def on_while(self, ctx: AnalysisContext, stmt: WhileStatement) -> None: ...
-    def on_repeat(self, ctx: AnalysisContext, stmt: RepeatStatement) -> None: ...
-    def on_return(self, ctx: AnalysisContext, stmt: ReturnStatement) -> None: ...
-    def on_fb_invocation(self, ctx: AnalysisContext, stmt: FBInvocation) -> None: ...
-    def on_try_catch(self, ctx: AnalysisContext, stmt: TryCatchStatement) -> None: ...
-    def on_expression(self, ctx: AnalysisContext, expr: Expression) -> None: ...
-    def on_sfc_enter(self, ctx: AnalysisContext, sfc: SFCBody) -> None: ...
-    def on_sfc_exit(self, ctx: AnalysisContext, sfc: SFCBody) -> None: ...
-    def on_sfc_step(self, ctx: AnalysisContext, step: Step) -> None: ...
-    def on_sfc_transition(self, ctx: AnalysisContext, trans: Transition) -> None: ...
+    def on_pou_enter(self, ctx: AnalysisContext) -> None:
+        """Called once before traversal of a POU, method, or property accessor.
+
+        Parameters
+        ----------
+        ctx : AnalysisContext
+            Fresh context for the POU being entered. Inspect ``ctx.pou_name``,
+            ``ctx.output_names``, etc.
+        """
+
+    def on_pou_exit(self, ctx: AnalysisContext) -> None:
+        """Called after all statements in a POU have been visited.
+
+        Parameters
+        ----------
+        ctx : AnalysisContext
+            Fully populated context with ``ctx.writes``, ``ctx.reads``, and
+            any ``ctx.findings`` accumulated during traversal.
+        """
+
+    def on_assignment(self, ctx: AnalysisContext, stmt: Assignment) -> None:
+        """Called for each assignment statement after the write is recorded.
+
+        Parameters
+        ----------
+        ctx : AnalysisContext
+            Current analysis context.
+        stmt : Assignment
+            The assignment node (``stmt.target`` and ``stmt.value``).
+        """
+
+    def on_if_enter(self, ctx: AnalysisContext, stmt: IfStatement) -> None:
+        """Called before descending into if/elsif/else branches.
+
+        Parameters
+        ----------
+        ctx : AnalysisContext
+            Current analysis context (nesting depth not yet incremented).
+        stmt : IfStatement
+            The if statement node.
+        """
+
+    def on_if_exit(self, ctx: AnalysisContext, stmt: IfStatement) -> None:
+        """Called after all if/elsif/else branches have been visited.
+
+        Parameters
+        ----------
+        ctx : AnalysisContext
+            Current analysis context (nesting depth restored).
+        stmt : IfStatement
+            The if statement node.
+        """
+
+    def on_case(self, ctx: AnalysisContext, stmt: CaseStatement) -> None:
+        """Called before descending into case branches.
+
+        Parameters
+        ----------
+        ctx : AnalysisContext
+            Current analysis context.
+        stmt : CaseStatement
+            The case statement node.
+        """
+
+    def on_for(self, ctx: AnalysisContext, stmt: ForStatement) -> None:
+        """Called before descending into the for loop body.
+
+        Parameters
+        ----------
+        ctx : AnalysisContext
+            Current analysis context.
+        stmt : ForStatement
+            The for statement node.
+        """
+
+    def on_for_exit(self, ctx: AnalysisContext, stmt: ForStatement) -> None:
+        """Called after the for loop body has been visited.
+
+        Parameters
+        ----------
+        ctx : AnalysisContext
+            Current analysis context (nesting depth restored).
+        stmt : ForStatement
+            The for statement node.
+        """
+
+    def on_while(self, ctx: AnalysisContext, stmt: WhileStatement) -> None:
+        """Called before descending into the while loop body.
+
+        Parameters
+        ----------
+        ctx : AnalysisContext
+            Current analysis context.
+        stmt : WhileStatement
+            The while statement node.
+        """
+
+    def on_repeat(self, ctx: AnalysisContext, stmt: RepeatStatement) -> None:
+        """Called before descending into the repeat loop body.
+
+        Parameters
+        ----------
+        ctx : AnalysisContext
+            Current analysis context.
+        stmt : RepeatStatement
+            The repeat statement node.
+        """
+
+    def on_return(self, ctx: AnalysisContext, stmt: ReturnStatement) -> None:
+        """Called when a return statement is encountered.
+
+        Parameters
+        ----------
+        ctx : AnalysisContext
+            Current analysis context.
+        stmt : ReturnStatement
+            The return statement node (``stmt.value`` may be ``None``).
+        """
+
+    def on_fb_invocation(self, ctx: AnalysisContext, stmt: FBInvocation) -> None:
+        """Called for each function block invocation after output writes are recorded.
+
+        Parameters
+        ----------
+        ctx : AnalysisContext
+            Current analysis context.
+        stmt : FBInvocation
+            The FB invocation node (``stmt.instance_name``, ``stmt.fb_type``,
+            ``stmt.inputs``, ``stmt.outputs``).
+        """
+
+    def on_try_catch(self, ctx: AnalysisContext, stmt: TryCatchStatement) -> None:
+        """Called after try/catch/finally bodies have been visited.
+
+        Parameters
+        ----------
+        ctx : AnalysisContext
+            Current analysis context.
+        stmt : TryCatchStatement
+            The try-catch statement node.
+        """
+
+    def on_expression(self, ctx: AnalysisContext, expr: Expression) -> None:
+        """Called for every expression node encountered during read collection.
+
+        Parameters
+        ----------
+        ctx : AnalysisContext
+            Current analysis context.
+        expr : Expression
+            The expression node being visited.
+        """
+
+    def on_sfc_enter(self, ctx: AnalysisContext, sfc: SFCBody) -> None:
+        """Called before traversing SFC steps and transitions.
+
+        Parameters
+        ----------
+        ctx : AnalysisContext
+            Current analysis context.
+        sfc : SFCBody
+            The SFC body containing steps and transitions.
+        """
+
+    def on_sfc_exit(self, ctx: AnalysisContext, sfc: SFCBody) -> None:
+        """Called after all SFC steps and transitions have been visited.
+
+        Parameters
+        ----------
+        ctx : AnalysisContext
+            Current analysis context.
+        sfc : SFCBody
+            The SFC body that was traversed.
+        """
+
+    def on_sfc_step(self, ctx: AnalysisContext, step: Step) -> None:
+        """Called for each SFC step before visiting its action bodies.
+
+        Parameters
+        ----------
+        ctx : AnalysisContext
+            Current analysis context.
+        step : Step
+            The SFC step node.
+        """
+
+    def on_sfc_transition(self, ctx: AnalysisContext, trans: Transition) -> None:
+        """Called for each SFC transition after its condition is read-collected.
+
+        Parameters
+        ----------
+        ctx : AnalysisContext
+            Current analysis context.
+        trans : Transition
+            The SFC transition node (``trans.condition`` is the guard expression).
+        """
 
     # ------------------------------------------------------------------
     # Context construction

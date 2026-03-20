@@ -15,7 +15,9 @@ warnings** for features that will compile but require instruction
 translation — e.g. RTO on Beckhoff, SR/RS on AB/Siemens.  Warnings
 are returned via ``CompileResult`` and never block compilation.
 
-Usage::
+Examples
+--------
+::
 
     from plx.framework import project, Vendor
 
@@ -106,15 +108,31 @@ class PortabilityWarning:
     portability warnings indicate that compilation will succeed but
     round-trip fidelity or semantics may differ on the target vendor.
 
-    When ``round_trippable`` is False, the expansion is lossy — the
+    When ``round_trippable`` is False, the expansion is lossy -- the
     original construct cannot be recovered on re-import.
+
+    Attributes
+    ----------
+    category : str
+        Warning category identifier (e.g. ``"fb_translation"``,
+        ``"oop_flattening"``, ``"instruction_expansion"``).
+    pou_name : str
+        Name of the POU that triggered the warning.
+    message : str
+        Human-readable description of the portability concern.
+    details : dict[str, Any]
+        Arbitrary key-value metadata (e.g. ``{"fb_type": "RTO"}``).
+    round_trippable : bool
+        ``True`` if the translated output can be re-imported losslessly.
+        ``False`` for lossy expansions (e.g. RTO synthesized from
+        TON + latch logic).
     """
 
-    category: str       # "fb_translation", "oop_flattening", "instruction_expansion"
-    pou_name: str       # which POU triggered it
-    message: str        # human-readable description
+    category: str
+    pou_name: str
+    message: str
     details: dict[str, Any] = field(default_factory=dict)
-    round_trippable: bool = True  # False for lossy expansions (e.g. RTO → TON + latch)
+    round_trippable: bool = True
 
 
 class CompileResult:
@@ -123,6 +141,14 @@ class CompileResult:
     Returned by ``PlxProject.compile(target=...)`` when a vendor target
     is specified.  Delegates attribute access to ``.project`` so that
     existing code (``result.pous``, ``result.name``, etc.) works unchanged.
+
+    Attributes
+    ----------
+    project : Project
+        The compiled Universal IR project.
+    warnings : list[PortabilityWarning]
+        Non-blocking portability warnings collected during validation.
+        Empty when the project uses only universally-supported features.
     """
 
     def __init__(
@@ -1113,7 +1139,11 @@ _BUILTIN_FB_WARNINGS: dict[str, dict[Vendor, str]] = {
 def register_vendor_check(check_fn) -> None:
     """Register an additional vendor validation check.
 
-    check_fn signature: (project: Project, target: Vendor, errors: list) -> None
+    Parameters
+    ----------
+    check_fn : Callable[[Project, Vendor, list[str]], None]
+        Validation function that inspects the project and appends
+        human-readable error strings to *errors* for unsupported features.
     """
     _CHECKS.append(check_fn)
 
@@ -1121,9 +1151,17 @@ def register_vendor_check(check_fn) -> None:
 def register_lossy_check(check_fn) -> None:
     """Register an additional lossy validation check.
 
-    Same signature as ``register_vendor_check``.  Lossy checks are
-    hard errors by default but downgraded to warnings when the user
-    passes ``allow_lossy=True``.
+    Lossy checks are hard errors by default but downgraded to
+    non-round-trippable warnings when the user passes
+    ``allow_lossy=True``.
+
+    Parameters
+    ----------
+    check_fn : Callable[[Project, Vendor, list[str]], None]
+        Validation function with the same signature as
+        ``register_vendor_check``.  Appends error strings for
+        transforms that produce valid vendor code but cannot be
+        round-tripped back to the original source.
     """
     _LOSSY_CHECKS.append(check_fn)
 
@@ -1131,7 +1169,13 @@ def register_lossy_check(check_fn) -> None:
 def register_vendor_warning(warning_fn) -> None:
     """Register an additional vendor portability warning.
 
-    warning_fn signature: (project: Project, target: Vendor, warnings: list) -> None
+    Parameters
+    ----------
+    warning_fn : Callable[[Project, Vendor, list[PortabilityWarning]], None]
+        Warning function that inspects the project and appends
+        ``PortabilityWarning`` instances to *warnings* for features
+        that compile but may differ in semantics or fidelity on the
+        target vendor.
     """
     _WARNINGS.append(warning_fn)
 

@@ -81,7 +81,16 @@ class PrimitiveTypeRef(IRModel):
 
 
 class StringTypeRef(IRModel):
-    """STRING or WSTRING with optional max length."""
+    """STRING or WSTRING with optional max length.
+
+    Attributes
+    ----------
+    wide : bool
+        True for ``WSTRING`` (UTF-16), False for ``STRING`` (single-byte).
+    max_length : int or None
+        Maximum character count (e.g. ``STRING(80)``).  None uses the
+        vendor default (typically 80 for Beckhoff, 82 for AB).
+    """
 
     kind: Literal["string"] = "string"
     wide: bool = False
@@ -109,6 +118,14 @@ class DimensionRange(IRModel):
     Bounds can be integer literals or Expression nodes (for symbolic
     bounds like ``GVL_Params.MAX_SIZE``).  When bounds are expressions,
     numeric validation is skipped.
+
+    Attributes
+    ----------
+    lower : int or Expression
+        Lower bound (inclusive).  Defaults to 0.
+    upper : int or Expression
+        Upper bound (inclusive).  A value of ``-1`` is a sentinel for
+        variable-length arrays (``ARRAY[*] OF T``).
     """
 
     lower: int | Expression = 0
@@ -135,14 +152,23 @@ class ArrayTypeRef(IRModel):
 
 
 class PointerTypeRef(IRModel):
-    """POINTER TO target_type."""
+    """``POINTER TO target_type`` -- Beckhoff-only raw pointer.
+
+    Dereference via ``DerefExpr`` (``ptr^`` in ST).  Dynamic allocation
+    uses ``__NEW`` / ``__DELETE``.
+    """
 
     kind: Literal["pointer"] = "pointer"
     target_type: TypeRef
 
 
 class ReferenceTypeRef(IRModel):
-    """REFERENCE TO target_type."""
+    """``REFERENCE TO target_type`` -- safe reference (no arithmetic).
+
+    Bound via ``REF=`` assignment (``Assignment(ref_assign=True)``).
+    Semantically similar to a pointer but cannot be incremented or
+    compared as an integer.
+    """
 
     kind: Literal["reference"] = "reference"
     target_type: TypeRef
@@ -186,6 +212,15 @@ class StructType(IRModel):
     (e.g. ``"Utilities/Motors"``).  Empty string means root / no folder.
     Maps to Beckhoff folder tree, Siemens project navigator folders,
     AB program containers.  Vendor raise passes map to their native model.
+
+    Attributes
+    ----------
+    folder : str
+        Organizational path (forward-slash-delimited).
+    extends : str or None
+        Parent struct name for inheritance (Beckhoff ``EXTENDS``).
+    members : list of StructMember
+        Ordered member definitions (unique names validated).
     """
 
     kind: Literal["struct"] = "struct"
@@ -212,7 +247,13 @@ class StructType(IRModel):
 
 
 class EnumMember(IRModel):
-    """Member of an enum type."""
+    """Member of an enum type.
+
+    Attributes
+    ----------
+    value : int or str or None
+        Explicit integer value, string expression, or None for auto-assigned.
+    """
 
     name: str = Field(min_length=1)
     value: int | str | None = None
@@ -227,6 +268,13 @@ class EnumType(IRModel):
     """Named enum type definition.
 
     ``folder``: see ``StructType`` for convention.
+
+    Attributes
+    ----------
+    members : list of EnumMember
+        Enum members with optional explicit integer values.
+    base_type : PrimitiveType or None
+        Underlying integer type (e.g. ``DINT``).  None uses vendor default.
     """
 
     kind: Literal["enum"] = "enum"
@@ -253,9 +301,15 @@ class EnumType(IRModel):
 
 
 class UnionType(IRModel):
-    """Named union type definition.
+    """Named union type definition (all members share the same memory).
 
-    ``folder``: see ``StructType`` for convention.
+    Rarely used in practice.  Exists in the IR for round-trip fidelity
+    with Beckhoff projects.  ``folder``: see ``StructType`` for convention.
+
+    Attributes
+    ----------
+    members : list of StructMember
+        Overlapping members (all occupy the same address).
     """
 
     kind: Literal["union"] = "union"
@@ -281,9 +335,15 @@ class UnionType(IRModel):
 
 
 class AliasType(IRModel):
-    """Type alias (typedef): TYPE MyAlias : base_type; END_TYPE.
+    """Type alias (typedef): ``TYPE MyAlias : base_type; END_TYPE``.
 
+    Rarely used in practice.  Exists in the IR for round-trip fidelity.
     ``folder``: see ``StructType`` for convention.
+
+    Attributes
+    ----------
+    base_type : TypeRef
+        The type that this alias refers to.
     """
 
     kind: Literal["alias"] = "alias"
@@ -298,9 +358,19 @@ class AliasType(IRModel):
 
 
 class SubrangeType(IRModel):
-    """Constrained numeric subrange: TYPE Pct : INT(0..100); END_TYPE.
+    """Constrained numeric subrange: ``TYPE Pct : INT(0..100); END_TYPE``.
 
+    Rarely used in practice.  Exists in the IR for round-trip fidelity.
     ``folder``: see ``StructType`` for convention.
+
+    Attributes
+    ----------
+    base_type : PrimitiveType
+        The underlying integer type being constrained.
+    lower_bound : int
+        Minimum allowed value (inclusive).
+    upper_bound : int
+        Maximum allowed value (inclusive).
     """
 
     kind: Literal["subrange"] = "subrange"

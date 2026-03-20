@@ -22,7 +22,19 @@ except ImportError:
 
 
 class FileWatcher:
-    """Watch project source files and trigger reload on changes."""
+    """Watch project source files and trigger reload on changes.
+
+    Parameters
+    ----------
+    source_path : Path
+        File or directory to watch for ``.py`` changes.
+    project_path : str
+        Dotted import path passed to the reload callback.
+    on_reload : Callable[[str], Awaitable[None]]
+        Async callback invoked with *project_path* when changes are detected.
+    debounce_ms : int, optional
+        Minimum interval between reload triggers in milliseconds, by default 250.
+    """
 
     def __init__(
         self,
@@ -45,10 +57,12 @@ class FileWatcher:
         self._task: asyncio.Task | None = None
 
     async def start(self) -> None:
+        """Start the file-watching background task."""
         self._task = asyncio.create_task(self._watch_loop())
         logger.info("File watcher started for %s", self._source_path)
 
     async def stop(self) -> None:
+        """Cancel the file-watching background task."""
         if self._task is not None:
             self._task.cancel()
             try:

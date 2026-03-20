@@ -280,6 +280,11 @@ class SimulationContext:
         1. Allocate fresh temp vars
         2. Execute POU logic
         3. Advance clock by scan_period_ms
+
+        Parameters
+        ----------
+        n : int, optional
+            Number of scans to execute. Default is 1.
         """
         engine = self._engine
         for _ in range(n):
@@ -367,7 +372,9 @@ class SimulationContext:
         Chain methods like ``.repeat()``, ``.until()``, ``.changed()``,
         ``.sample()``, and ``.timeout()`` before calling ``.run()``.
 
-        Example::
+        Examples
+        --------
+        ::
 
             trace = ctx.scans().repeat(100).sample("speed").run()
         """
@@ -440,7 +447,9 @@ class SimulationContext:
     def set(self, **kwargs: object) -> None:
         """Set multiple variables at once via keyword arguments.
 
-        Example::
+        Examples
+        --------
+        ::
 
             ctx.set(enable=True, speed=50.0)
             # equivalent to:
@@ -461,6 +470,26 @@ class SimulationContext:
     # -----------------------------------------------------------------------
 
     def __getattr__(self, name: str) -> object:
+        """Provide attribute-style read access to POU variables.
+
+        Returns the variable's current value, or a ``StructProxy`` for
+        struct-typed variables to allow nested dot access.
+
+        Parameters
+        ----------
+        name : str
+            Variable name to read.
+
+        Returns
+        -------
+        object
+            The variable value, or a ``StructProxy`` wrapping a struct dict.
+
+        Raises
+        ------
+        AttributeError
+            If *name* is not a known POU variable.
+        """
         # Only intercept known variable names
         state = object.__getattribute__(self, "_state")
         if name in state:
@@ -476,6 +505,19 @@ class SimulationContext:
         )
 
     def __setattr__(self, name: str, value: object) -> None:
+        """Provide attribute-style write access to POU variables.
+
+        Assigns *value* to the named variable in the POU state dict,
+        coercing it to the appropriate PLC type. Falls back to normal
+        attribute setting for non-variable names (e.g. private attributes).
+
+        Parameters
+        ----------
+        name : str
+            Variable name to write.
+        value : object
+            Value to assign.
+        """
         try:
             known = object.__getattribute__(self, "_known_vars")
         except AttributeError:

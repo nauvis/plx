@@ -788,6 +788,139 @@ def _collect_named_refs(tr: TypeRef) -> set[str]:
     return names
 
 
+def _collect_fb_type_names_from_statements(stmts: list) -> set[str]:
+    """Collect NamedTypeRef names from FBInvocations in statement bodies."""
+    names: set[str] = set()
+    for stmt in stmts:
+        # FBInvocation — extract fb_type name
+        fb_type = getattr(stmt, "fb_type", None)
+        if fb_type is not None and isinstance(fb_type, NamedTypeRef):
+            names.add(fb_type.name)
+        # Recurse into compound statement bodies
+        # IfStatement: if_branch.body, elsif_branches[].body, else_body
+        if_branch = getattr(stmt, "if_branch", None)
+        if if_branch is not None:
+            names |= _collect_fb_type_names_from_statements(if_branch.body)
+            for elsif in getattr(stmt, "elsif_branches", []):
+                names |= _collect_fb_type_names_from_statements(elsif.body)
+        # else_body (IfStatement, CaseStatement)
+        else_body = getattr(stmt, "else_body", None)
+        if isinstance(else_body, list):
+            names |= _collect_fb_type_names_from_statements(else_body)
+        # body (ForStatement, WhileStatement, RepeatStatement)
+        body = getattr(stmt, "body", None)
+        if isinstance(body, list):
+            names |= _collect_fb_type_names_from_statements(body)
+        # CaseStatement branches
+        branches = getattr(stmt, "branches", None)
+        if isinstance(branches, list):
+            for branch in branches:
+                branch_body = getattr(branch, "body", None)
+                if isinstance(branch_body, list):
+                    names |= _collect_fb_type_names_from_statements(branch_body)
+        # TryCatchStatement
+        try_body = getattr(stmt, "try_body", None)
+        if isinstance(try_body, list):
+            names |= _collect_fb_type_names_from_statements(try_body)
+        catch_body = getattr(stmt, "catch_body", None)
+        if isinstance(catch_body, list):
+            names |= _collect_fb_type_names_from_statements(catch_body)
+        finally_body = getattr(stmt, "finally_body", None)
+        if isinstance(finally_body, list):
+            names |= _collect_fb_type_names_from_statements(finally_body)
+    return names
+
+
+def _collect_library_imports(pou: POU, project: Project) -> list[str]:
+    """Collect vendor-qualified import lines for library types used by a POU.
+
+    Returns lines like ``'from plx.framework.vendor.beckhoff import MC_Power, AXIS_REF'``.
+    """
+    # Lazy import to avoid circular dependency (export -> framework)
+    from plx.framework._library import get_library_type
+
+    # Collect all NamedTypeRef names from the POU's interface
+    referenced: set[str] = set()
+
+    def _collect_from_interface(iface: POUInterface) -> None:
+        for var_list in (
+            iface.input_vars, iface.output_vars,
+            iface.inout_vars, iface.static_vars,
+            iface.temp_vars, iface.constant_vars,
+            iface.external_vars,
+        ):
+            for v in var_list:
+                referenced.update(_collect_named_refs(v.data_type))
+
+    _collect_from_interface(pou.interface)
+
+    # Method and property interfaces
+    for method in pou.methods:
+        if method.interface:
+            _collect_from_interface(method.interface)
+        if method.return_type:
+            referenced.update(_collect_named_refs(method.return_type))
+    for prop in pou.properties:
+        if prop.data_type:
+            referenced.update(_collect_named_refs(prop.data_type))
+        if prop.getter and prop.getter.local_vars:
+            for v in prop.getter.local_vars:
+                referenced.update(_collect_named_refs(v.data_type))
+        if prop.setter and prop.setter.local_vars:
+            for v in prop.setter.local_vars:
+                referenced.update(_collect_named_refs(v.data_type))
+
+    # extends / implements
+    if pou.extends:
+        referenced.add(pou.extends)
+    for iface_name in pou.implements:
+        referenced.add(iface_name)
+
+    # Scan FBInvocation type names in the body
+    for net in pou.networks:
+        referenced |= _collect_fb_type_names_from_statements(net.statements)
+    if pou.sfc_body:
+        for step in pou.sfc_body.steps:
+            for action in step.actions:
+                referenced |= _collect_fb_type_names_from_statements(action.body)
+            for action in step.entry_actions:
+                referenced |= _collect_fb_type_names_from_statements(action.body)
+            for action in step.exit_actions:
+                referenced |= _collect_fb_type_names_from_statements(action.body)
+
+    # Filter out project-local names
+    project_names = set()
+    for td in project.data_types:
+        if hasattr(td, "name"):
+            project_names.add(td.name)
+    for p in project.pous:
+        project_names.add(p.name)
+
+    # Filter out standard FB types
+    std_fbs = _standard_fb_types()
+
+    # Look up remaining names in the library registry
+    # Group by (vendor, package) -> type names
+    groups: dict[str, list[str]] = {}  # vendor -> [type_names]
+    for name in referenced:
+        if name in project_names or name in std_fbs:
+            continue
+        lib_type = get_library_type(name)
+        if lib_type is not None:
+            vendor = lib_type._vendor
+            if vendor:
+                groups.setdefault(vendor, []).append(name)
+
+    # Build import lines
+    lines: list[str] = []
+    for vendor in sorted(groups):
+        type_names = sorted(groups[vendor])
+        lines.append(
+            f"from plx.framework.vendor.{vendor} import {', '.join(type_names)}"
+        )
+    return lines
+
+
 def _collect_pou_deps(pou: POU, project: Project) -> dict[str, list[str]]:
     """Collect cross-file dependencies for a POU.
 

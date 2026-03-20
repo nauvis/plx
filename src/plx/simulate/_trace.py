@@ -11,7 +11,18 @@ from dataclasses import dataclass, field
 
 @dataclass(frozen=True)
 class ScanSnapshot:
-    """Immutable snapshot of simulation state at one scan instant."""
+    """Immutable snapshot of simulation state at one scan instant.
+
+    Attributes
+    ----------
+    clock_ms : int
+        Simulated time in milliseconds when this snapshot was taken.
+    values : dict of str to object
+        Sampled variable names mapped to their values at this instant.
+    active_steps : frozenset of str
+        Names of active SFC steps at this instant.  Empty if the POU
+        is not an SFC.
+    """
 
     clock_ms: int
     values: dict[str, object]
@@ -70,11 +81,30 @@ class ScanTrace:
     # -- querying ----------------------------------------------------------
 
     def values_of(self, var: str) -> list:
-        """Return the time-series of a single variable across all snapshots."""
+        """Return the time-series of a single variable across all snapshots.
+
+        Parameters
+        ----------
+        var : str
+            Variable name to extract.
+
+        Returns
+        -------
+        list
+            One value per snapshot, in chronological order.  ``None`` for
+            any snapshot where *var* was not present.
+        """
         return [s.values.get(var) for s in self._snapshots]
 
     def to_dict(self) -> dict[str, list]:
-        """Flatten to ``{"__clock_ms": [...], "var1": [...], ...}``."""
+        """Flatten to ``{"__clock_ms": [...], "var1": [...], ...}``.
+
+        Returns
+        -------
+        dict of str to list
+            Keys are ``"__clock_ms"`` plus all sampled variable names
+            (sorted).  Each value is a list with one entry per snapshot.
+        """
         if not self._snapshots:
             return {"__clock_ms": []}
 

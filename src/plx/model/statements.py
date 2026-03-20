@@ -13,15 +13,33 @@ from .types import NamedTypeRef, TypeRef
 
 
 class Assignment(IRModel):
-    """Assign a value to a target: target := value."""
+    """Assign a value to a target: ``target := value``.
+
+    Attributes
+    ----------
+    target : Expression
+        Left-hand side (variable ref, member access, array access, etc.).
+    value : Expression
+        Right-hand side expression.
+    ref_assign : bool
+        True for ``REF=`` (reference binding) instead of ```:=`` (value copy).
+    latch : {"", "S", "R"}
+        ``"S"`` for set-latch (``S=``), ``"R"`` for reset-unlatch (``R=``).
+        Used by AB for OTE/OTL/OTU semantics.  Empty for normal assignment.
+    instruction_hint : str
+        Original vendor instruction mnemonic (e.g. ``"CPT"``, ``"MOV"``).
+        Preserved for round-trip fidelity -- does not affect semantics.
+    comment : str
+        Leading comment lines preserved from source.
+    """
 
     kind: Literal["assignment"] = "assignment"
     target: Expression
     value: Expression
-    ref_assign: bool = False  # True for REF= (reference binding)
-    latch: Literal["", "S", "R"] = ""  # "S" for S= (set/latch), "R" for R= (reset/unlatch)
-    instruction_hint: str = ""  # Original instruction mnemonic for round-trip fidelity (e.g. "CPT")
-    comment: str = ""  # Leading comment lines (preserved from source)
+    ref_assign: bool = False
+    latch: Literal["", "S", "R"] = ""
+    instruction_hint: str = ""
+    comment: str = ""
 
 
 class IfBranch(IRModel):
@@ -61,6 +79,16 @@ class CaseBranch(IRModel):
 
     Matches if the selector equals any value in *values*
     or falls within any range in *ranges*.
+
+    Attributes
+    ----------
+    values : list of int or str
+        Discrete match values.  Strings represent enum literals
+        (e.g. ``"MachineState#RUNNING"``).
+    ranges : list of CaseRange
+        Inclusive integer ranges (e.g. ``20..29``).
+    body : list of Statement
+        Statements executed when this branch matches.
     """
 
     values: list[int | str] = []
@@ -158,8 +186,22 @@ class FunctionCallStatement(IRModel):
 class FBInvocation(IRModel):
     """Invoke a function block instance.
 
-    *inputs*: parameter_name → value expression  (the := assignments)
-    *outputs*: parameter_name → target expression (the => assignments)
+    Attributes
+    ----------
+    instance_name : str or ArrayAccessExpr or MemberAccessExpr or BitAccessExpr
+        The FB instance to call.  Usually a string (``"myTimer"``), but can
+        be an expression for array-of-FB (``timers[i]``) or nested-FB
+        (``parent.child``) access.  Dotted string paths and caret deref
+        (``SUPER^``) are also accepted.
+    fb_type : TypeRef or None
+        The FB type (e.g. ``NamedTypeRef(name="TON")``).  Optional because
+        the type can be inferred from the instance's declaration.
+    inputs : dict of str to Expression
+        Input parameter assignments (the ``:=`` arguments).
+    outputs : dict of str to Expression
+        Output parameter assignments (the ``=>`` arguments).
+    comment : str
+        Leading comment lines preserved from source.
     """
 
     kind: Literal["fb_invocation"] = "fb_invocation"
@@ -213,11 +255,23 @@ class PragmaStatement(IRModel):
 
 
 class TryCatchStatement(IRModel):
-    """Beckhoff TwinCAT exception handling: __TRY / __CATCH / __FINALLY / __ENDTRY."""
+    """Beckhoff TwinCAT exception handling: ``__TRY / __CATCH / __FINALLY / __ENDTRY``.
+
+    Attributes
+    ----------
+    try_body : list of Statement
+        Statements inside the ``__TRY`` block.
+    catch_var : str or None
+        Exception variable name in ``__CATCH(exc)`` (None if not captured).
+    catch_body : list of Statement
+        Statements inside the ``__CATCH`` block.
+    finally_body : list of Statement
+        Statements inside the ``__FINALLY`` block.
+    """
 
     kind: Literal["try_catch"] = "try_catch"
     try_body: list["Statement"]
-    catch_var: str | None = None  # Exception variable in __CATCH(exc)
+    catch_var: str | None = None
     catch_body: list["Statement"] = []
     finally_body: list["Statement"] = []
     comment: str = ""

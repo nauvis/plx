@@ -19,7 +19,17 @@ class SystemFlag(str, Enum):
 
 
 class SystemFlagExpr(IRModel):
-    """Reference to a system-level PLC flag (e.g. first scan)."""
+    """Reference to a system-level PLC flag (e.g. first scan).
+
+    System flags are built-in PLC signals with no user-declared variable.
+    Vendor raise passes map these to the appropriate vendor mechanism
+    (e.g. AB ``S:FS``, Siemens ``"FirstScan"`` OB tag, Beckhoff ``_TaskInfo``).
+
+    Attributes
+    ----------
+    flag : SystemFlag
+        Which system flag to read.
+    """
 
     kind: Literal["system_flag"] = "system_flag"
     flag: SystemFlag
@@ -62,7 +72,17 @@ class UnaryOp(str, Enum):
 
 
 class LiteralExpr(IRModel):
-    """A typed constant value (e.g. TRUE, 42, 3.14, T#5s)."""
+    """A typed constant value (e.g. ``TRUE``, ``42``, ``3.14``, ``T#5s``).
+
+    Attributes
+    ----------
+    value : str
+        The literal value as a string (always string -- numeric values are
+        not parsed to int/float so that vendor-specific formatting and
+        typed literals like ``INT#42`` or ``DT#2025-01-01`` are preserved).
+    data_type : TypeRef or None
+        Optional explicit type annotation (e.g. for typed literals).
+    """
 
     kind: Literal["literal"] = "literal"
     value: str
@@ -152,7 +172,18 @@ class BitAccessExpr(IRModel):
 
 
 class TypeConversionExpr(IRModel):
-    """Explicit type conversion: INT_TO_REAL(x)."""
+    """Explicit type conversion: ``INT_TO_REAL(x)``.
+
+    Attributes
+    ----------
+    target_type : TypeRef
+        The type to convert to.
+    source : Expression
+        The expression being converted.
+    source_type : TypeRef or None
+        The source type, when known.  Used by exporters to emit the correct
+        ``<SRC>_TO_<TGT>`` function name (e.g. ``DINT_TO_REAL``).
+    """
 
     kind: Literal["type_conversion"] = "type_conversion"
     target_type: TypeRef

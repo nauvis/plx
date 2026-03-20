@@ -266,7 +266,9 @@ class StepDescriptor:
 def step(*, initial: bool = False) -> StepDescriptor:
     """Declare an SFC step.
 
-    Example::
+    Examples
+    --------
+    ::
 
         IDLE = step(initial=True)
         RUNNING = step()
@@ -280,7 +282,9 @@ def transition(path: TransitionPath) -> Any:
     The decorated method's body must be a single ``return <expr>``
     statement. The expression becomes the transition condition.
 
-    Example::
+    Examples
+    --------
+    ::
 
         @transition(IDLE >> RUNNING)
         def start(self):
@@ -645,7 +649,9 @@ def sfc(cls: type = None, *, pou_type: str = "PROGRAM", folder: str = "") -> Any
 
     Can be used as ``@sfc`` or ``@sfc(pou_type="FB")``.
 
-    Example::
+    Examples
+    --------
+    ::
 
         @sfc
         class FillSequence:

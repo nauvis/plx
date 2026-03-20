@@ -31,6 +31,19 @@ def to_structured_text(target: Union[Project, POU], *, source_map: bool = False)
     When *source_map* is True, returns ``(st_text, var_source_map)`` where
     ``var_source_map`` is a list of ``{"name", "line", "column"}`` dicts
     mapping each variable reference to its 1-indexed position in the ST output.
+
+    Parameters
+    ----------
+    target : Project or POU
+        The compiled IR to render as Structured Text.
+    source_map : bool, optional
+        If ``True``, return a ``(text, source_map)`` tuple instead of just
+        the text string. Default is ``False``.
+
+    Returns
+    -------
+    str or tuple[str, list[dict]]
+        The ST text, or ``(text, var_source_map)`` when *source_map* is True.
     """
     w = STWriter()
     if isinstance(target, Project):
@@ -52,13 +65,35 @@ def to_structured_text(target: Union[Project, POU], *, source_map: bool = False)
 
 
 def format_statement(stmt: Statement) -> str:
-    """Format a single IR statement as Structured Text."""
+    """Format a single IR statement as Structured Text.
+
+    Parameters
+    ----------
+    stmt : Statement
+        The IR statement node to format.
+
+    Returns
+    -------
+    str
+        The statement rendered as ST, without a trailing newline.
+    """
     w = STWriter()
     w._write_stmt(stmt)
     return w.getvalue().rstrip("\n")
 
 
 def format_expression(expr: Expression) -> str:
-    """Format a single IR expression as Structured Text."""
+    """Format a single IR expression as Structured Text.
+
+    Parameters
+    ----------
+    expr : Expression
+        The IR expression node to format.
+
+    Returns
+    -------
+    str
+        The expression rendered as ST.
+    """
     w = STWriter()
     return w._expr(expr)

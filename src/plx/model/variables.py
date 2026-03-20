@@ -17,7 +17,33 @@ from .types import TypeRef
 
 
 class Variable(IRModel):
-    """A named, typed data element."""
+    """A named, typed data element.
+
+    Variables carry no scope or direction information themselves -- that is
+    encoded structurally by which list a ``Variable`` appears in (e.g.
+    ``POUInterface.input_vars`` vs ``POUInterface.static_vars``).
+
+    Attributes
+    ----------
+    name : str
+        IEC 61131-3 identifier (validated).
+    data_type : TypeRef
+        The variable's data type.
+    initial_value : str or None
+        Literal initial value as a string (e.g. ``"0.0"``, ``"TRUE"``).
+    description : str
+        Human-readable comment / documentation string.
+    constant : bool
+        True if the variable is declared ``CONSTANT``.
+    retain : bool
+        True if the variable is ``RETAIN`` (survives warm restart).
+    persistent : bool
+        True if the variable is ``PERSISTENT`` (survives cold restart).
+    edge : {"", "rising", "falling"}
+        Edge detection qualifier on input variables (``R_EDGE`` / ``F_EDGE``).
+    metadata : dict
+        Vendor-specific or tooling-specific key-value pairs for round-trip fidelity.
+    """
 
     name: str = Field(min_length=1)
     data_type: TypeRef

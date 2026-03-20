@@ -590,3 +590,250 @@ class TestCompilationIntegration:
         assert isinstance(stmts[0].fb_type, NamedTypeRef)
         assert stmts[0].fb_type.name == "_TestFB"
         assert "Enable" in stmts[0].inputs
+
+
+# ---------------------------------------------------------------------------
+# Python export — library imports
+# ---------------------------------------------------------------------------
+
+class TestPythonExportLibraryImports:
+    def test_collect_library_imports_from_interface(self):
+        """_collect_library_imports finds library types in POU interface."""
+        from plx.export.py._helpers import _collect_library_imports
+        from plx.model.pou import POU, POUInterface, POUType
+        from plx.model.variables import Variable
+        from plx.model.project import Project
+
+        pou = POU(
+            name="TestPOU",
+            pou_type=POUType.FUNCTION_BLOCK,
+            interface=POUInterface(
+                static_vars=[
+                    Variable(name="axis", data_type=NamedTypeRef(name="AXIS_REF")),
+                    Variable(name="power", data_type=NamedTypeRef(name="MC_Power")),
+                ]
+            ),
+        )
+        project = Project(name="test", pous=[pou])
+
+        imports = _collect_library_imports(pou, project)
+        assert any("from plx.framework.vendor.beckhoff import" in line for line in imports)
+        assert any("AXIS_REF" in line for line in imports)
+        assert any("MC_Power" in line for line in imports)
+
+    def test_collect_library_imports_excludes_project_local(self):
+        """Project-local types are not treated as library imports."""
+        from plx.export.py._helpers import _collect_library_imports
+        from plx.model.pou import POU, POUInterface, POUType
+        from plx.model.variables import Variable
+        from plx.model.project import Project
+        from plx.model.types import StructType
+
+        local_struct = StructType(name="MyStruct", members=[])
+        pou = POU(
+            name="TestPOU",
+            pou_type=POUType.FUNCTION_BLOCK,
+            interface=POUInterface(
+                static_vars=[
+                    Variable(name="s", data_type=NamedTypeRef(name="MyStruct")),
+                ]
+            ),
+        )
+        project = Project(name="test", pous=[pou], data_types=[local_struct])
+
+        imports = _collect_library_imports(pou, project)
+        assert not any("MyStruct" in line for line in imports)
+
+    def test_collect_library_imports_from_fb_invocation(self):
+        """_collect_library_imports finds library types in FBInvocation fb_type."""
+        from plx.export.py._helpers import _collect_library_imports
+        from plx.model.pou import POU, POUInterface, POUType, Network
+        from plx.model.variables import Variable
+        from plx.model.statements import FBInvocation
+        from plx.model.project import Project
+
+        pou = POU(
+            name="TestPOU",
+            pou_type=POUType.FUNCTION_BLOCK,
+            interface=POUInterface(
+                static_vars=[
+                    Variable(name="power", data_type=NamedTypeRef(name="MC_Power")),
+                ]
+            ),
+            networks=[
+                Network(statements=[
+                    FBInvocation(
+                        instance_name="power",
+                        fb_type=NamedTypeRef(name="MC_Power"),
+                        inputs={},
+                    ),
+                ]),
+            ],
+        )
+        project = Project(name="test", pous=[pou])
+
+        imports = _collect_library_imports(pou, project)
+        assert any("MC_Power" in line for line in imports)
+
+    def test_generate_files_includes_library_imports(self):
+        """generate_files() emits vendor-qualified imports for library types."""
+        from plx.export.py import generate_files
+        from plx.model.pou import POU, POUInterface, POUType
+        from plx.model.variables import Variable
+        from plx.model.project import Project
+
+        pou = POU(
+            name="TestPOU",
+            pou_type=POUType.FUNCTION_BLOCK,
+            interface=POUInterface(
+                static_vars=[
+                    Variable(name="axis", data_type=NamedTypeRef(name="AXIS_REF")),
+                    Variable(name="power", data_type=NamedTypeRef(name="MC_Power")),
+                ]
+            ),
+        )
+        project = Project(name="test", pous=[pou])
+
+        files = generate_files(project)
+        pou_file = files.get("TestPOU.py", "")
+        assert "from plx.framework.vendor.beckhoff import" in pou_file
+        assert "AXIS_REF" in pou_file
+        assert "MC_Power" in pou_file
+        # Should NOT be quoted as string
+        assert '"AXIS_REF"' not in pou_file
+        assert "'AXIS_REF'" not in pou_file
+        assert '"MC_Power"' not in pou_file
+        assert "'MC_Power'" not in pou_file
+
+    def test_library_types_not_quoted_in_writer(self):
+        """PyWriter emits library types unquoted (not as string literals)."""
+        from plx.export.py._writer import PyWriter
+        from plx.model.pou import POU, POUInterface, POUType
+        from plx.model.variables import Variable
+        from plx.model.project import Project
+
+        pou = POU(
+            name="TestPOU",
+            pou_type=POUType.FUNCTION_BLOCK,
+            interface=POUInterface(
+                static_vars=[
+                    Variable(name="power", data_type=NamedTypeRef(name="MC_Power")),
+                ]
+            ),
+        )
+        project = Project(name="test", pous=[pou])
+
+        w = PyWriter(project)
+        w._write_pou(pou)
+        output = w.getvalue()
+        # MC_Power should appear unquoted as a type annotation
+        assert "MC_Power" in output
+        assert "'MC_Power'" not in output
+
+    def test_collect_library_imports_groups_by_vendor(self):
+        """Imports from different vendors produce separate import lines."""
+        from plx.export.py._helpers import _collect_library_imports
+        from plx.model.pou import POU, POUInterface, POUType
+        from plx.model.variables import Variable
+        from plx.model.project import Project
+
+        # Explicitly import vendor stubs to register them
+        import plx.framework.vendor.beckhoff  # noqa: F401
+        import plx.framework.vendor.siemens  # noqa: F401
+
+        # Use types unique to each vendor to avoid registry name collisions
+        # (MC_Power exists for both beckhoff and siemens — last import wins)
+        pou = POU(
+            name="TestPOU",
+            pou_type=POUType.FUNCTION_BLOCK,
+            interface=POUInterface(
+                static_vars=[
+                    # LTON is Beckhoff-only (Tc2_Standard)
+                    Variable(name="timer", data_type=NamedTypeRef(name="LTON")),
+                    # PID_Compact is Siemens-only
+                    Variable(name="pid", data_type=NamedTypeRef(name="PID_Compact")),
+                ]
+            ),
+        )
+        project = Project(name="test", pous=[pou])
+
+        imports = _collect_library_imports(pou, project)
+        # Should have separate import lines for beckhoff and siemens
+        beckhoff_lines = [l for l in imports if "beckhoff" in l]
+        siemens_lines = [l for l in imports if "siemens" in l]
+        assert len(beckhoff_lines) >= 1
+        assert len(siemens_lines) >= 1
+
+
+# ---------------------------------------------------------------------------
+# Beckhoff raise pass — library auto-detection
+# ---------------------------------------------------------------------------
+
+class TestBeckhoffRaiseLibraryAutoDetection:
+    def test_auto_adds_library_refs(self):
+        """Beckhoff raise pass auto-detects library references from type usage."""
+        from plx.model.pou import POU, POUInterface, POUType, Network
+        from plx.model.variables import Variable
+        from plx.model.statements import FBInvocation
+        from plx.model.project import Project
+
+        pou = POU(
+            name="MotionTest",
+            pou_type=POUType.FUNCTION_BLOCK,
+            interface=POUInterface(
+                static_vars=[
+                    Variable(name="axis", data_type=NamedTypeRef(name="AXIS_REF")),
+                    Variable(name="power", data_type=NamedTypeRef(name="MC_Power")),
+                ]
+            ),
+            networks=[
+                Network(statements=[
+                    FBInvocation(
+                        instance_name="power",
+                        fb_type=NamedTypeRef(name="MC_Power"),
+                        inputs={},
+                    ),
+                ]),
+            ],
+        )
+        project = Project(name="test", pous=[pou])
+
+        try:
+            from plx.beckhoff.raise_._project import raise_
+        except ImportError:
+            pytest.skip("Beckhoff raise pass not available")
+
+        result, _ = raise_(project)
+        lib_names = {lib.name for lib in result.libraries}
+        assert "Tc2_MC2" in lib_names, f"Expected Tc2_MC2 in {lib_names}"
+        # Default libs should still be present
+        assert "Tc2_Standard" in lib_names
+        assert "Tc2_System" in lib_names
+
+    def test_no_duplicate_default_libraries(self):
+        """Auto-detection does not duplicate default libraries."""
+        from plx.model.pou import POU, POUInterface, POUType
+        from plx.model.variables import Variable
+        from plx.model.project import Project
+
+        pou = POU(
+            name="TestPOU",
+            pou_type=POUType.FUNCTION_BLOCK,
+            interface=POUInterface(
+                static_vars=[
+                    Variable(name="timer", data_type=NamedTypeRef(name="LTON")),
+                ]
+            ),
+        )
+        project = Project(name="test", pous=[pou])
+
+        try:
+            from plx.beckhoff.raise_._project import raise_
+        except ImportError:
+            pytest.skip("Beckhoff raise pass not available")
+
+        result, _ = raise_(project)
+        lib_names = [lib.name for lib in result.libraries]
+        # Tc2_Standard is a default lib AND the library for LTON —
+        # should appear exactly once
+        assert lib_names.count("Tc2_Standard") == 1

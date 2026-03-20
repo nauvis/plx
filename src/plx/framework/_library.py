@@ -10,7 +10,9 @@ These stubs enable:
 - **Simulation**: auto-generated ``initial_state()`` + overridable ``execute()``
 - **Library tracking**: raise passes can determine which libraries to reference
 
-Usage::
+Examples
+--------
+::
 
     # IEC standard (no vendor)
     class TON(LibraryFB):

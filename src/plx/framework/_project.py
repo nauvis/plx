@@ -298,9 +298,41 @@ def project(
     global_var_lists: list[type] | None = None,
     packages: list[str] | None = None,
 ) -> PlxProject:
-    """Create a project builder.
+    """Create a project builder that assembles POUs, types, GVLs, and
+    tasks into a compilable ``Project`` IR.
 
-    Example::
+    Parameters
+    ----------
+    name : str
+        Project name used in the compiled IR and exported vendor files.
+    pous : list of class, optional
+        POU classes decorated with ``@fb``, ``@program``, ``@function``,
+        or ``@sfc``. Transitive dependencies (FBs referenced in static
+        variables, ``extends``, ``implements``) are auto-included.
+    tasks : list of PlxTask, optional
+        Task definitions created with ``task()``. POUs referenced in
+        tasks are auto-included even if not listed in ``pous``.
+    data_types : list of class, optional
+        Data type classes decorated with ``@struct`` or
+        ``@enumeration``. Transitive dependencies are auto-included.
+    global_var_lists : list of class, optional
+        Global variable list classes decorated with ``@global_vars``.
+    packages : list of str, optional
+        Python package names to auto-discover. ``discover()`` walks
+        each package and collects all decorated classes and task
+        instances. Discovered items are merged with explicit arguments;
+        explicit entries take priority on name collisions.
+
+    Returns
+    -------
+    PlxProject
+        A project builder. Call ``.compile()`` to produce the
+        ``Project`` IR, or ``.compile(target=Vendor.AB)`` to also run
+        vendor validation.
+
+    Examples
+    --------
+    ::
 
         proj = project("MyProject",
             pous=[Controller],

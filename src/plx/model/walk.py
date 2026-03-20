@@ -4,7 +4,9 @@ Provides structural traversal of IR trees with callback hooks.
 Handles all recursion into compound statement bodies and expression
 children — callers only supply what to DO at each node.
 
-Usage::
+Examples
+--------
+::
 
     from plx.model.walk import walk_project, walk_pou, walk_statements, walk_expressions
 
@@ -65,6 +67,13 @@ def walk_expressions(expr: Expression, on_expr: ExprCallback) -> None:
 
     Handles all 12 Expression union members.  Leaf nodes (LiteralExpr,
     VariableRef, SystemFlagExpr) are visited but have no children to recurse into.
+
+    Parameters
+    ----------
+    expr : Expression
+        Root expression node to start walking from.
+    on_expr : ExprCallback
+        Callback invoked for every expression node (pre-order).
     """
     on_expr(expr)
     for child in _expr_children(expr):
@@ -117,6 +126,15 @@ def walk_statements(
     Calls *on_stmt(stmt)* for each statement (if provided).
     If *on_expr* is provided, also walks all expressions embedded in each
     statement via :func:`walk_expressions`.
+
+    Parameters
+    ----------
+    stmts : list[Statement]
+        Flat list of statements to walk (e.g. from a ``Network.statements``).
+    on_stmt : StmtCallback or None, optional
+        Callback invoked for every statement node (pre-order).
+    on_expr : ExprCallback or None, optional
+        Callback invoked for every expression embedded in each statement.
     """
     for stmt in stmts:
         if on_stmt is not None:
@@ -222,6 +240,15 @@ def walk_pou(
     """Walk all code in a POU: networks, SFC body, methods, actions, properties.
 
     This is a convenience that ensures no code location in a POU is missed.
+
+    Parameters
+    ----------
+    pou : POU
+        The POU whose code bodies will be traversed.
+    on_stmt : StmtCallback or None, optional
+        Callback invoked for every statement node.
+    on_expr : ExprCallback or None, optional
+        Callback invoked for every expression node.
     """
     from .pou import POU  # noqa: F811 — deferred to avoid circular import
 
@@ -258,7 +285,17 @@ def walk_project(
     on_stmt: StmtCallback | None = None,
     on_expr: ExprCallback | None = None,
 ) -> None:
-    """Walk all POUs in a project."""
+    """Walk all POUs in a project.
+
+    Parameters
+    ----------
+    project : Project
+        The project whose POUs will be traversed.
+    on_stmt : StmtCallback or None, optional
+        Callback invoked for every statement node.
+    on_expr : ExprCallback or None, optional
+        Callback invoked for every expression node.
+    """
     for pou in project.pous:
         walk_pou(pou, on_stmt, on_expr)
 

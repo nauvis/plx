@@ -19,7 +19,22 @@ logger = logging.getLogger("plx.runtime")
 
 @dataclass
 class ScanStats:
-    """Accumulated scan timing statistics."""
+    """Accumulated scan timing statistics.
+
+    Attributes
+    ----------
+    total_scans : int
+        Number of scans executed since the engine started (or since
+        the last reset).
+    total_duration_us : float
+        Cumulative wall-clock time spent executing scans, in
+        microseconds.
+    max_duration_us : float
+        Longest single scan duration observed, in microseconds.
+    overrun_count : int
+        Number of scans whose execution time exceeded the configured
+        scan period.
+    """
 
     total_scans: int = 0
     total_duration_us: float = 0.0
@@ -28,6 +43,7 @@ class ScanStats:
 
     @property
     def avg_duration_us(self) -> float:
+        """Average scan duration in microseconds, or 0 if no scans recorded."""
         if self.total_scans == 0:
             return 0.0
         return self.total_duration_us / self.total_scans
@@ -38,6 +54,13 @@ class RuntimeEngine:
 
     Runs on an asyncio event loop. Each tick executes one base-period
     scan synchronously, then sleeps until the next scan is due.
+
+    Parameters
+    ----------
+    project_ir : Project
+        Compiled project IR containing programs, GVLs, and tasks.
+    scan_period_ms : int, optional
+        Base scan period in milliseconds (default 10).
     """
 
     def __init__(self, project_ir: Project, *, scan_period_ms: int = 10) -> None:
@@ -52,31 +75,52 @@ class RuntimeEngine:
 
     @property
     def project_name(self) -> str:
+        """Name of the loaded project."""
         return self._project_ir.name
 
     @property
     def scan_period_ms(self) -> int:
+        """Configured scan period in milliseconds."""
         return self._sim._base_period_ms
 
     @property
     def stats(self) -> ScanStats:
+        """Accumulated scan timing statistics."""
         return self._stats
 
     @property
     def running(self) -> bool:
+        """Whether the scan loop is currently running."""
         return self._running
 
     @property
     def program_names(self) -> list[str]:
+        """Names of all programs in the loaded project."""
         return list(self._sim._programs.keys())
 
     def read_variable(self, path: str) -> object:
         """Read a variable by dotted path.
 
         Supports:
-        - "ProgramName.var_name" — program variable
-        - "ProgramName.fb_instance.member" — nested FB member
-        - "GVL.var_name" — global variable
+        - "ProgramName.var_name" -- program variable
+        - "ProgramName.fb_instance.member" -- nested FB member
+        - "GVL.var_name" -- global variable
+
+        Parameters
+        ----------
+        path : str
+            Dotted variable path in the form "scope.name[.member...]".
+
+        Returns
+        -------
+        object
+            Current value of the variable.
+
+        Raises
+        ------
+        KeyError
+            If the path is malformed, the scope is unknown, or the
+            variable does not exist.
         """
         parts = path.split(".", 1)
         if len(parts) < 2:
@@ -99,7 +143,21 @@ class RuntimeEngine:
         )
 
     def write_variable(self, path: str, value: object) -> None:
-        """Write a variable by dotted path (same format as read_variable)."""
+        """Write a variable by dotted path (same format as read_variable).
+
+        Parameters
+        ----------
+        path : str
+            Dotted variable path in the form "scope.name[.member...]".
+        value : object
+            New value to assign.
+
+        Raises
+        ------
+        KeyError
+            If the path is malformed, the scope is unknown, or the
+            variable does not exist.
+        """
         parts = path.split(".", 1)
         if len(parts) < 2:
             raise KeyError(f"Variable path must be 'scope.name', got '{path}'")
@@ -208,6 +266,11 @@ class RuntimeEngine:
 
         Variables that exist in both old and new IR with compatible types
         keep their values. Everything else re-initializes.
+
+        Parameters
+        ----------
+        new_ir : Project
+            Replacement project IR to load.
         """
         old_programs = self._sim._programs
         old_global_state = dict(self._sim._global_state)

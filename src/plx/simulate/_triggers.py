@@ -26,6 +26,24 @@ class ScanTrigger:
     Created via ``ctx.scans()``.  Chain builder methods, then call
     ``.run()`` to execute.
 
+    Parameters
+    ----------
+    ctx : SimulationContext
+        The simulation context that executes scans.
+    max_scans : int or None
+        Maximum number of scans to execute, or ``None`` for unlimited.
+    condition : callable or None
+        A callable ``(SimulationContext) -> object`` that terminates the loop
+        when it returns a truthy value.
+    changed_vars : tuple of str or None
+        Variable names to monitor; the loop terminates when any value changes.
+    sample_vars : tuple of str or None
+        Variable names to capture into the trace each scan.
+    sample_all : bool
+        If ``True``, capture all known variables each scan.
+    timeout_ms : int or None
+        Simulated-time deadline in milliseconds, or ``None`` for no timeout.
+
     Examples
     --------
     ::
@@ -74,7 +92,18 @@ class ScanTrigger:
     # -- builder methods (each returns a NEW trigger) ----------------------
 
     def repeat(self, n: int) -> ScanTrigger:
-        """Scan exactly *n* times."""
+        """Scan exactly *n* times.
+
+        Parameters
+        ----------
+        n : int
+            Number of scans to execute.
+
+        Returns
+        -------
+        ScanTrigger
+            New trigger with the repeat count set.
+        """
         return ScanTrigger(
             self._ctx,
             max_scans=n,
@@ -86,7 +115,19 @@ class ScanTrigger:
         )
 
     def until(self, condition: Callable[[SimulationContext], object]) -> ScanTrigger:
-        """Scan until ``condition(ctx)`` is truthy."""
+        """Scan until ``condition(ctx)`` is truthy.
+
+        Parameters
+        ----------
+        condition : callable
+            A callable ``(SimulationContext) -> object`` evaluated after each
+            scan.  The loop terminates when the return value is truthy.
+
+        Returns
+        -------
+        ScanTrigger
+            New trigger with the until-condition set.
+        """
         return ScanTrigger(
             self._ctx,
             max_scans=self._max_scans,
@@ -98,7 +139,18 @@ class ScanTrigger:
         )
 
     def changed(self, *var_names: str) -> ScanTrigger:
-        """Scan until any of *var_names* changes value."""
+        """Scan until any of *var_names* changes value.
+
+        Parameters
+        ----------
+        *var_names : str
+            One or more variable names to monitor for changes.
+
+        Returns
+        -------
+        ScanTrigger
+            New trigger with change-detection enabled for the given variables.
+        """
         return ScanTrigger(
             self._ctx,
             max_scans=self._max_scans,
@@ -110,7 +162,18 @@ class ScanTrigger:
         )
 
     def sample(self, *var_names: str) -> ScanTrigger:
-        """Capture the listed variables per scan into the returned trace."""
+        """Capture the listed variables per scan into the returned trace.
+
+        Parameters
+        ----------
+        *var_names : str
+            Variable names to record in each snapshot.
+
+        Returns
+        -------
+        ScanTrigger
+            New trigger with the sample list set.
+        """
         return ScanTrigger(
             self._ctx,
             max_scans=self._max_scans,
@@ -122,7 +185,13 @@ class ScanTrigger:
         )
 
     def sample_all(self) -> ScanTrigger:
-        """Capture all variables per scan into the returned trace."""
+        """Capture all variables per scan into the returned trace.
+
+        Returns
+        -------
+        ScanTrigger
+            New trigger with full-state sampling enabled.
+        """
         return ScanTrigger(
             self._ctx,
             max_scans=self._max_scans,
@@ -138,6 +207,23 @@ class ScanTrigger:
 
         Measured in simulated time.  Raises ``SimulationTimeout`` if the
         termination condition isn't met before the timeout elapses.
+
+        Parameters
+        ----------
+        seconds : float
+            Timeout duration in seconds (added to *ms*).
+        ms : float
+            Timeout duration in milliseconds (added to *seconds*).
+
+        Returns
+        -------
+        ScanTrigger
+            New trigger with the timeout set.
+
+        Raises
+        ------
+        ValueError
+            If the total timeout is not positive.
         """
         total = int(seconds * 1000 + ms)
         if total <= 0:
@@ -160,6 +246,20 @@ class ScanTrigger:
         Loops calling ``ctx.scan(n=1)`` until the termination condition
         is met (repeat count, until-condition, changed-variable, or
         timeout).  If no termination condition is set, raises ValueError.
+
+        Returns
+        -------
+        ScanTrace
+            Trace containing snapshots captured during the run.  Empty if
+            no sampling was configured.
+
+        Raises
+        ------
+        SimulationTimeout
+            If a timeout was set alongside an until-condition or
+            changed-variable monitor and the deadline elapsed first.
+        ValueError
+            If no termination condition was configured.
         """
         ctx = self._ctx
         trace = ScanTrace()

@@ -1,6 +1,8 @@
 """CLI entry point for ``plx run``.
 
-Usage::
+Examples
+--------
+::
 
     plx run <project_path> [options]
 

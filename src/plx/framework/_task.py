@@ -102,12 +102,44 @@ def task(
     priority: int = 0,
     pous: list[type] | None = None,
 ) -> PlxTask:
-    """Create a task definition.
+    """Create a task definition for scheduling POU execution.
 
-    Exactly one scheduling mode must be specified: ``periodic``,
-    ``continuous``, ``event``, or ``startup``.
+    Exactly one scheduling mode must be specified. Raises
+    ``ProjectAssemblyError`` if zero or multiple modes are given.
 
-    Examples::
+    Parameters
+    ----------
+    name : str
+        Task name (e.g. ``"MainTask"``). Must be unique within a
+        project.
+    periodic : timedelta or str, optional
+        Run the task at a fixed interval. Accepts a ``timedelta``
+        (e.g. ``timedelta(milliseconds=10)``) or an IEC time literal
+        string (e.g. ``"T#10ms"``). The interval must be positive.
+    continuous : bool, optional
+        Run the task continuously (free-running). Mutually exclusive
+        with other scheduling modes.
+    event : str, optional
+        Run the task when the named variable transitions to True.
+        The value is the trigger variable name.
+    startup : bool, optional
+        Run the task once at controller startup. Mutually exclusive
+        with other scheduling modes.
+    priority : int, optional
+        Task priority (lower number = higher priority). Defaults to 0.
+    pous : list of class, optional
+        Program POU classes to assign to this task. Only ``@program``
+        classes are valid; function blocks and functions cannot be
+        assigned to tasks directly.
+
+    Returns
+    -------
+    PlxTask
+        A task builder that compiles to a Task IR node.
+
+    Examples
+    --------
+    ::
 
         task("MainTask", periodic=timedelta(milliseconds=10), pous=[FastLoop], priority=1)
         task("SlowTask", periodic=timedelta(milliseconds=100), pous=[SlowLoop], priority=5)

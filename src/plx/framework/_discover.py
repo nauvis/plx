@@ -21,7 +21,23 @@ from ._protocols import CompiledDataType, CompiledGlobalVarList, CompiledPOU
 
 
 class DiscoveryResult:
-    """Container for auto-discovered framework objects."""
+    """Container for auto-discovered framework objects.
+
+    Attributes
+    ----------
+    pous : list of type
+        POU classes (``@fb``, ``@program``, ``@function``, ``@sfc``)
+        found in the scanned packages.
+    data_types : list of type
+        Data type classes (``@struct``, ``@enumeration``, ``IntEnum``
+        subclasses) found in the scanned packages.
+    global_var_lists : list of type
+        Global variable list classes (``@global_vars``) found in the
+        scanned packages.
+    tasks : list of PlxTask
+        Task instances created with ``task()`` found as module-level
+        attributes in the scanned packages.
+    """
 
     __slots__ = ("pous", "data_types", "global_var_lists", "tasks")
 
@@ -102,17 +118,30 @@ def _walk_package(package_name: str) -> list[ModuleType]:
 def discover(*package_names: str) -> DiscoveryResult:
     """Auto-discover decorated classes and tasks from Python packages.
 
-    Walks each package, finds classes matching framework protocols
-    (``CompiledPOU``, ``CompiledDataType``, ``CompiledGlobalVarList``)
-    and ``PlxTask`` instances.
+    Walks each package and its submodules, finding classes that match
+    framework protocols (``CompiledPOU``, ``CompiledDataType``,
+    ``CompiledGlobalVarList``) and ``PlxTask`` instances.
 
-    - Only includes objects *defined* in the scanned packages (filters by
-      ``__module__``)
-    - Deduplicates by ``id(obj)``
-    - Sets ``folder`` on the IR object if it wasn't explicitly set by the
-      decorator (i.e. ``folder == ""``)
+    Only includes objects *defined* in the scanned packages (filters
+    by ``__module__``). Deduplicates by ``id(obj)``. Sets ``folder``
+    on the IR object when not explicitly set by the decorator, using
+    the module's relative path within the package.
 
-    Example::
+    Parameters
+    ----------
+    *package_names : str
+        One or more Python package names to scan (e.g.
+        ``"my_machine"``, ``"my_machine.conveyors"``).
+
+    Returns
+    -------
+    DiscoveryResult
+        Container with ``pous``, ``data_types``, ``global_var_lists``,
+        and ``tasks`` lists populated from the scanned packages.
+
+    Examples
+    --------
+    ::
 
         result = discover("my_machine")
         proj = project("MyProject",
@@ -121,6 +150,9 @@ def discover(*package_names: str) -> DiscoveryResult:
             global_var_lists=result.global_var_lists,
             tasks=result.tasks,
         ).compile()
+
+        # Or pass packages directly to project():
+        proj = project("MyProject", packages=["my_machine"]).compile()
     """
     result = DiscoveryResult()
     seen_ids: set[int] = set()

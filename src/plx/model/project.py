@@ -24,6 +24,21 @@ class GlobalVariableList(IRModel):
     (e.g. ``"Utilities/Motors"``).  Empty string means root / no folder.
     Maps to Beckhoff folder tree, Siemens project navigator folders,
     AB program containers.  Vendor raise passes map to their native model.
+
+    Attributes
+    ----------
+    folder : str
+        Organizational path (forward-slash-delimited).
+    scope : {"", "controller", "program"}
+        Tag scope for AB (controller-scoped vs program-scoped tags).
+        Empty string for vendors where scope is implicit.
+    qualified_only : bool
+        True if variables must be accessed with the GVL name prefix
+        (Beckhoff ``{attribute 'qualified_only'}``).
+    variables : list of Variable
+        The global variables in this list (unique names validated).
+    metadata : dict
+        Vendor-specific key-value pairs for round-trip fidelity.
     """
 
     name: str = Field(min_length=1)
@@ -48,7 +63,29 @@ class GlobalVariableList(IRModel):
 
 
 class Project(IRModel):
-    """Top-level container: a complete PLC project with POUs, types, GVLs, and tasks."""
+    """Top-level container: a complete PLC project with POUs, types, GVLs, and tasks.
+
+    All child collections enforce unique names at construction time
+    (no duplicate POU names, type names, GVL names, or task names).
+
+    Attributes
+    ----------
+    vendor : str
+        Vendor identifier set during lower pass (e.g. ``"beckhoff"``).
+        Empty when vendor-agnostic.
+    vendor_version : str
+        Vendor toolchain version (e.g. ``"3.1.4024.12"``).
+    data_types : list of TypeDefinition
+        User-defined types (structs, enums, unions, aliases, subranges).
+    global_variable_lists : list of GlobalVariableList
+        Global variable lists (Beckhoff GVLs, Siemens tag tables, AB tags).
+    pous : list of POU
+        All program organization units in the project.
+    tasks : list of Task
+        Task/scheduling configuration (periodic, continuous, event, startup).
+    metadata : dict
+        Vendor-specific key-value pairs for round-trip fidelity.
+    """
 
     name: str = Field(min_length=1)
     vendor: str = ""

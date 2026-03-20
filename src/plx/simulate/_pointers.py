@@ -71,7 +71,21 @@ class PointerTable:
         """Return a stable address for the variable at *path*.
 
         If the variable already has an address, return it (updating the
-        binding if the container changed).  Otherwise assign a new one.
+        binding if the container changed). Otherwise assign a new one.
+
+        Parameters
+        ----------
+        path : str
+            Dot-separated variable path (e.g. ``"fb_inst.output"``).
+        container : dict or list
+            The mutable container that holds the variable's value.
+        key : str or int
+            The key within *container* where the value is stored.
+
+        Returns
+        -------
+        int
+            The integer address assigned to this variable.
         """
         addr = self._path_to_addr.get(path)
         if addr is not None:
@@ -85,7 +99,25 @@ class PointerTable:
         return addr
 
     def read(self, addr: int) -> object:
-        """Read the value at *addr*."""
+        """Read the value at *addr*.
+
+        Parameters
+        ----------
+        addr : int
+            The pointer address to dereference.
+
+        Returns
+        -------
+        object
+            The value stored at the address.
+
+        Raises
+        ------
+        SimulationError
+            If *addr* is ``0`` (null pointer dereference), refers to
+            freed heap memory (use after free), or is not in the
+            address table (e.g. from unsupported pointer arithmetic).
+        """
         if addr == NULL_PTR:
             raise SimulationError("Null pointer dereference (address 0)")
         if addr in self._freed:
@@ -102,7 +134,22 @@ class PointerTable:
         return container[key]
 
     def write(self, addr: int, value: object) -> None:
-        """Write *value* to the location at *addr*."""
+        """Write *value* to the location at *addr*.
+
+        Parameters
+        ----------
+        addr : int
+            The pointer address to write to.
+        value : object
+            The value to store.
+
+        Raises
+        ------
+        SimulationError
+            If *addr* is ``0`` (null pointer write), refers to freed
+            heap memory (write after free), or is not in the address
+            table (e.g. from unsupported pointer arithmetic).
+        """
         if addr == NULL_PTR:
             raise SimulationError("Null pointer write (address 0)")
         if addr in self._freed:
@@ -119,7 +166,18 @@ class PointerTable:
         container[key] = value
 
     def heap_alloc(self, default_value: object) -> int:
-        """Allocate a heap entry with *default_value*. Returns the address."""
+        """Allocate a heap entry with *default_value*.
+
+        Parameters
+        ----------
+        default_value : object
+            The initial value stored at the new heap address.
+
+        Returns
+        -------
+        int
+            The newly allocated heap address.
+        """
         addr = self._next_heap_addr
         self._next_heap_addr += _STRIDE
         # Store in an internal dict so the binding has a mutable container
@@ -130,7 +188,20 @@ class PointerTable:
         return addr
 
     def heap_free(self, addr: int) -> None:
-        """Free a heap-allocated entry at *addr*."""
+        """Free a heap-allocated entry at *addr*.
+
+        Parameters
+        ----------
+        addr : int
+            The heap address to free.
+
+        Raises
+        ------
+        SimulationError
+            If *addr* is ``0`` (null pointer), was already freed
+            (double free), or was not allocated by ``__NEW`` (only
+            heap memory can be freed).
+        """
         if addr == NULL_PTR:
             raise SimulationError("Cannot __DELETE null pointer (address 0)")
         if addr in self._freed:
@@ -147,7 +218,19 @@ class PointerTable:
         self._addr_to_binding.pop(addr, None)
 
     def is_valid(self, addr: int) -> bool:
-        """Check if *addr* is a valid, non-freed address."""
+        """Check if *addr* is a valid, non-freed address.
+
+        Parameters
+        ----------
+        addr : int
+            The address to check.
+
+        Returns
+        -------
+        bool
+            ``True`` if *addr* is non-null, has not been freed, and
+            exists in the address table; ``False`` otherwise.
+        """
         if addr == NULL_PTR:
             return False
         if addr in self._freed:

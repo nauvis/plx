@@ -156,12 +156,35 @@ def parse_literal(
 ) -> object:
     """Parse an IR literal string into a Python value.
 
-    - "TRUE"/"FALSE" -> bool
-    - Integer strings -> int
-    - Float strings -> float
-    - "T#..."/"TIME#..."/"LTIME#..." -> int (milliseconds)
-    - "'text'" -> str
-    - "EnumName#MEMBER" -> IntEnum member (via enum_registry)
+    Parameters
+    ----------
+    value : str
+        The literal string from the IR (e.g. ``"TRUE"``, ``"42"``,
+        ``"T#500ms"``, ``"'hello'"``, ``"Color#RED"``).
+    data_type : TypeRef or None, optional
+        Type hint used to disambiguate numeric strings when the format
+        alone is insufficient (e.g. ``"0"`` as REAL vs INT).
+    enum_registry : dict or None, optional
+        Mapping of enum type names to ``IntEnum`` classes (or legacy
+        ``dict`` mappings) used to resolve ``"EnumName#MEMBER"`` literals.
+
+    Returns
+    -------
+    object
+        The parsed Python value: ``bool``, ``int``, ``float``, ``str``,
+        or an ``IntEnum`` member.
+
+    Notes
+    -----
+    Supported formats:
+
+    - ``"TRUE"`` / ``"FALSE"`` -- bool
+    - Integer strings -- int
+    - Float strings -- float
+    - ``"T#..."`` / ``"TIME#..."`` / ``"LTIME#..."`` -- int (milliseconds)
+    - ``"DATE#..."`` / ``"TOD#..."`` / ``"DT#..."`` -- int (milliseconds)
+    - ``"'text'"`` -- str (quotes stripped)
+    - ``"EnumName#MEMBER"`` -- IntEnum member via *enum_registry*
     """
     upper = value.upper()
 
@@ -245,7 +268,18 @@ def parse_literal(
 def type_default(data_type: TypeRef) -> object:
     """Return the default zero-value for a type.
 
-    NamedTypeRef and ArrayTypeRef return None — handled at allocation level.
+    Parameters
+    ----------
+    data_type : TypeRef
+        The IR type reference to produce a default for.
+
+    Returns
+    -------
+    object or None
+        The zero-value for the type (``False`` for BOOL, ``0`` for
+        integers, ``0.0`` for floats, ``""`` for strings/chars, ``0``
+        for pointers/references). Returns ``None`` for ``NamedTypeRef``
+        and ``ArrayTypeRef`` -- these are handled at the allocation level.
     """
     if isinstance(data_type, PrimitiveTypeRef):
         ptype = data_type.type
@@ -281,9 +315,20 @@ def type_default(data_type: TypeRef) -> object:
 def coerce_type(value: object, target_type: TypeRef) -> object:
     """Coerce a value to match a target type.
 
-    - int <-> float conversions
-    - bool <-> int conversions
-    - IEC DIV semantics: int(a/b) truncates toward zero
+    Parameters
+    ----------
+    value : object
+        The runtime value to coerce.
+    target_type : TypeRef
+        The desired IR type. Only ``PrimitiveTypeRef`` triggers
+        conversion; other type refs pass the value through unchanged.
+
+    Returns
+    -------
+    object
+        The coerced value. Performs int/float conversions,
+        bool/int conversions, and IEC DIV semantics (``int(a/b)``
+        truncates toward zero).
     """
     if not isinstance(target_type, PrimitiveTypeRef):
         return value

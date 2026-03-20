@@ -197,7 +197,47 @@ def Field(
 ) -> FieldDescriptor:
     """Declare variable metadata via annotation syntax.
 
-    Example::
+    Attach to any variable declaration to specify initial values,
+    documentation, retention behavior, hardware binding, or external
+    access. Can be used as a default value or inside ``Annotated``.
+
+    Parameters
+    ----------
+    initial : object, optional
+        Initial value for the variable. Accepts Python literals (``bool``,
+        ``int``, ``float``, ``str``), ``timedelta`` for time literals, or
+        a ``dict`` for structured FB/struct initialization
+        (e.g. ``{"PT": timedelta(seconds=5)}``).
+    description : str, optional
+        Human-readable description of the variable. Exported as a comment
+        or documentation string in vendor formats.
+    retain : bool, optional
+        Mark the variable as retentive (preserves value across power
+        cycles). Not valid on ``Temp`` or ``InOut`` variables.
+    persistent : bool, optional
+        Mark the variable as persistent (saved to non-volatile storage).
+        Not valid on ``Temp`` or ``InOut`` variables.
+    constant : bool, optional
+        Mark the variable as constant. Requires ``initial`` to be set.
+        Not valid with ``retain``, ``persistent``, ``hardware``, or
+        ``external``.
+    hardware : str, optional
+        Hardware binding direction. Valid values: ``"input"``,
+        ``"output"``, ``"memory"``. Maps to IEC ``%I``, ``%Q``, ``%M``
+        address prefixes respectively.
+    external : bool or str, optional
+        External access level for OPC UA / HMI visibility. ``True`` is
+        shorthand for ``"readwrite"``. Valid string values: ``"read"``,
+        ``"readwrite"``.
+
+    Returns
+    -------
+    FieldDescriptor
+        A metadata descriptor attached to the variable declaration.
+
+    Examples
+    --------
+    ::
 
         sensor: Input[bool] = Field(description="Proximity")
         speed: Output[float] = Field(initial=60.0, retain=True)

@@ -7,7 +7,9 @@ the ``data_types`` parameter and can be referenced in variable descriptors.
 Enums are universal — the raise pass for AB/Siemens will lower
 ``EnumType`` to DINT constants.
 
-Examples::
+Examples
+--------
+::
 
     @struct
     class MotorData:
@@ -113,7 +115,9 @@ def enumeration(
 
     Can be used as ``@enumeration`` or ``@enumeration(base_type=DINT)``.
 
-    Examples::
+    Examples
+    --------
+    ::
 
         @enumeration
         class MachineState:

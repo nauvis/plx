@@ -70,7 +70,9 @@ def fb_method(
     Method parameters (with type annotations) become VAR_INPUT.
     The return annotation becomes the method's return type.
 
-    Example::
+    Examples
+    --------
+    ::
 
         @fb
         class Conveyor:
@@ -542,7 +544,9 @@ def _compile_pou_class(
 def program(cls: type = None, *, language: str | None = None, folder: str = "") -> Any:
     """Decorate a class as a PROGRAM POU.
 
-    Example::
+    Examples
+    --------
+    ::
 
         @program
         class Main:
@@ -567,7 +571,9 @@ def program(cls: type = None, *, language: str | None = None, folder: str = "") 
 def fb(cls: type = None, *, language: str | None = None, folder: str = "", implements: list[type] | None = None) -> Any:
     """Decorate a class as a FUNCTION_BLOCK POU.
 
-    Example::
+    Examples
+    --------
+    ::
 
         @fb
         class MyFB:
@@ -647,7 +653,9 @@ def interface(cls: type = None, *, folder: str = "") -> Any:
     (parameters + return type, no body compilation).  Supports ``extends``
     via Python class inheritance from another ``@interface``.
 
-    Example::
+    Examples
+    --------
+    ::
 
         @interface
         class IMoveable:

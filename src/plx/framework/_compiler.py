@@ -67,73 +67,367 @@ from ._compiler_statements import _StatementMixin
 # recognises them by name and never calls them.
 
 def delayed(signal: object, duration: object = None, *, name: str | None = None) -> bool:
-    """TON (on-delay timer).  Recognised by the AST compiler.
+    """On-delay timer (TON). Returns True when ``signal`` has been True
+    for at least ``duration``.
 
-    Usage: delayed(signal, timedelta(seconds=5))
-           delayed(signal, duration=self.cfg_timeout)
+    Recognised by the AST compiler and expanded to a ``TON``
+    ``FBInvocation`` with an auto-generated instance variable. Never
+    called at runtime.
+
+    Parameters
+    ----------
+    signal : bool expression
+        The enable signal. The timer starts when this becomes True.
+    duration : timedelta or expression, optional
+        Preset time. Pass a ``timedelta`` literal for a fixed duration,
+        or a variable reference (e.g. ``self.cfg_timeout``) for a
+        configurable duration.
+    name : str, optional
+        Explicit instance name for the generated timer variable. If
+        omitted, an auto-generated name is used (``_plx_ton_0``, etc.).
+
+    Returns
+    -------
+    bool
+        True when the signal has been continuously True for ``duration``.
+
+    Examples
+    --------
+    ::
+
+        if delayed(self.sensor, timedelta(seconds=5)):
+            self.output = True
+        if delayed(self.enable, duration=self.cfg_timeout):
+            self.timeout_active = True
     """
     raise RuntimeError("delayed() is a compile-time sentinel — do not call directly")
 
 
 def sustained(signal: object, duration: object = None, *, name: str | None = None) -> bool:
-    """TOF (off-delay timer).  Recognised by the AST compiler.
+    """Off-delay timer (TOF). Returns True while ``signal`` is True and
+    remains True for ``duration`` after ``signal`` goes False.
 
-    Usage: sustained(signal, timedelta(seconds=5))
-           sustained(signal, duration=self.cfg_cooldown)
+    Recognised by the AST compiler and expanded to a ``TOF``
+    ``FBInvocation``. Never called at runtime.
+
+    Parameters
+    ----------
+    signal : bool expression
+        The enable signal. Output stays True for ``duration`` after this
+        goes False.
+    duration : timedelta or expression, optional
+        Off-delay time. Pass a ``timedelta`` literal or a variable
+        reference.
+    name : str, optional
+        Explicit instance name for the generated timer variable.
+
+    Returns
+    -------
+    bool
+        True while the signal is True, and for ``duration`` after it
+        goes False.
+
+    Examples
+    --------
+    ::
+
+        if sustained(self.pump_running, timedelta(seconds=5)):
+            self.cooldown_active = True
     """
     raise RuntimeError("sustained() is a compile-time sentinel — do not call directly")
 
 
 def pulse(signal: object, duration: object = None, *, name: str | None = None) -> bool:
-    """TP (pulse timer).  Recognised by the AST compiler.
+    """Pulse timer (TP). Generates a fixed-duration pulse on the rising
+    edge of ``signal``.
 
-    Usage: pulse(signal, timedelta(milliseconds=500))
-           pulse(signal, duration=self.cfg_pulse_width)
+    Recognised by the AST compiler and expanded to a ``TP``
+    ``FBInvocation``. Never called at runtime.
+
+    Parameters
+    ----------
+    signal : bool expression
+        Trigger signal. A rising edge starts the pulse.
+    duration : timedelta or expression, optional
+        Pulse width. Pass a ``timedelta`` literal or a variable
+        reference.
+    name : str, optional
+        Explicit instance name for the generated timer variable.
+
+    Returns
+    -------
+    bool
+        True for exactly ``duration`` after each rising edge of
+        ``signal``.
+
+    Examples
+    --------
+    ::
+
+        if pulse(self.trigger, timedelta(milliseconds=500)):
+            self.solenoid = True
     """
     raise RuntimeError("pulse() is a compile-time sentinel — do not call directly")
 
 
 def retentive(signal: object, duration: object = None, *, name: str | None = None) -> bool:
-    """RTO (retentive timer on).  Recognised by the AST compiler.
+    """Retentive on-delay timer (RTO). Accumulates elapsed time while
+    ``signal`` is True, retaining the accumulated value when ``signal``
+    goes False. Returns True when the accumulated time reaches
+    ``duration``.
 
-    Usage: retentive(signal, timedelta(seconds=10))
-           retentive(signal, duration=self.cfg_accumulate)
+    Recognised by the AST compiler and expanded to an ``RTO``
+    ``FBInvocation``. Never called at runtime.
+
+    Parameters
+    ----------
+    signal : bool expression
+        The enable signal. Accumulated time increases while True,
+        freezes while False.
+    duration : timedelta or expression, optional
+        Preset time threshold.
+    name : str, optional
+        Explicit instance name for the generated timer variable.
+
+    Returns
+    -------
+    bool
+        True when accumulated time reaches ``duration``.
+
+    Examples
+    --------
+    ::
+
+        if retentive(self.motor_running, timedelta(seconds=10)):
+            self.maintenance_due = True
     """
     raise RuntimeError("retentive() is a compile-time sentinel — do not call directly")
 
 
 def rising(signal: object, *, name: str | None = None) -> bool:
-    """R_TRIG (rising edge detect).  Recognised by the AST compiler."""
+    """Rising edge detector (R_TRIG). Returns True for one scan cycle
+    when ``signal`` transitions from False to True.
+
+    Recognised by the AST compiler and expanded to an ``R_TRIG``
+    ``FBInvocation``. Never called at runtime.
+
+    Parameters
+    ----------
+    signal : bool expression
+        The signal to monitor for rising edges.
+    name : str, optional
+        Explicit instance name for the generated trigger variable.
+
+    Returns
+    -------
+    bool
+        True for one scan when ``signal`` transitions False to True.
+
+    Examples
+    --------
+    ::
+
+        if rising(self.start_button):
+            self.motor_on = True
+    """
     raise RuntimeError("rising() is a compile-time sentinel — do not call directly")
 
 
 def falling(signal: object, *, name: str | None = None) -> bool:
-    """F_TRIG (falling edge detect).  Recognised by the AST compiler."""
+    """Falling edge detector (F_TRIG). Returns True for one scan cycle
+    when ``signal`` transitions from True to False.
+
+    Recognised by the AST compiler and expanded to an ``F_TRIG``
+    ``FBInvocation``. Never called at runtime.
+
+    Parameters
+    ----------
+    signal : bool expression
+        The signal to monitor for falling edges.
+    name : str, optional
+        Explicit instance name for the generated trigger variable.
+
+    Returns
+    -------
+    bool
+        True for one scan when ``signal`` transitions True to False.
+
+    Examples
+    --------
+    ::
+
+        if falling(self.door_closed):
+            self.alarm = True
+    """
     raise RuntimeError("falling() is a compile-time sentinel — do not call directly")
 
 
 def count_up(signal: object, *, preset: int = 0, reset: object = None, name: str | None = None) -> bool:
-    """CTU (count up).  Recognised by the AST compiler."""
+    """Count-up counter (CTU). Increments on each rising edge of
+    ``signal``. Returns True when the count reaches ``preset``.
+
+    Recognised by the AST compiler and expanded to a ``CTU``
+    ``FBInvocation``. Never called at runtime.
+
+    Parameters
+    ----------
+    signal : bool expression
+        Count input. Each rising edge increments the counter.
+    preset : int, optional
+        Target count value. Output becomes True when the counter
+        reaches this value. Defaults to 0.
+    reset : bool expression, optional
+        Reset input. When True, the counter resets to 0.
+    name : str, optional
+        Explicit instance name for the generated counter variable.
+
+    Returns
+    -------
+    bool
+        True when the accumulated count reaches ``preset``.
+
+    Examples
+    --------
+    ::
+
+        if count_up(self.part_sensor, preset=100, reset=self.reset_count):
+            self.batch_complete = True
+    """
     raise RuntimeError("count_up() is a compile-time sentinel — do not call directly")
 
 
 def count_down(signal: object, *, preset: int = 0, load: object = None, name: str | None = None) -> bool:
-    """CTD (count down).  Recognised by the AST compiler."""
+    """Count-down counter (CTD). Decrements on each rising edge of
+    ``signal``. Returns True when the count reaches zero.
+
+    Recognised by the AST compiler and expanded to a ``CTD``
+    ``FBInvocation``. Never called at runtime.
+
+    Parameters
+    ----------
+    signal : bool expression
+        Count input. Each rising edge decrements the counter.
+    preset : int, optional
+        Starting count value loaded when ``load`` is True.
+        Defaults to 0.
+    load : bool expression, optional
+        Load input. When True, the counter is loaded with ``preset``.
+    name : str, optional
+        Explicit instance name for the generated counter variable.
+
+    Returns
+    -------
+    bool
+        True when the count reaches zero.
+
+    Examples
+    --------
+    ::
+
+        if count_down(self.dispense, preset=10, load=self.reload):
+            self.magazine_empty = True
+    """
     raise RuntimeError("count_down() is a compile-time sentinel — do not call directly")
 
 
 def count_up_down(up_signal: object, down_signal: object, *, preset: int = 0, reset: object = None, load: object = None, name: str | None = None) -> bool:
-    """CTUD (count up/down).  Recognised by the AST compiler."""
+    """Bidirectional counter (CTUD). Increments on rising edges of
+    ``up_signal``, decrements on rising edges of ``down_signal``.
+    Returns True when the count reaches ``preset``.
+
+    Recognised by the AST compiler and expanded to a ``CTUD``
+    ``FBInvocation``. Never called at runtime.
+
+    Parameters
+    ----------
+    up_signal : bool expression
+        Count-up input. Each rising edge increments the counter.
+    down_signal : bool expression
+        Count-down input. Each rising edge decrements the counter.
+    preset : int, optional
+        Target count value. Output becomes True when the counter
+        reaches this value. Defaults to 0.
+    reset : bool expression, optional
+        Reset input. When True, the counter resets to 0.
+    load : bool expression, optional
+        Load input. When True, the counter is loaded with ``preset``.
+    name : str, optional
+        Explicit instance name for the generated counter variable.
+
+    Returns
+    -------
+    bool
+        True when the accumulated count reaches ``preset``.
+
+    Examples
+    --------
+    ::
+
+        if count_up_down(self.add_part, self.remove_part, preset=50):
+            self.bin_full = True
+    """
     raise RuntimeError("count_up_down() is a compile-time sentinel — do not call directly")
 
 
 def set_dominant(set_signal: object, reset_signal: object, *, name: str | None = None) -> bool:
-    """SR (set-dominant bistable).  Recognised by the AST compiler."""
+    """Set-dominant bistable (SR). When both ``set_signal`` and
+    ``reset_signal`` are True simultaneously, the output is True
+    (set dominates).
+
+    Recognised by the AST compiler and expanded to an ``SR``
+    ``FBInvocation``. Never called at runtime.
+
+    Parameters
+    ----------
+    set_signal : bool expression
+        Set input. True sets the output.
+    reset_signal : bool expression
+        Reset input. True resets the output (unless set is also True).
+    name : str, optional
+        Explicit instance name for the generated bistable variable.
+
+    Returns
+    -------
+    bool
+        Latched output state.
+
+    Examples
+    --------
+    ::
+
+        self.motor_on = set_dominant(self.start, self.stop)
+    """
     raise RuntimeError("set_dominant() is a compile-time sentinel — do not call directly")
 
 
 def reset_dominant(set_signal: object, reset_signal: object, *, name: str | None = None) -> bool:
-    """RS (reset-dominant bistable).  Recognised by the AST compiler."""
+    """Reset-dominant bistable (RS). When both ``set_signal`` and
+    ``reset_signal`` are True simultaneously, the output is False
+    (reset dominates).
+
+    Recognised by the AST compiler and expanded to an ``RS``
+    ``FBInvocation``. Never called at runtime.
+
+    Parameters
+    ----------
+    set_signal : bool expression
+        Set input. True sets the output.
+    reset_signal : bool expression
+        Reset input. True resets the output (overrides set).
+    name : str, optional
+        Explicit instance name for the generated bistable variable.
+
+    Returns
+    -------
+    bool
+        Latched output state.
+
+    Examples
+    --------
+    ::
+
+        self.motor_on = reset_dominant(self.start, self.stop)
+    """
     raise RuntimeError("reset_dominant() is a compile-time sentinel — do not call directly")
 
 

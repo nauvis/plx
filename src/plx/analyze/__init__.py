@@ -1,6 +1,8 @@
 """Static analysis for compiled plx IR.
 
-Usage::
+Examples
+--------
+::
 
     from plx.analyze import analyze
     result = analyze(project_ir)
@@ -93,12 +95,17 @@ def analyze(
 ) -> AnalysisResult:
     """Run static analysis rules on a compiled Project or POU.
 
-    Args:
-        target: A compiled ``Project`` or single ``POU`` to analyze.
-        rules: Rule classes to run. Defaults to ``ALL_RULES``.
+    Parameters
+    ----------
+    target : Project or POU
+        A compiled ``Project`` or single ``POU`` to analyze.
+    rules : list[type[AnalysisVisitor]] or None, optional
+        Rule classes to run. Defaults to ``ALL_RULES``.
 
-    Returns:
-        Aggregated ``AnalysisResult`` with all findings.
+    Returns
+    -------
+    AnalysisResult
+        Aggregated result containing all findings from all rules.
     """
     rule_classes = rules if rules is not None else ALL_RULES
     all_findings: list[Finding] = []

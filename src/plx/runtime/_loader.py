@@ -18,7 +18,26 @@ from plx.model.project import Project
 def load_project(path: str) -> tuple[Project, Path]:
     """Load a plx project from a directory, .py file, or .plx.json file.
 
-    Returns (compiled Project IR, source path for file watching).
+    Parameters
+    ----------
+    path : str
+        Path to a project directory (package with decorated POUs), a ``.py``
+        file containing a ``Project`` or ``PlxProject``, or a ``.plx.json``
+        file with serialized IR.
+
+    Returns
+    -------
+    tuple[Project, Path]
+        The compiled Project IR and the resolved source path (used for
+        file watching / hot reload).
+
+    Raises
+    ------
+    RuntimeError
+        If the path format is unrecognized, the file cannot be imported,
+        or no POUs / Project objects are found.
+    FileNotFoundError
+        If the path does not exist (raised by Path operations).
     """
     p = Path(path).resolve()
 
@@ -110,7 +129,18 @@ def _load_json(filepath: Path) -> Project:
 def reload_project(path: str) -> Project:
     """Reload a project, clearing cached modules for the package.
 
-    Used by the hot-reload watcher.
+    Used by the hot-reload watcher. For directory sources, all cached
+    modules for the package are purged before re-importing.
+
+    Parameters
+    ----------
+    path : str
+        Original source path (directory, ``.py`` file, or ``.plx.json``).
+
+    Returns
+    -------
+    Project
+        The freshly compiled Project IR.
     """
     p = Path(path).resolve()
 

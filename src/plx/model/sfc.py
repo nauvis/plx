@@ -29,13 +29,29 @@ class ActionQualifier(str, Enum):
 
 
 class Action(IRModel):
-    """An action association on an SFC step (inline body or reference to a POUAction)."""
+    """An action association on an SFC step (inline body or reference to a POUAction).
+
+    Either *body* (inline statements) or *action_name* (reference to a
+    named ``POUAction``) may be set, but not both.
+
+    Attributes
+    ----------
+    qualifier : ActionQualifier
+        IEC 61131-3 action qualifier (N, S, R, P, L, D, etc.).
+    duration : str or None
+        Time duration for timed qualifiers (L, D, SD, DS, SL).
+        Format: IEC time literal (e.g. ``"T#5s"``).
+    body : list of Statement
+        Inline action body (mutually exclusive with *action_name*).
+    action_name : str or None
+        Name of a ``POUAction`` to reference (mutually exclusive with *body*).
+    """
 
     name: str = Field(min_length=1)
     qualifier: ActionQualifier = ActionQualifier.N
     duration: str | None = None
     body: list[Statement] = []
-    action_name: str | None = None  # Reference to a named POUAction
+    action_name: str | None = None
 
     @field_validator("name")
     @classmethod
@@ -54,7 +70,19 @@ class Action(IRModel):
 
 
 class Step(IRModel):
-    """An SFC step with optional entry, exit, and body actions."""
+    """An SFC step with optional entry, exit, and body actions.
+
+    Attributes
+    ----------
+    is_initial : bool
+        True if this is the initial step (exactly one per SFCBody).
+    actions : list of Action
+        Actions active while this step is active (N qualifier typical).
+    entry_actions : list of Action
+        Actions executed once on step activation.
+    exit_actions : list of Action
+        Actions executed once on step deactivation.
+    """
 
     name: str = Field(min_length=1)
     is_initial: bool = False
@@ -69,12 +97,22 @@ class Step(IRModel):
 
 
 class Transition(IRModel):
-    """An SFC transition.
+    """An SFC transition connecting source step(s) to target step(s).
 
     Divergence/convergence is encoded by the graph structure:
-    - len(target_steps) > 1 → simultaneous divergence
-    - len(source_steps) > 1 → simultaneous convergence
-    - Multiple transitions sharing a source → selection divergence
+
+    - ``len(target_steps) > 1`` -- simultaneous divergence
+    - ``len(source_steps) > 1`` -- simultaneous convergence
+    - Multiple transitions sharing a source -- selection divergence
+
+    Attributes
+    ----------
+    source_steps : list of str
+        Step names this transition originates from.
+    target_steps : list of str
+        Step names this transition leads to.
+    condition : Expression
+        Boolean expression that must be True for the transition to fire.
     """
 
     source_steps: list[str]

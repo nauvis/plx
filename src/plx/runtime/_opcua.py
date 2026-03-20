@@ -71,9 +71,19 @@ def _python_value_to_variant_type(value: object) -> Any:
 class OPCUAServer:
     """OPC-UA server exposing PLC variables.
 
-    Address space layout:
+    Address space layout::
+
         Objects/plx/Programs/<ProgramName>/<var>
         Objects/plx/GVLs/<GVLName>/<var>
+
+    Parameters
+    ----------
+    engine : RuntimeEngine
+        The runtime engine whose state is exposed over OPC-UA.
+    port : int, optional
+        TCP port for the server, by default 4840.
+    endpoint : str or None, optional
+        Full OPC-UA endpoint URI. When *None*, derived from *port*.
     """
 
     def __init__(
@@ -100,6 +110,7 @@ class OPCUAServer:
 
     @property
     def endpoint(self) -> str:
+        """Return the OPC-UA endpoint URI."""
         return self._endpoint
 
     async def start(self) -> None:
@@ -142,6 +153,7 @@ class OPCUAServer:
         self._write_task = asyncio.create_task(self._write_monitor_loop())
 
     async def stop(self) -> None:
+        """Stop the OPC-UA server and all sync/monitor loops."""
         if self._sync_task is not None:
             self._sync_task.cancel()
             try:

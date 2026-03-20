@@ -85,7 +85,9 @@ wchar = PrimitiveType.WCHAR
 def timedelta_to_iec(td: timedelta, *, ltime: bool = False) -> str:
     """Convert a ``timedelta`` to an IEC 61131-3 time literal string.
 
-    Examples::
+    Examples
+    --------
+    ::
 
         timedelta_to_iec(timedelta(seconds=5))         # "T#5s"
         timedelta_to_iec(timedelta(milliseconds=500))   # "T#500ms"
@@ -210,7 +212,9 @@ def ARRAY(
     - ``int``: shorthand for ``0..n-1``
     - ``tuple[int, int]``: explicit ``(lower, upper)`` bounds
 
-    Examples::
+    Examples
+    --------
+    ::
 
         ARRAY(INT, 10)              # ARRAY[0..9] OF INT
         ARRAY(REAL, (1, 10))        # ARRAY[1..10] OF REAL
@@ -245,7 +249,9 @@ def ARRAY(
 def STRING(max_length: int = 255) -> StringTypeRef:
     """Create a STRING type reference with optional max length.
 
-    Example::
+    Examples
+    --------
+    ::
 
         STRING()       # STRING[255]
         STRING(80)     # STRING[80]
@@ -287,8 +293,22 @@ reference_to = REFERENCE_TO
 # ---------------------------------------------------------------------------
 
 def first_scan() -> bool:
-    """TRUE on the first scan cycle after entering Run mode.
+    """System flag: True on the first scan cycle after entering Run mode.
 
-    Recognised by the AST compiler — do not call directly.
+    Recognised by the AST compiler and expanded to a
+    ``SystemFlagExpr(flag="first_scan")``. Never called at runtime.
+
+    Returns
+    -------
+    bool
+        True during the first scan cycle only.
+
+    Examples
+    --------
+    ::
+
+        if first_scan():
+            self.initialized = False
+            self.state = 0
     """
     raise RuntimeError("first_scan() is a compile-time sentinel — do not call directly")

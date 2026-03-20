@@ -3,7 +3,9 @@
 Provides ``@fb_property`` for defining getter/setter properties on FBs
 that compile to IEC 61131-3 PROPERTY constructs.
 
-Usage::
+Examples
+--------
+::
 
     @fb
     class Motor:
@@ -93,9 +95,35 @@ def fb_property(
 ) -> Any:
     """Declare a property on a function block.
 
-    Can be used as ``@fb_property(REAL)`` or ``@fb_property(REAL, access=PRIVATE)``.
+    The decorated function becomes the getter. Use ``.setter`` to
+    register a setter. Properties compile to IEC 61131-3 ``PROPERTY``
+    constructs with separate GET/SET accessors.
 
-    The decorated function becomes the getter.  Use ``.setter`` to add a setter::
+    Parameters
+    ----------
+    data_type_arg : type
+        The IEC data type of the property (e.g. ``REAL``, ``BOOL``,
+        ``INT``). Required -- bare ``@fb_property`` without a type is
+        not supported.
+    access : AccessSpecifier, optional
+        Visibility of the property. One of ``PUBLIC``, ``PRIVATE``,
+        ``PROTECTED``, ``INTERNAL``, ``FINAL``. Defaults to
+        ``PUBLIC``.
+    abstract : bool, optional
+        When True, the property has no implementation and must be
+        overridden in a derived FB. Getter and setter bodies are
+        omitted.
+    final : bool, optional
+        When True, the property cannot be overridden in derived FBs.
+
+    Returns
+    -------
+    PropDescriptor
+        A descriptor that supports ``.setter`` chaining.
+
+    Examples
+    --------
+    ::
 
         @fb_property(REAL)
         def speed(self):
@@ -104,6 +132,10 @@ def fb_property(
         @speed.setter
         def speed(self, value: REAL):
             self._speed = value
+
+        @fb_property(BOOL, access=AccessSpecifier.PROTECTED)
+        def is_running(self):
+            return self._running
     """
     from ._types import _resolve_type_ref
 

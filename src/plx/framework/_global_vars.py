@@ -3,7 +3,9 @@
 Provides the framework API for declaring named groups of global variables
 that compile into ``GlobalVariableList`` IR nodes.
 
-Examples::
+Examples
+--------
+::
 
     @global_vars
     class SystemConstants:
@@ -48,7 +50,9 @@ def global_vars(
     Variables are declared as bare annotations (with optional defaults)
     or with ``Field()`` for metadata.
 
-    Examples::
+    Examples
+    --------
+    ::
 
         @global_vars
         class SystemIO:

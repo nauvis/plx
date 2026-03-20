@@ -21,21 +21,48 @@ logger = logging.getLogger("plx.runtime")
 
 
 class PlantIO:
-    """Interface passed to plant model functions for reading/writing PLC variables."""
+    """Interface passed to plant model functions for reading/writing PLC variables.
+
+    Attributes
+    ----------
+    state : dict[str, Any]
+        Persistent state dictionary for the plant model. Plant functions
+        store intermediate values (e.g. simulated tank level) here between
+        scan cycles.
+    """
 
     def __init__(self, engine: RuntimeEngine) -> None:
         self._engine = engine
         self.state: dict[str, Any] = {}
 
     def read(self, path: str) -> object:
-        """Read a PLC variable by dotted path (e.g. 'MainProgram.valve_out')."""
+        """Read a PLC variable by dotted path (e.g. 'MainProgram.valve_out').
+
+        Parameters
+        ----------
+        path : str
+            Dotted variable path relative to the project scope.
+
+        Returns
+        -------
+        object
+            The current variable value, or ``None`` if the path does not exist.
+        """
         try:
             return self._engine.read_variable(path)
         except KeyError:
             return None
 
     def write(self, path: str, value: object) -> None:
-        """Write a PLC variable by dotted path."""
+        """Write a PLC variable by dotted path.
+
+        Parameters
+        ----------
+        path : str
+            Dotted variable path relative to the project scope.
+        value : object
+            The value to write into the PLC variable.
+        """
         try:
             self._engine.write_variable(path, value)
         except KeyError:
@@ -44,7 +71,17 @@ class PlantIO:
 
 @dataclass
 class PlantModel:
-    """A registered plant model."""
+    """A registered plant model.
+
+    Attributes
+    ----------
+    name : str
+        Display name of the plant model (derived from the function name).
+    func : Callable[[PlantIO], None]
+        The plant simulation function invoked each scan cycle.
+    scan_period_ms : int
+        Execution period in milliseconds (default 100).
+    """
 
     name: str
     func: Callable[[PlantIO], None]
@@ -58,7 +95,23 @@ def plant(
 ) -> Any:
     """Decorator to register a function as a plant model.
 
-    Usage::
+    Parameters
+    ----------
+    func : Callable[[PlantIO], None] or None
+        The plant function when used as ``@plant`` without arguments.
+        ``None`` when used as ``@plant(scan_period_ms=...)``.
+    scan_period_ms : int
+        Execution period in milliseconds (default 100).
+
+    Returns
+    -------
+    PlantModel or Callable
+        A ``PlantModel`` when decorating directly, or a decorator callable
+        when invoked with keyword arguments.
+
+    Examples
+    --------
+    ::
 
         @plant(scan_period_ms=100)
         def tank_model(io):
@@ -92,9 +145,17 @@ class PlantRunner:
         self._ios: dict[str, PlantIO] = {}
 
     def add(self, model: PlantModel) -> None:
+        """Register a plant model for execution.
+
+        Parameters
+        ----------
+        model : PlantModel
+            The plant model to add.
+        """
         self._models.append(model)
 
     async def start(self) -> None:
+        """Start all registered plant models as concurrent async tasks."""
         for model in self._models:
             io = PlantIO(self._engine)
             self._ios[model.name] = io
@@ -110,6 +171,7 @@ class PlantRunner:
             )
 
     async def stop(self) -> None:
+        """Cancel all running plant model tasks and wait for completion."""
         for task in self._tasks:
             task.cancel()
         for task in self._tasks:
@@ -137,7 +199,17 @@ class PlantRunner:
 def load_plant_models(filepath: str) -> list[PlantModel]:
     """Load plant models from a Python file.
 
-    The file should contain functions decorated with @plant.
+    The file should contain functions decorated with ``@plant``.
+
+    Parameters
+    ----------
+    filepath : str
+        Path to a ``.py`` file containing ``@plant``-decorated functions.
+
+    Returns
+    -------
+    list[PlantModel]
+        Discovered plant models. Empty list (with a warning) if none found.
     """
     path = Path(filepath).resolve()
     if not path.exists():

@@ -1,4 +1,42 @@
-"""Universal PLC Data Model — public API."""
+"""Universal PLC Data Model — public API.
+
+Vendor-agnostic Pydantic v2 models representing PLC programs, types,
+variables, expressions, and statements.  This is the compilation target
+for the Python framework and the interchange format between vendor layers.
+
+Usage example::
+
+    from plx.model import (
+        POU, POUType, POUInterface, Network, Variable,
+        Assignment, VariableRef, LiteralExpr,
+        PrimitiveTypeRef, PrimitiveType, Project,
+    )
+
+    # Create a variable
+    speed = Variable(
+        name="speed",
+        data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
+        initial_value="0.0",
+    )
+
+    # Create a simple POU with one assignment
+    pou = POU(
+        pou_type=POUType.PROGRAM,
+        name="Main",
+        interface=POUInterface(output_vars=[speed]),
+        networks=[
+            Network(statements=[
+                Assignment(
+                    target=VariableRef(name="speed"),
+                    value=LiteralExpr(value="100.0"),
+                ),
+            ]),
+        ],
+    )
+
+    # Assemble into a project
+    project = Project(name="MyProject", pous=[pou])
+"""
 
 from ._base import IRModel
 from .expressions import (

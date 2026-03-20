@@ -89,6 +89,9 @@ class ExecutionEngine:
         Registry of type definitions (StructType, EnumType) for resolution.
     enum_registry : dict
         Enum name -> IntEnum class for literal resolution.
+    pointer_table : PointerTable
+        Pointer table for POINTER_TO/REFERENCE_TO simulation, including
+        ADR, dereference, ``__NEW``/``__DELETE``, and REF= operations.
     """
 
     def __init__(

@@ -10,7 +10,17 @@ from ._base import IRModel
 
 
 class PeriodicTask(IRModel):
-    """Task that runs at a fixed interval (e.g. every 10ms)."""
+    """Task that runs at a fixed interval (e.g. every 10ms).
+
+    Attributes
+    ----------
+    priority : int
+        Execution priority (lower number = higher priority).
+    interval : str
+        Cycle time as an IEC time literal (e.g. ``"T#10ms"``).
+    assigned_pous : list of str
+        Names of POUs executed by this task, in order.
+    """
 
     kind: Literal["periodic"] = "periodic"
     name: str = Field(min_length=1)
@@ -20,7 +30,15 @@ class PeriodicTask(IRModel):
 
 
 class ContinuousTask(IRModel):
-    """Task that runs continuously (every scan cycle)."""
+    """Task that runs continuously (every scan cycle).
+
+    Attributes
+    ----------
+    priority : int
+        Execution priority (lower number = higher priority).
+    assigned_pous : list of str
+        Names of POUs executed by this task, in order.
+    """
 
     kind: Literal["continuous"] = "continuous"
     name: str = Field(min_length=1)
@@ -29,7 +47,17 @@ class ContinuousTask(IRModel):
 
 
 class EventTask(IRModel):
-    """Task triggered by a rising edge on trigger_variable."""
+    """Task triggered by a rising edge on a variable.
+
+    Attributes
+    ----------
+    priority : int
+        Execution priority (lower number = higher priority).
+    trigger_variable : str
+        Name of the BOOL variable whose rising edge triggers execution.
+    assigned_pous : list of str
+        Names of POUs executed by this task, in order.
+    """
 
     kind: Literal["event"] = "event"
     name: str = Field(min_length=1)
@@ -39,7 +67,15 @@ class EventTask(IRModel):
 
 
 class StartupTask(IRModel):
-    """Task that runs once at controller startup."""
+    """Task that runs once at controller startup.
+
+    Attributes
+    ----------
+    priority : int
+        Execution priority (lower number = higher priority).
+    assigned_pous : list of str
+        Names of POUs executed by this task, in order.
+    """
 
     kind: Literal["startup"] = "startup"
     name: str = Field(min_length=1)

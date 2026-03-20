@@ -53,7 +53,17 @@ class Language(str, Enum):
 
 
 class Network(IRModel):
-    """A single network / rung of logic."""
+    """A single network / rung of logic.
+
+    Attributes
+    ----------
+    label : str or None
+        Optional network title (displayed in vendor IDEs above the rung).
+    comment : str or None
+        Rung comment text (often multi-line, preserved from source).
+    statements : list of Statement
+        Ordered list of statements in this network.
+    """
 
     label: str | None = None
     comment: str | None = None
@@ -63,8 +73,26 @@ class Network(IRModel):
 class POUInterface(IRModel):
     """The variable interface of a POU, Method, or similar code unit.
 
-    Each list encodes the variable's role structurally — Variables carry
-    no redundant direction/scope enums.
+    Each list encodes the variable's role structurally -- Variables carry
+    no redundant direction/scope enums.  Duplicate variable names across
+    all sections are rejected at construction time.
+
+    Attributes
+    ----------
+    input_vars : list of Variable
+        ``VAR_INPUT`` -- caller-supplied values (read-only inside POU).
+    output_vars : list of Variable
+        ``VAR_OUTPUT`` -- values produced by the POU (readable by caller).
+    inout_vars : list of Variable
+        ``VAR_IN_OUT`` -- passed by reference, caller and POU share state.
+    static_vars : list of Variable
+        ``VAR`` -- internal state retained across scan cycles (FB only).
+    temp_vars : list of Variable
+        ``VAR_TEMP`` -- scratch variables, reset every call.
+    constant_vars : list of Variable
+        ``VAR CONSTANT`` -- compile-time constants.
+    external_vars : list of Variable
+        ``VAR_EXTERNAL`` -- references to global variables (GVL bindings).
     """
 
     input_vars: list[Variable] = []
@@ -105,7 +133,26 @@ class PropertyAccessor(IRModel):
 
 
 class Property(IRModel):
-    """A property on a FUNCTION_BLOCK (OOP extension)."""
+    """A property on a FUNCTION_BLOCK (OOP extension).
+
+    Properties provide controlled read/write access to FB state via
+    getter and setter bodies, similar to IEC 61131-3 PROPERTY constructs.
+
+    Attributes
+    ----------
+    data_type : TypeRef
+        The property's data type (what the getter returns / setter accepts).
+    access : AccessSpecifier
+        Visibility (PUBLIC, PRIVATE, PROTECTED, INTERNAL).
+    abstract : bool
+        True if the property has no implementation (must be overridden).
+    final : bool
+        True if the property cannot be overridden in derived FBs.
+    getter : PropertyAccessor or None
+        Body executed on read access.
+    setter : PropertyAccessor or None
+        Body executed on write access.
+    """
 
     name: str = Field(min_length=1)
     data_type: TypeRef
@@ -125,6 +172,26 @@ class Method(IRModel):
     """A method on a FUNCTION_BLOCK (OOP extension).
 
     Has its own variable interface and body, independent of the parent POU.
+    Body is mutually exclusive: either *networks* or *sfc_body*, not both.
+
+    Attributes
+    ----------
+    language : Language or None
+        Source language (ST, LD, etc.).  None when not specified.
+    return_type : TypeRef or None
+        Return type for methods that return a value.
+    access : AccessSpecifier
+        Visibility (PUBLIC, PRIVATE, PROTECTED, INTERNAL).
+    abstract : bool
+        True if the method has no implementation (must be overridden).
+    final : bool
+        True if the method cannot be overridden in derived FBs.
+    interface : POUInterface
+        Method-local variable declarations (inputs, outputs, temps, etc.).
+    networks : list of Network
+        ST/LD/FBD body split into networks.
+    sfc_body : SFCBody or None
+        Alternative SFC body (mutually exclusive with *networks*).
     """
 
     name: str = Field(min_length=1)
@@ -176,6 +243,39 @@ class POU(IRModel):
     (e.g. ``"Utilities/Motors"``).  Empty string means root / no folder.
     Maps to Beckhoff folder tree, Siemens project navigator folders,
     AB program containers.  Vendor raise passes map to their native model.
+
+    Attributes
+    ----------
+    pou_type : POUType
+        Classification (PROGRAM, FUNCTION_BLOCK, FUNCTION, INTERFACE).
+    folder : str
+        Organizational path (forward-slash-delimited, e.g. ``"Utils/Motors"``).
+    abstract : bool
+        True if the FB cannot be instantiated (must be extended).
+    safety : bool
+        True if this POU belongs to a safety task (informational, not enforced).
+    language : Language or None
+        Source language (ST, LD, FBD, SFC, CFC).
+    return_type : TypeRef or None
+        Return type (FUNCTION POUs only -- validated).
+    interface : POUInterface
+        Variable declarations (inputs, outputs, statics, temps, etc.).
+    networks : list of Network
+        ST/LD/FBD body.  Mutually exclusive with *sfc_body*.
+    sfc_body : SFCBody or None
+        SFC body.  Mutually exclusive with *networks*.
+    actions : list of POUAction
+        Named actions (execute in parent POU's variable scope).
+    methods : list of Method
+        OOP methods (own variable scope, unique names validated).
+    properties : list of Property
+        OOP properties (getter/setter, unique names validated).
+    extends : str or None
+        Parent FB name for inheritance (``EXTENDS`` in ST).
+    implements : list of str
+        Interface names this FB implements.
+    metadata : dict
+        Vendor-specific key-value pairs for round-trip fidelity.
     """
 
     pou_type: POUType

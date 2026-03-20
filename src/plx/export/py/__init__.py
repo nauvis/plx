@@ -18,6 +18,7 @@ from plx.model.types import (
 
 from ._writer import PyWriter
 from ._helpers import (
+    _collect_library_imports,
     _collect_pou_deps,
     _format_initial_value,
     _parse_iec_time,
@@ -32,7 +33,19 @@ from ._helpers import (
 # ---------------------------------------------------------------------------
 
 def generate(project: Project) -> str:
-    """Generate Python framework code from a Universal IR Project as a single string."""
+    """Generate Python framework code from a Universal IR Project as a single string.
+
+    Parameters
+    ----------
+    project : Project
+        Compiled Universal IR project to export.
+
+    Returns
+    -------
+    str
+        Complete Python source containing all POUs, data types, GVLs,
+        and project assembly in a single module.
+    """
     w = PyWriter(project)
     w.write_project(project)
     return w.getvalue()
@@ -45,6 +58,17 @@ def generate_files(project: Project) -> dict[str, str]:
     and global variable list, plus a ``project.py`` that imports everything
     and assembles the project.  File names mirror the original project structure
     to support round-trip export.
+
+    Parameters
+    ----------
+    project : Project
+        Compiled Universal IR project to export.
+
+    Returns
+    -------
+    dict[str, str]
+        Mapping of ``{relative_path: python_source}`` with one entry per
+        POU, data type, GVL, and a ``project.py`` assembly file.
     """
     files: dict[str, str] = {}
     w = PyWriter(project)
@@ -81,6 +105,14 @@ def generate_files(project: Project) -> dict[str, str]:
             fw._line()
             for dep_file, dep_names in sorted(deps.items()):
                 fw._line(f"from {dep_file} import {', '.join(sorted(dep_names))}")
+
+        # Import vendor-qualified library types (e.g. Beckhoff MC_Power)
+        lib_imports = _collect_library_imports(pou, project)
+        if lib_imports:
+            if not deps:
+                fw._line()  # blank line before imports if no deps
+            for imp_line in lib_imports:
+                fw._line(imp_line)
 
         fw._line()
         if pou.pou_type == POUType.INTERFACE:
