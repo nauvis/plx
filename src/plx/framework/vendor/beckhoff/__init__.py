@@ -6,6 +6,11 @@ Stubs are organized by TwinCAT library name:
 - ``standard``: Tc2_Standard — LTIME timer variants (LTON, LTOF, LTP)
 - ``system``: Tc2_System — ADS communication, file I/O, system services
 - ``utilities``: Tc2_Utilities — Time, formatting, PID, ring buffers, system access
+
+Note: Tc3_EventLogger FBs (FB_TcMessage, FB_TcAlarm, etc.) are method-based
+OOP function blocks that use .Create()/.Send()/.Raise()/.Clear() methods and
+properties rather than VAR_INPUT/VAR_OUTPUT parameters. They cannot be
+represented as LibraryFB stubs and require method/property support first.
 """
 
 from .mc2 import (
@@ -54,6 +59,14 @@ from .mc2 import (
     # Advanced
     MC_MoveSuperImposed,
     MC_TorqueControl,
+    # Parameter Read / Write
+    MC_ReadBoolParameter,
+    MC_ReadParameter,
+    MC_ReadParameterSet,
+    MC_WriteBoolParameter,
+    MC_WriteBoolParameterPersistent,
+    MC_WriteParameter,
+    MC_WriteParameterPersistent,
 )
 from .standard import (
     LTON,
@@ -137,6 +150,14 @@ __all__ = [
     # Advanced
     "MC_MoveSuperImposed",
     "MC_TorqueControl",
+    # Parameter Read / Write
+    "MC_ReadBoolParameter",
+    "MC_ReadParameter",
+    "MC_ReadParameterSet",
+    "MC_WriteBoolParameter",
+    "MC_WriteBoolParameterPersistent",
+    "MC_WriteParameter",
+    "MC_WriteParameterPersistent",
     # Tc2_Standard
     "LTON",
     "LTOF",

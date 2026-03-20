@@ -5,6 +5,11 @@ Stubs are organized by Rockwell library/category:
 - ``process``: Process control (PIDE, SCL, ALMD, ALMA, RMPS, POSP, etc.)
 - ``drives``: Enhanced timers, filters, statistics, drives, MSG
 - ``motion``: CIP Motion control (MSO, MSF, MAM, MAJ, MAS, MAH, etc.)
+
+Note: GSV/SSV are stateless instructions (not FBs) called as
+``GSV(ClassName, InstanceName, AttributeName, Dest)`` in ST.  They compile
+to FunctionCallStatement nodes, not FBInvocation, and cannot be represented
+as LibraryFB stubs.  The AB parser/raise pass already handles them correctly.
 """
 
 from .drives import (

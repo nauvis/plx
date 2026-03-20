@@ -19,6 +19,11 @@ Status / Parameter:
     MC_ReadActualPosition, MC_ReadActualVelocity, MC_ReadStatus,
     MC_ReadAxisError, MC_SetOverride
 
+Parameter Read / Write:
+    MC_ReadParameter, MC_ReadBoolParameter, MC_ReadParameterSet,
+    MC_WriteParameter, MC_WriteBoolParameter,
+    MC_WriteParameterPersistent, MC_WriteBoolParameterPersistent
+
 Point-to-Point Motion:
     MC_MoveAbsolute, MC_MoveRelative, MC_MoveAdditive, MC_MoveModulo,
     MC_MoveVelocity, MC_MoveContinuousAbsolute, MC_MoveContinuousRelative
@@ -47,7 +52,7 @@ annotations must be live objects for interface parsing.
 
 from plx.framework._descriptors import InOut, Input, Output
 from plx.framework._library import LibraryEnum, LibraryFB, LibraryStruct
-from plx.framework._types import BOOL, DINT, LREAL, UDINT, WORD
+from plx.framework._types import BOOL, DINT, DWORD, LREAL, UDINT, WORD
 
 
 # ===================================================================
@@ -808,5 +813,150 @@ class MC_TorqueControl(LibraryFB, vendor="beckhoff", library="Tc2_MC2"):
     Busy: Output[BOOL]
     Active: Output[BOOL]
     CommandAborted: Output[BOOL]
+    Error: Output[BOOL]
+    ErrorID: Output[UDINT]
+
+
+# ===================================================================
+# Function Blocks — Parameter Read / Write
+# ===================================================================
+
+class MC_ReadParameter(LibraryFB, vendor="beckhoff", library="Tc2_MC2"):
+    """Read a single NC axis parameter by number.
+
+    Level-triggered: Enable=TRUE starts continuous reading of the
+    parameter identified by ParameterNumber. Valid=TRUE indicates
+    the Value output is current. ReadMode selects one-shot (0) or
+    cyclic (1) reading. Consult the Beckhoff NC parameter
+    documentation for valid parameter numbers.
+    """
+
+    Axis: InOut[AXIS_REF]
+    Enable: Input[BOOL]
+    ParameterNumber: Input[UDINT]
+    ReadMode: Input[DINT]
+
+    Valid: Output[BOOL]
+    Busy: Output[BOOL]
+    Error: Output[BOOL]
+    ErrorID: Output[DWORD]
+    Value: Output[LREAL]
+
+
+class MC_ReadBoolParameter(LibraryFB, vendor="beckhoff", library="Tc2_MC2"):
+    """Read a boolean NC axis parameter by number.
+
+    Level-triggered: Enable=TRUE starts continuous reading of the
+    boolean parameter identified by ParameterNumber. Valid=TRUE
+    indicates the Value output is current. ReadMode selects one-shot
+    (0) or cyclic (1) reading.
+    """
+
+    Axis: InOut[AXIS_REF]
+    Enable: Input[BOOL]
+    ParameterNumber: Input[UDINT]
+    ReadMode: Input[DINT]
+
+    Valid: Output[BOOL]
+    Busy: Output[BOOL]
+    Error: Output[BOOL]
+    ErrorID: Output[UDINT]
+    Value: Output[BOOL]
+
+
+class MC_ReadParameterSet(LibraryFB, vendor="beckhoff", library="Tc2_MC2"):
+    """Read the full NC axis parameter set.
+
+    Edge-triggered: rising edge on Execute reads all axis parameters.
+    Done=TRUE indicates the parameter set has been successfully read
+    and is available in the axis data.
+    """
+
+    Axis: InOut[AXIS_REF]
+    Execute: Input[BOOL]
+
+    Done: Output[BOOL]
+    Busy: Output[BOOL]
+    Error: Output[BOOL]
+    ErrorID: Output[UDINT]
+
+
+class MC_WriteParameter(LibraryFB, vendor="beckhoff", library="Tc2_MC2"):
+    """Write a single NC axis parameter by number.
+
+    Rising edge on Execute writes Value to the parameter identified
+    by ParameterNumber. Done=TRUE confirms the write completed
+    successfully. The change is volatile — lost on power cycle.
+    Use MC_WriteParameterPersistent for non-volatile writes.
+    """
+
+    Axis: InOut[AXIS_REF]
+    Execute: Input[BOOL]
+    ParameterNumber: Input[UDINT]
+    Value: Input[LREAL]
+
+    Done: Output[BOOL]
+    Busy: Output[BOOL]
+    Error: Output[BOOL]
+    ErrorID: Output[UDINT]
+
+
+class MC_WriteBoolParameter(LibraryFB, vendor="beckhoff", library="Tc2_MC2"):
+    """Write a boolean NC axis parameter by number.
+
+    Rising edge on Execute writes Value to the boolean parameter
+    identified by ParameterNumber. Done=TRUE confirms the write
+    completed successfully. The change is volatile — lost on
+    power cycle. Use MC_WriteBoolParameterPersistent for
+    non-volatile writes.
+    """
+
+    Axis: InOut[AXIS_REF]
+    Execute: Input[BOOL]
+    ParameterNumber: Input[UDINT]
+    Value: Input[BOOL]
+
+    Done: Output[BOOL]
+    Busy: Output[BOOL]
+    Error: Output[BOOL]
+    ErrorID: Output[UDINT]
+
+
+class MC_WriteParameterPersistent(LibraryFB, vendor="beckhoff", library="Tc2_MC2"):
+    """Write a single NC axis parameter and persist it across power cycles.
+
+    Same interface as MC_WriteParameter but the value is saved to
+    non-volatile storage. Rising edge on Execute writes Value to
+    the parameter identified by ParameterNumber. Done=TRUE confirms
+    the write and persistence completed successfully.
+    """
+
+    Axis: InOut[AXIS_REF]
+    Execute: Input[BOOL]
+    ParameterNumber: Input[UDINT]
+    Value: Input[LREAL]
+
+    Done: Output[BOOL]
+    Busy: Output[BOOL]
+    Error: Output[BOOL]
+    ErrorID: Output[UDINT]
+
+
+class MC_WriteBoolParameterPersistent(LibraryFB, vendor="beckhoff", library="Tc2_MC2"):
+    """Write a boolean NC axis parameter and persist it across power cycles.
+
+    Same interface as MC_WriteBoolParameter but the value is saved to
+    non-volatile storage. Rising edge on Execute writes Value to the
+    boolean parameter identified by ParameterNumber. Done=TRUE confirms
+    the write and persistence completed successfully.
+    """
+
+    Axis: InOut[AXIS_REF]
+    Execute: Input[BOOL]
+    ParameterNumber: Input[UDINT]
+    Value: Input[BOOL]
+
+    Done: Output[BOOL]
+    Busy: Output[BOOL]
     Error: Output[BOOL]
     ErrorID: Output[UDINT]
