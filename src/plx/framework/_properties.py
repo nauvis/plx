@@ -250,6 +250,19 @@ def _rename_in_node(node: IRModel, old: str, new: str) -> IRModel:
             new_list = [_rename_in_node(v, old, new) for v in val]
             if any(a is not b for a, b in zip(new_list, val)):
                 updates[field_name] = new_list
+        elif isinstance(val, dict):
+            new_dict = {}
+            changed = False
+            for k, v in val.items():
+                if isinstance(v, IRModel):
+                    renamed = _rename_in_node(v, old, new)
+                    new_dict[k] = renamed
+                    if renamed is not v:
+                        changed = True
+                else:
+                    new_dict[k] = v
+            if changed:
+                updates[field_name] = new_dict
     return node.model_copy(update=updates) if updates else node
 
 

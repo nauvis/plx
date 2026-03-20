@@ -305,7 +305,7 @@ class _StatementMixin:
         if loop_var not in self.ctx.declared_vars:
             self.ctx.declared_vars[loop_var] = VarDirection.TEMP
             self.ctx.generated_temp_vars.append(
-                Variable(name=loop_var, data_type=PrimitiveTypeRef(type=PrimitiveType.INT))
+                Variable(name=loop_var, data_type=PrimitiveTypeRef(type=PrimitiveType.DINT))
             )
 
         body = self._compile_body_list(node.body)
@@ -490,10 +490,13 @@ class _StatementMixin:
             return FunctionCallStatement(function_name=mapped, args=args)
 
         if isinstance(func, ast.Attribute):
-            # member function call as statement — compile as MemberAccess call
-            name = func.attr
+            # member function call as statement — include receiver as first arg
+            struct = self.compile_expression(func.value)
             args = self._compile_call_args(call_node)
-            return FunctionCallStatement(function_name=name, args=args)
+            return FunctionCallStatement(
+                function_name=func.attr,
+                args=[CallArg(value=struct)] + args,
+            )
 
         return None
 

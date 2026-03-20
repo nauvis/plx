@@ -84,7 +84,10 @@ def _expr_children(expr: Expression) -> list[Expression]:
     if isinstance(expr, MemberAccessExpr):
         return [expr.struct]
     if isinstance(expr, BitAccessExpr):
-        return [expr.target]
+        children = [expr.target]
+        if not isinstance(expr.bit_index, int):
+            children.append(expr.bit_index)
+        return children
     if isinstance(expr, TypeConversionExpr):
         return [expr.source]
     if isinstance(expr, DerefExpr):
