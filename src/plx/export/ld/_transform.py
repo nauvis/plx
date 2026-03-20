@@ -120,8 +120,11 @@ class _LDTransformer:
     def transform(self, networks: list[Network]) -> LDNetwork:
         rungs: list[Rung] = []
         for net in networks:
-            for stmt in net.statements:
+            for i, stmt in enumerate(net.statements):
                 rung = self._transform_statement(stmt)
+                # Propagate network comment to the first rung of each network
+                if i == 0 and net.comment:
+                    rung = rung.model_copy(update={"comment": net.comment})
                 rungs.append(rung)
         return LDNetwork(rungs=rungs)
 

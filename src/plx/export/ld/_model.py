@@ -119,6 +119,7 @@ Parallel.model_rebuild()
 
 class Rung(BaseModel):
     """A single ladder rung: optional input circuit driving output elements."""
+    comment: str | None = None
     input_circuit: LDElement | None = None
     outputs: list[LDElement] = []
 
