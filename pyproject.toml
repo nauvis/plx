@@ -27,7 +27,7 @@ Homepage = "https://github.com/macleapatrick/plx"
 Repository = "https://github.com/macleapatrick/plx"
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0", "hypothesis>=6.0"]
+dev = ["pytest>=7.0", "hypothesis>=6.0", "pytest-asyncio>=0.21"]
 runtime = ["asyncua>=1.0", "watchfiles>=0.20"]
 
 [project.scripts]
@@ -39,6 +39,7 @@ packages = ["src/plx"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+asyncio_mode = "strict"
 markers = [
     "fuzz: property-based fuzz tests (may be slow)",
 ]
