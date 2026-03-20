@@ -17,19 +17,32 @@ from plx.model.project import Project
 
 from ._results import AnalysisResult, Finding, Severity
 from ._rules import (
+    ConstantOutOfRangeRule,
+    CrossTaskWriteRule,
+    CyclomaticComplexityRule,
     DeadSfcStepRule,
+    DivisionByZeroRule,
     EmptyBodyRule,
     ForCounterWriteRule,
+    IgnoredFBOutputRule,
+    IncompleteCaseEnumRule,
+    MaxNestingDepthRule,
     MissingCaseElseRule,
     MultipleOutputWriteRule,
+    NarrowingConversionRule,
     RealEqualityRule,
+    RecursiveCallRule,
     SfcMultipleInitialStepsRule,
     SfcNoInitialStepRule,
     TempFBInstanceRule,
     UnguardedOutputRule,
+    UnreachableCodeRule,
     UnusedInputRule,
     UnusedOutputRule,
+    UnusedPOURule,
     UnusedVariableRule,
+    UseBeforeDefRule,
+    VariableShadowRule,
     WriteToInputRule,
 )
 from ._types import TypeEnvironment
@@ -40,20 +53,36 @@ ALL_RULES: list[type[AnalysisVisitor]] = [
     UnguardedOutputRule,
     MultipleOutputWriteRule,
     WriteToInputRule,
+    DivisionByZeroRule,
     # Correctness
     RealEqualityRule,
     MissingCaseElseRule,
     ForCounterWriteRule,
     TempFBInstanceRule,
+    NarrowingConversionRule,
+    ConstantOutOfRangeRule,
+    IncompleteCaseEnumRule,
+    # Complexity
+    CyclomaticComplexityRule,
+    MaxNestingDepthRule,
     # Style / Unused
     UnusedVariableRule,
     UnusedInputRule,
     UnusedOutputRule,
     EmptyBodyRule,
+    VariableShadowRule,
     # SFC
     DeadSfcStepRule,
     SfcNoInitialStepRule,
     SfcMultipleInitialStepsRule,
+    # Project-level
+    RecursiveCallRule,
+    CrossTaskWriteRule,
+    UnusedPOURule,
+    # Data flow
+    UnreachableCodeRule,
+    IgnoredFBOutputRule,
+    UseBeforeDefRule,
 ]
 
 

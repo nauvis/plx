@@ -143,3 +143,97 @@ def _infer_literal_type(value: str) -> TypeRef | None:
             return PrimitiveTypeRef(type=ptype)
     # Plain numeric — conservatively return None
     return None
+
+
+# ---------------------------------------------------------------------------
+# Type width / range utilities for narrowing & range checks
+# ---------------------------------------------------------------------------
+
+# Numeric type bit widths (used for narrowing detection)
+_NUMERIC_WIDTH: dict[PrimitiveType, int] = {
+    PrimitiveType.SINT: 8, PrimitiveType.INT: 16,
+    PrimitiveType.DINT: 32, PrimitiveType.LINT: 64,
+    PrimitiveType.USINT: 8, PrimitiveType.UINT: 16,
+    PrimitiveType.UDINT: 32, PrimitiveType.ULINT: 64,
+    PrimitiveType.BYTE: 8, PrimitiveType.WORD: 16,
+    PrimitiveType.DWORD: 32, PrimitiveType.LWORD: 64,
+    PrimitiveType.REAL: 32, PrimitiveType.LREAL: 64,
+}
+
+_SIGNED_INTEGERS = frozenset({
+    PrimitiveType.SINT, PrimitiveType.INT,
+    PrimitiveType.DINT, PrimitiveType.LINT,
+})
+
+_UNSIGNED_INTEGERS = frozenset({
+    PrimitiveType.USINT, PrimitiveType.UINT,
+    PrimitiveType.UDINT, PrimitiveType.ULINT,
+    PrimitiveType.BYTE, PrimitiveType.WORD,
+    PrimitiveType.DWORD, PrimitiveType.LWORD,
+})
+
+_FLOATS = frozenset({PrimitiveType.REAL, PrimitiveType.LREAL})
+
+# Valid integer ranges for constant-out-of-range checks
+_INTEGER_RANGE: dict[PrimitiveType, tuple[int, int]] = {
+    PrimitiveType.SINT: (-128, 127),
+    PrimitiveType.INT: (-32_768, 32_767),
+    PrimitiveType.DINT: (-2_147_483_648, 2_147_483_647),
+    PrimitiveType.LINT: (-9_223_372_036_854_775_808, 9_223_372_036_854_775_807),
+    PrimitiveType.USINT: (0, 255),
+    PrimitiveType.UINT: (0, 65_535),
+    PrimitiveType.UDINT: (0, 4_294_967_295),
+    PrimitiveType.ULINT: (0, 18_446_744_073_709_551_615),
+    PrimitiveType.BYTE: (0, 255),
+    PrimitiveType.WORD: (0, 65_535),
+    PrimitiveType.DWORD: (0, 4_294_967_295),
+    PrimitiveType.LWORD: (0, 18_446_744_073_709_551_615),
+}
+
+
+def is_narrowing(source: PrimitiveType, target: PrimitiveType) -> bool:
+    """Return True if assigning *source* to *target* loses information."""
+    s_width = _NUMERIC_WIDTH.get(source)
+    t_width = _NUMERIC_WIDTH.get(target)
+    if s_width is None or t_width is None:
+        return False
+
+    # Float → integer is always narrowing
+    if source in _FLOATS and target not in _FLOATS:
+        return True
+    # Integer → float can lose precision for large integers
+    if source not in _FLOATS and target in _FLOATS:
+        if s_width > t_width:
+            return True
+    # Same family: wider → narrower
+    if s_width > t_width:
+        return True
+    # Signed → unsigned of same width (loses negative range)
+    if source in _SIGNED_INTEGERS and target in _UNSIGNED_INTEGERS and s_width == t_width:
+        return True
+    return False
+
+
+def parse_integer_literal(value: str) -> int | None:
+    """Parse an IEC literal string to an integer, or None."""
+    s = value.strip()
+    # Strip type prefix: DINT#42 → 42
+    if "#" in s:
+        parts = s.split("#", 1)
+        # Could be 16#FF (hex) or DINT#42 (typed)
+        prefix = parts[0].upper()
+        body = parts[1]
+        if prefix in ("2", "8", "16"):
+            base = int(prefix)
+            body = body.replace("_", "")
+            try:
+                return int(body, base)
+            except ValueError:
+                return None
+        # Typed prefix: DINT#-42
+        s = body
+    s = s.replace("_", "")
+    try:
+        return int(s)
+    except ValueError:
+        return None
