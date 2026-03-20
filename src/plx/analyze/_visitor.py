@@ -166,11 +166,29 @@ class AnalysisVisitor:
     def _make_property_context(
         pou: POU, prop: Property, accessor_name: str,
     ) -> AnalysisContext:
+        from ._types import TypeEnvironment
+        from plx.model.pou import POUInterface
+        from plx.model.variables import Variable
+
+        # Build a minimal interface for type resolution
+        accessor = prop.getter if accessor_name == "getter" else prop.setter
+        type_env = None
+        if accessor is not None:
+            iface = POUInterface(temp_vars=list(accessor.local_vars))
+            # Setter has an implicit VAR_INPUT with the property's type
+            if accessor_name == "setter":
+                iface = POUInterface(
+                    input_vars=[Variable(name=prop.name, data_type=prop.data_type)],
+                    temp_vars=list(accessor.local_vars),
+                )
+            type_env = TypeEnvironment(iface)
+
         return AnalysisContext(
             pou=pou,
             pou_name=f"{pou.name}.{prop.name}.{accessor_name}",
             output_names=set(),
             input_names=set(),
+            type_env=type_env,
         )
 
     # ------------------------------------------------------------------

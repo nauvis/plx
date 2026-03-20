@@ -839,7 +839,7 @@ class MC_ReadParameter(LibraryFB, vendor="beckhoff", library="Tc2_MC2"):
     Valid: Output[BOOL]
     Busy: Output[BOOL]
     Error: Output[BOOL]
-    ErrorID: Output[DWORD]
+    ErrorID: Output[UDINT]
     Value: Output[LREAL]
 
 

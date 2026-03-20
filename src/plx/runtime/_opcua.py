@@ -204,13 +204,11 @@ class OPCUAServer:
         for path, node in self._nodes.items():
             try:
                 value = self._engine.read_variable(path)
-                # Convert bool to Python bool for OPC-UA
-                if isinstance(value, (int, float)) and not isinstance(value, bool):
-                    await node.write_value(value)
-                else:
-                    await node.write_value(value)
-            except (KeyError, Exception):
+                await node.write_value(value)
+            except KeyError:
                 pass  # Variable may have been removed during reload
+            except Exception:
+                logger.debug("OPC-UA sync error for %s", path, exc_info=True)
 
     async def _write_monitor_loop(self) -> None:
         """Periodically check for OPC-UA client writes and push to engine."""
@@ -223,8 +221,10 @@ class OPCUAServer:
                         engine_value = self._engine.read_variable(path)
                         if opcua_value != engine_value:
                             self._engine.write_variable(path, opcua_value)
-                    except (KeyError, Exception):
+                    except KeyError:
                         pass
+                    except Exception:
+                        logger.debug("OPC-UA write monitor error for %s", path, exc_info=True)
         except asyncio.CancelledError:
             pass
 

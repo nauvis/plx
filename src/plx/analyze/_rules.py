@@ -5,10 +5,14 @@ from __future__ import annotations
 from collections import defaultdict
 
 from plx.model.expressions import (
+    ArrayAccessExpr,
     BinaryExpr,
     BinaryOp,
     Expression,
+    FunctionCallExpr,
     MemberAccessExpr,
+    TypeConversionExpr,
+    UnaryExpr,
     VariableRef,
 )
 from plx.model.pou import POU, POUType
@@ -494,8 +498,21 @@ class DivisionByZeroRule(AnalysisVisitor):
             return
         from plx.model.expressions import LiteralExpr
         if isinstance(expr.right, LiteralExpr):
+            is_zero = False
             val = parse_integer_literal(expr.right.value)
             if val == 0:
+                is_zero = True
+            else:
+                # Check float zero (e.g. "0.0", "REAL#0.0")
+                raw = expr.right.value
+                if "#" in raw:
+                    raw = raw.split("#", 1)[1]
+                try:
+                    if float(raw) == 0.0:
+                        is_zero = True
+                except ValueError:
+                    pass
+            if is_zero:
                 op_name = "Division" if expr.op == BinaryOp.DIV else "Modulo"
                 ctx.findings.append(Finding(
                     rule_id="division-by-zero",
@@ -834,7 +851,7 @@ class CrossTaskWriteRule(AnalysisVisitor):
         for task in project.tasks:
             task_pous[task.name] = set(task.assigned_pous)
 
-        # Collect writes per POU
+        # Collect writes per POU — exclude definitely-local variables
         pou_writes: dict[str, set[str]] = {}
         for pou in project.pous:
             ctx = self._make_context(pou)
@@ -842,7 +859,16 @@ class CrossTaskWriteRule(AnalysisVisitor):
             for action in pou.actions:
                 for network in action.body:
                     self._visit_network(ctx, network)
-            pou_writes[pou.name] = set(ctx.writes.keys())
+            # Local/temp/static/constant/inout vars can't cause cross-task races
+            iface = pou.interface
+            local_names = (
+                {v.name for v in iface.input_vars}
+                | {v.name for v in iface.static_vars}
+                | {v.name for v in iface.temp_vars}
+                | {v.name for v in iface.constant_vars}
+                | {v.name for v in iface.inout_vars}
+            )
+            pou_writes[pou.name] = set(ctx.writes.keys()) - local_names
 
         # Check for cross-task writes
         findings: list[Finding] = []
@@ -1219,5 +1245,16 @@ class UseBeforeDefRule(AnalysisVisitor):
         elif isinstance(expr, BinaryExpr):
             self._scan_reads(expr.left, temps, written, flagged)
             self._scan_reads(expr.right, temps, written, flagged)
+        elif isinstance(expr, UnaryExpr):
+            self._scan_reads(expr.operand, temps, written, flagged)
+        elif isinstance(expr, FunctionCallExpr):
+            for arg in expr.args:
+                self._scan_reads(arg.value, temps, written, flagged)
+        elif isinstance(expr, ArrayAccessExpr):
+            self._scan_reads(expr.array, temps, written, flagged)
+            for idx in expr.indices:
+                self._scan_reads(idx, temps, written, flagged)
+        elif isinstance(expr, TypeConversionExpr):
+            self._scan_reads(expr.source, temps, written, flagged)
         elif isinstance(expr, MemberAccessExpr):
             self._scan_reads(expr.struct, temps, written, flagged)

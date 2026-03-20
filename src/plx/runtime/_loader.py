@@ -107,7 +107,7 @@ def _load_json(filepath: Path) -> Project:
     return Project.model_validate_json(text)
 
 
-def reload_project(path: str, source_path: Path) -> Project:
+def reload_project(path: str) -> Project:
     """Reload a project, clearing cached modules for the package.
 
     Used by the hot-reload watcher.

@@ -490,15 +490,37 @@ class _StatementMixin:
             return FunctionCallStatement(function_name=mapped, args=args)
 
         if isinstance(func, ast.Attribute):
-            # member function call as statement — include receiver as first arg
-            struct = self.compile_expression(func.value)
+            # member function call as statement — use dotted name (receiver.method)
+            receiver_name = self._dotted_name(func.value)
             args = self._compile_call_args(call_node)
+            if receiver_name:
+                fn_name = f"{receiver_name}.{func.attr}"
+            else:
+                fn_name = func.attr
             return FunctionCallStatement(
-                function_name=func.attr,
-                args=[CallArg(value=struct)] + args,
+                function_name=fn_name,
+                args=args,
             )
 
         return None
+
+    @staticmethod
+    def _dotted_name(node: ast.expr) -> str:
+        """Convert an AST expression to a dotted name string.
+
+        ``self.fb`` → ``"fb"``, ``self.fb.sub`` → ``"fb.sub"``,
+        ``obj`` → ``"obj"``.
+        """
+        parts: list[str] = []
+        current: ast.expr = node
+        while isinstance(current, ast.Attribute):
+            parts.append(current.attr)
+            current = current.value
+        if isinstance(current, ast.Name):
+            if current.id != "self":
+                parts.append(current.id)
+        parts.reverse()
+        return ".".join(parts)
 
     @staticmethod
     def _is_super_logic_call(node: ast.expr) -> bool:

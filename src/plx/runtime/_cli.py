@@ -164,7 +164,7 @@ async def _run(
     # Reload callback for file watcher
     async def on_reload(path: str) -> None:
         try:
-            new_ir = reload_project(path, source_path)
+            new_ir = reload_project(path)
             engine.reload(new_ir)
             if opcua_server is not None:
                 await opcua_server.rebuild_address_space()
