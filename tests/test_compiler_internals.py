@@ -221,9 +221,10 @@ class TestDiscoverEnums:
         # Inject the enum into the function's globals
         logic.__globals__["Direction"] = Direction
         try:
-            result = _discover_enums(logic)
+            result, plx_names = _discover_enums(logic)
             assert "Direction" in result
             assert result["Direction"] == {"LEFT": 0, "RIGHT": 1}
+            assert "Direction" in plx_names
         finally:
             del logic.__globals__["Direction"]
 
@@ -240,26 +241,29 @@ class TestDiscoverEnums:
 
         logic.__globals__["Priority"] = Priority
         try:
-            result = _discover_enums(logic)
+            result, plx_names = _discover_enums(logic)
             assert "Priority" in result
             assert result["Priority"]["LOW"] == 0
             assert result["Priority"]["HIGH"] == 1
+            assert "Priority" not in plx_names  # IntEnum, not @enumeration
         finally:
             del logic.__globals__["Priority"]
 
     def test_no_globals_attribute(self):
-        """Object without __globals__ returns empty dict."""
-        result = _discover_enums(42)
+        """Object without __globals__ returns empty tuple."""
+        result, plx_names = _discover_enums(42)
         assert result == {}
+        assert plx_names == set()
 
     def test_empty_globals(self):
         """Function with no enums in globals returns empty."""
         def bare_func():
             pass
 
-        result = _discover_enums(bare_func)
+        result, plx_names = _discover_enums(bare_func)
         # May find module-level enums, but at minimum should not crash
         assert isinstance(result, dict)
+        assert isinstance(plx_names, set)
 
 
 # ---------------------------------------------------------------------------

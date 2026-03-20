@@ -449,9 +449,9 @@ class TestEnumInLogic:
         pou = StateMachine.compile()
         stmt = pou.networks[0].statements[0]
         assert isinstance(stmt, CaseStatement)
-        assert stmt.branches[0].values == [0]  # Phase.IDLE
-        assert stmt.branches[1].values == [1]  # Phase.RUNNING
-        assert stmt.branches[2].values == [2]  # Phase.DONE
+        assert stmt.branches[0].values == ["Phase#IDLE"]
+        assert stmt.branches[1].values == ["Phase#RUNNING"]
+        assert stmt.branches[2].values == ["Phase#DONE"]
 
     def test_enum_match_case_or(self):
         @enumeration
@@ -475,7 +475,7 @@ class TestEnumInLogic:
         pou = Handler.compile()
         stmt = pou.networks[0].statements[0]
         assert isinstance(stmt, CaseStatement)
-        assert stmt.branches[0].values == [1, 2]  # WARN | ERROR
+        assert stmt.branches[0].values == ["Status#WARN", "Status#ERROR"]
 
     def test_unknown_enum_member_error(self):
         @enumeration

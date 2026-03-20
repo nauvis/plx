@@ -356,12 +356,12 @@ class _StatementMixin:
         ))
         return pending
 
-    def _extract_case_values(self, pattern: ast.pattern, node: ast.stmt) -> list[int]:
-        """Extract integer values from a match case pattern."""
+    def _extract_case_values(self, pattern: ast.pattern, node: ast.stmt) -> list[int | str]:
+        """Extract integer or enum literal values from a match case pattern."""
         if isinstance(pattern, ast.MatchValue):
-            return [self._pattern_to_int(pattern.value, node)]
+            return [self._pattern_to_case_value(pattern.value, node)]
         if isinstance(pattern, ast.MatchOr):
-            values: list[int] = []
+            values: list[int | str] = []
             for p in pattern.patterns:
                 values.extend(self._extract_case_values(p, node))
             return values
@@ -371,8 +371,13 @@ class _StatementMixin:
             node, self.ctx,
         )
 
-    def _pattern_to_int(self, value_node: ast.expr, node: ast.stmt) -> int:
-        """Convert a pattern value node to an integer."""
+    def _pattern_to_case_value(self, value_node: ast.expr, node: ast.stmt) -> int | str:
+        """Convert a pattern value node to an integer or enum literal string.
+
+        Enum members are preserved as ``"EnumName#MEMBER"`` strings (IEC 61131-3
+        typed literal syntax) so the ST exporter emits readable case arms.
+        Plain integers are returned as ``int``.
+        """
         if isinstance(value_node, ast.Constant) and isinstance(value_node.value, int):
             return value_node.value
         # Negative constants: UnaryOp(USub, Constant)
@@ -381,7 +386,7 @@ class _StatementMixin:
                 and isinstance(value_node.operand, ast.Constant)
                 and isinstance(value_node.operand.value, int)):
             return -value_node.operand.value
-        # Enum-style: SomeEnum.MEMBER → resolve to integer value
+        # Enum-style: SomeEnum.MEMBER
         if isinstance(value_node, ast.Attribute) and isinstance(value_node.value, ast.Name):
             enum_name = value_node.value.id
             if enum_name in self.ctx.known_enums:
@@ -392,6 +397,10 @@ class _StatementMixin:
                         f"'{member_name}' is not a member of enum '{enum_name}'",
                         node, self.ctx,
                     )
+                # plx @enumeration → preserve as "EnumName#MEMBER" (IEC typed literal)
+                # Plain IntEnum → resolve to raw integer value
+                if enum_name in self.ctx.plx_enum_names:
+                    return f"{enum_name}#{member_name}"
                 return members[member_name]
             raise CompileError(
                 f"Unknown enum type '{enum_name}'",

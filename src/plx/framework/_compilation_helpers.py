@@ -136,7 +136,7 @@ def _build_compile_context(
     source_file:
         Path to the source file.
     """
-    known_enums = _discover_enums(enum_source)
+    known_enums, plx_enum_names = _discover_enums(enum_source)
     known_constants = _discover_constants(enum_source)
     return CompileContext(
         declared_vars=declared_vars,
@@ -145,6 +145,7 @@ def _build_compile_context(
         source_line_offset=start_lineno - 1,
         source_file=source_file,
         known_enums=known_enums,
+        plx_enum_names=plx_enum_names,
         known_constants=known_constants,
     )
 
@@ -153,15 +154,23 @@ def _build_compile_context(
 # Enum discovery
 # ---------------------------------------------------------------------------
 
-def _discover_enums(func: Any) -> dict[str, dict[str, int]]:
-    """Discover @enumeration types visible to *func* (globals + closure)."""
+def _discover_enums(func: Any) -> tuple[dict[str, dict[str, int]], set[str]]:
+    """Discover @enumeration types visible to *func* (globals + closure).
+
+    Returns ``(known_enums, plx_enum_names)`` where *plx_enum_names*
+    contains the names of ``@enumeration``-decorated types (which compile
+    to IEC 61131-3 enum types) as opposed to plain Python ``IntEnum``
+    subclasses (which are just integer constants).
+    """
     known: dict[str, dict[str, int]] = {}
+    plx_names: set[str] = set()
     # Module-level globals (guard for objects without __globals__, e.g. builtins)
     if not hasattr(func, '__globals__'):
-        return known
+        return known, plx_names
     for name, obj in func.__globals__.items():
         if isinstance(obj, CompiledEnum):
             known[name] = obj._enum_values
+            plx_names.add(name)
         elif isinstance(obj, type) and issubclass(obj, IntEnum) and obj is not IntEnum:
             known[name] = {m.name: m.value for m in obj}
     # Closure variables (locally-scoped enums)
@@ -178,9 +187,10 @@ def _discover_enums(func: Any) -> dict[str, dict[str, int]]:
                 continue
             if isinstance(obj, CompiledEnum):
                 known[name] = obj._enum_values
+                plx_names.add(name)
             elif isinstance(obj, type) and issubclass(obj, IntEnum) and obj is not IntEnum:
                 known[name] = {m.name: m.value for m in obj}
-    return known
+    return known, plx_names
 
 
 # ---------------------------------------------------------------------------
