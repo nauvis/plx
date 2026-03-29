@@ -481,3 +481,84 @@ class TestPythonTypeConversions:
 
                 def logic(self):
                     self.y = str(self.x)
+
+
+# ---------------------------------------------------------------------------
+# R1: int() applied to an enum literal must raise CompileError
+# ---------------------------------------------------------------------------
+
+class TestIntEnumCast:
+    """int(EnumClass.MEMBER) must be rejected at compile time (R1).
+
+    INT(EnumName#MEMBER) is not valid TwinCAT XAE structured-text syntax.
+    """
+
+    def test_int_of_enum_member_raises_error(self):
+        """int(BoxType.METAL) should raise CompileError, not compile silently."""
+        from plx.framework._compiler_core import CompileError
+        from plx.framework._data_types import enumeration
+        from plx.framework._decorators import fb
+        from plx.framework._descriptors import Input, Output
+        from plx.framework._types import BOOL, INT
+
+        @enumeration
+        class BoxType:
+            METAL = 1
+            BLUE = 2
+            OTHER = 3
+
+        with pytest.raises(CompileError, match="invalid structured-text syntax"):
+            @fb
+            class Sorter:
+                inp_type: Input[INT]
+                p1_trigger: Output[BOOL]
+
+                def logic(self):
+                    self.p1_trigger = self.inp_type == int(BoxType.METAL)
+
+    def test_error_message_guides_user(self):
+        """The error message should name the enum and member and give remediation."""
+        from plx.framework._compiler_core import CompileError
+        from plx.framework._data_types import enumeration
+        from plx.framework._decorators import fb
+        from plx.framework._descriptors import Input, Output
+        from plx.framework._types import BOOL, INT
+
+        @enumeration
+        class Color:
+            RED = 0
+            GREEN = 1
+
+        with pytest.raises(CompileError) as exc_info:
+            @fb
+            class UseColor:
+                x: Input[INT]
+                y: Output[BOOL]
+
+                def logic(self):
+                    self.y = self.x == int(Color.GREEN)
+
+        msg = str(exc_info.value)
+        assert "Color.GREEN" in msg
+        assert "Color#GREEN" in msg
+
+    def test_int_of_plain_variable_still_works(self):
+        """int(self.x) on a non-enum variable must continue to compile."""
+        from plx.framework._decorators import fb
+        from plx.framework._descriptors import Input, Output
+        from plx.framework._types import DINT, INT
+        from plx.model.expressions import TypeConversionExpr
+        from plx.model.statements import Assignment
+
+        @fb
+        class IntCast:
+            x: Input[DINT]
+            y: Output[INT]
+
+            def logic(self):
+                self.y = int(self.x)
+
+        pou = IntCast.compile()
+        stmt = pou.networks[0].statements[0]
+        assert isinstance(stmt, Assignment)
+        assert isinstance(stmt.value, TypeConversionExpr)

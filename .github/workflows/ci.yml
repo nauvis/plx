@@ -89,6 +89,6 @@ jobs:
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.VENDOR_CI_TOKEN }}
-          repository: macleapatrick/plx-vendor
+          repository: nauvis/plx-vendor
           event-type: public-repo-check
           client-payload: '{"ref": "${{ github.head_ref }}", "pr": "${{ github.event.number }}"}'

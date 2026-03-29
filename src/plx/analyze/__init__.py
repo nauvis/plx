@@ -25,6 +25,7 @@ from ._rules import (
     DeadSfcStepRule,
     DivisionByZeroRule,
     EmptyBodyRule,
+    EnumCastRule,
     ForCounterWriteRule,
     IgnoredFBOutputRule,
     IncompleteCaseEnumRule,
@@ -63,6 +64,7 @@ ALL_RULES: list[type[AnalysisVisitor]] = [
     TempFBInstanceRule,
     NarrowingConversionRule,
     ConstantOutOfRangeRule,
+    EnumCastRule,
     IncompleteCaseEnumRule,
     # Complexity
     CyclomaticComplexityRule,
