@@ -11,6 +11,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  version-check:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check version was bumped
+        run: |
+          PR_VERSION=$(cat VERSION)
+          MAIN_VERSION=$(git show origin/main:VERSION 2>/dev/null || echo "0.0.0")
+
+          if [ "$PR_VERSION" = "$MAIN_VERSION" ]; then
+            echo "::error::VERSION was not bumped. Current: $MAIN_VERSION"
+            echo ""
+            echo "Before merging, bump the version in VERSION and update CHANGELOG.md."
+            echo "  main version: $MAIN_VERSION"
+            echo "  PR version:   $PR_VERSION"
+            exit 1
+          fi
+
+          echo "Version bump detected: $MAIN_VERSION -> $PR_VERSION"
+
   test:
     runs-on: ubuntu-latest
     strategy:
@@ -53,6 +77,8 @@ jobs:
           restore-keys: hypothesis-
       - run: pip install -e ".[dev]"
       - run: pytest tests/ -m fuzz -v
+        env:
+          HYPOTHESIS_PROFILE: ci
 
   vendor-check:
     runs-on: ubuntu-latest
