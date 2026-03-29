@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.1] - 2026-03-29
+
+### Fixed
+- Raise compile error for erroneous `int()` cast on enum literals in Beckhoff export (#1)
+
 ## [0.2.0] - 2026-03-29
 
 ### Added
