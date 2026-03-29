@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "plx-controls"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Universal PLC programming framework for Allen Bradley, Siemens, and Beckhoff"
 readme = "README.md"
 license = "Apache-2.0"
@@ -32,6 +32,11 @@ runtime = ["asyncua>=1.0", "watchfiles>=0.20"]
 
 [project.scripts]
 plx = "plx.runtime._cli:main"
+
+[tool.hatch.version]
+source = "regex"
+path = "VERSION"
+pattern = "(?P<version>.+)"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/plx"]
