@@ -376,6 +376,24 @@ class _ExpressionMixin:
         if name in _PYTHON_TYPE_CONV_MAP:
             if len(node.args) != 1 or node.keywords:
                 raise CompileError(f"{name}() takes exactly 1 argument", node, self.ctx)
+            arg = node.args[0]
+            # R1: int(EnumName.MEMBER) emits INT(EnumName#MEMBER) which is invalid
+            # structured-text syntax in TwinCAT XAE and other IEC 61131-3 IDEs.
+            if (
+                name == "int"
+                and isinstance(arg, ast.Attribute)
+                and isinstance(arg.value, ast.Name)
+                and arg.value.id in self.ctx.known_enums
+            ):
+                enum_name = arg.value.id
+                member_name = arg.attr
+                raise CompileError(
+                    f"int({enum_name}.{member_name}) emits INT({enum_name}#{member_name}), "
+                    f"which is invalid structured-text syntax. "
+                    f"Declare the variable as {enum_name} and compare to "
+                    f"{enum_name}.{member_name} directly, or compare against the raw integer value.",
+                    node, self.ctx,
+                )
             source = self.compile_expression(node.args[0])
             return TypeConversionExpr(target_type=_PYTHON_TYPE_CONV_MAP[name], source=source)
 

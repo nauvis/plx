@@ -18,6 +18,7 @@ from plx.analyze._rules import (
     DeadSfcStepRule,
     DivisionByZeroRule,
     EmptyBodyRule,
+    EnumCastRule,
     ForCounterWriteRule,
     IgnoredFBOutputRule,
     IncompleteCaseEnumRule,
@@ -2668,3 +2669,68 @@ class TestPerformance:
         assert isinstance(result, AnalysisResult)
         assert result.pou_count == 100
         assert elapsed < 1.0, f"Took {elapsed:.2f}s — should be under 1s"
+
+
+# ---------------------------------------------------------------------------
+# EnumCastRule — R2: flag TypeConversionExpr(primitive, enum literal)
+# ---------------------------------------------------------------------------
+
+_INT_TYPE_REF = PrimitiveTypeRef(type=PrimitiveType.INT)
+
+
+class TestEnumCastRule:
+    """EnumCastRule detects INT(EnumName#MEMBER) patterns in the IR."""
+
+    def _pou_with_expr(self, expr):
+        """Build a POU whose single network assigns *expr* to an INT var."""
+        return POU(
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
+            interface=POUInterface(
+                static_vars=[Variable(name="x", data_type=_INT_TYPE_REF)],
+            ),
+            networks=[Network(statements=[
+                Assignment(target=VariableRef(name="x"), value=expr),
+            ])],
+        )
+
+    def test_no_finding_for_plain_variable_cast(self):
+        """INT(some_var) is valid ST and must not be flagged."""
+        pou = self._pou_with_expr(
+            TypeConversionExpr(
+                target_type=_INT_TYPE_REF,
+                source=VariableRef(name="y"),
+            )
+        )
+        assert EnumCastRule().analyze_pou(pou) == []
+
+    def test_no_finding_for_numeric_literal_cast(self):
+        """INT(42) is valid ST and must not be flagged."""
+        pou = self._pou_with_expr(
+            TypeConversionExpr(
+                target_type=_INT_TYPE_REF,
+                source=LiteralExpr(value="42"),
+            )
+        )
+        assert EnumCastRule().analyze_pou(pou) == []
+
+    def test_finding_for_enum_literal_cast(self):
+        """INT(BoxType#METAL) is invalid ST — must produce an ERROR finding."""
+        pou = self._pou_with_expr(
+            TypeConversionExpr(
+                target_type=_INT_TYPE_REF,
+                source=LiteralExpr(
+                    value="BoxType#METAL",
+                    data_type=NamedTypeRef(name="BoxType"),
+                ),
+            )
+        )
+        findings = EnumCastRule().analyze_pou(pou)
+        assert len(findings) == 1
+        assert findings[0].rule_id == "enum-cast-to-int"
+        assert findings[0].severity == Severity.ERROR
+        assert "BoxType#METAL" in findings[0].message
+
+    def test_finding_in_all_rules(self):
+        """EnumCastRule is included in ALL_RULES."""
+        assert EnumCastRule in ALL_RULES

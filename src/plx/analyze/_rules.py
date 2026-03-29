@@ -485,6 +485,40 @@ class ConstantOutOfRangeRule(AnalysisVisitor):
             ))
 
 
+class EnumCastRule(AnalysisVisitor):
+    """Flag explicit type-conversion of an enum literal to a primitive type.
+
+    ``INT(BoxType#METAL)`` is not valid structured-text syntax in TwinCAT XAE
+    and other IEC 61131-3 IDEs.  Declare the variable as the enum type and
+    compare directly, or use a raw integer value.
+
+    rule_id: ``"enum-cast-to-int"``
+    """
+
+    def on_expression(self, ctx: AnalysisContext, expr: Expression) -> None:
+        if not isinstance(expr, TypeConversionExpr):
+            return
+        from plx.model.expressions import LiteralExpr
+        if not isinstance(expr.source, LiteralExpr):
+            return
+        if not isinstance(expr.source.data_type, NamedTypeRef):
+            return
+        # Enum literals use the "EnumName#MEMBER" format
+        if "#" not in expr.source.value:
+            return
+        ctx.findings.append(Finding(
+            rule_id="enum-cast-to-int",
+            severity=Severity.ERROR,
+            pou_name=ctx.pou_name,
+            message=(
+                f"Type cast of enum literal {expr.source.value!r} generates invalid "
+                f"structured-text syntax. Declare the variable as the enum type and "
+                f"compare directly, or use a raw integer value."
+            ),
+            location=self._location(ctx),
+        ))
+
+
 class DivisionByZeroRule(AnalysisVisitor):
     """Flag division or modulo where the divisor is a literal zero.
 
