@@ -51,7 +51,7 @@ class TestExpressionRoundtrip:
     """Expression trees survive JSON serialization."""
 
     @given(expr=expressions(max_depth=4))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_json_roundtrip(self, expr):
         """Serialize to JSON and back — result must equal original."""
         # Wrap in a statement to use the discriminated union
@@ -62,7 +62,7 @@ class TestExpressionRoundtrip:
         assert restored == stmt
 
     @given(expr=expressions(max_depth=4))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_dict_roundtrip(self, expr):
         """Serialize to dict and back — result must equal original."""
         from plx.model import Assignment, VariableRef
@@ -72,7 +72,7 @@ class TestExpressionRoundtrip:
         assert restored == stmt
 
     @given(expr=expressions(max_depth=5))
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_deep_expressions_construct(self, expr):
         """Deeply nested expressions don't crash Pydantic."""
         assert expr.kind is not None
@@ -85,7 +85,7 @@ class TestExpressionRoundtrip:
 class TestTypeRefRoundtrip:
 
     @given(tr=type_refs(max_depth=3))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_json_roundtrip(self, tr):
         """TypeRef survives JSON roundtrip via Variable wrapper."""
         var = Variable(name="x", data_type=tr)
@@ -94,7 +94,6 @@ class TestTypeRefRoundtrip:
         assert restored == var
 
     @given(tr=all_primitive_type_refs())
-    @settings(max_examples=50)
     def test_all_primitives(self, tr):
         """Every primitive type can be used in a Variable."""
         var = Variable(name="test_var", data_type=tr)
@@ -108,7 +107,7 @@ class TestTypeRefRoundtrip:
 class TestTypeDefinitionRoundtrip:
 
     @given(td=type_definitions())
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_json_roundtrip(self, td):
         data = td.model_dump()
         # Use Project as wrapper for discriminated union deserialization
@@ -118,14 +117,14 @@ class TestTypeDefinitionRoundtrip:
         assert restored.data_types[0] == td
 
     @given(st=struct_types())
-    @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_struct_members_unique(self, st):
         """Generated structs always have unique member names."""
         names = [m.name for m in st.members]
         assert len(names) == len(set(names))
 
     @given(et=enum_types())
-    @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_enum_members_unique(self, et):
         """Generated enums always have unique member names."""
         names = [m.name for m in et.members]
@@ -139,7 +138,7 @@ class TestTypeDefinitionRoundtrip:
 class TestStatementRoundtrip:
 
     @given(stmt=statements(max_depth=3))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_json_roundtrip(self, stmt):
         """Statement trees survive JSON serialization."""
         # Wrap in Network → POU for discriminated union context
@@ -153,7 +152,7 @@ class TestStatementRoundtrip:
         assert restored.networks[0].statements[0] == stmt
 
     @given(stmts=statement_lists(min_size=1, max_size=8, max_depth=3))
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_statement_list_roundtrip(self, stmts):
         """Lists of statements survive roundtrip."""
         pou = POU(
@@ -173,14 +172,13 @@ class TestStatementRoundtrip:
 class TestVariableRoundtrip:
 
     @given(var=variables())
-    @settings(max_examples=100)
     def test_json_roundtrip(self, var):
         json_str = var.model_dump_json()
         restored = Variable.model_validate_json(json_str)
         assert restored == var
 
     @given(vl=variable_lists(min_size=1, max_size=8))
-    @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_variable_list_unique_names(self, vl):
         """Generated variable lists always have unique names."""
         names = [v.name for v in vl]
@@ -194,14 +192,14 @@ class TestVariableRoundtrip:
 class TestPOUInterfaceRoundtrip:
 
     @given(iface=pou_interfaces())
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_json_roundtrip(self, iface):
         json_str = iface.model_dump_json()
         restored = POUInterface.model_validate_json(json_str)
         assert restored == iface
 
     @given(iface=pou_interfaces())
-    @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_no_duplicate_var_names(self, iface):
         """All variable names across all sections are unique."""
         all_names = (
@@ -222,14 +220,14 @@ class TestPOUInterfaceRoundtrip:
 class TestPOURoundtrip:
 
     @given(pou=pous(max_networks=3, max_depth=2))
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_json_roundtrip(self, pou):
         json_str = pou.model_dump_json()
         restored = POU.model_validate_json(json_str)
         assert restored == pou
 
     @given(pou=pous(max_networks=2, max_depth=3))
-    @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_dict_roundtrip(self, pou):
         data = pou.model_dump()
         restored = POU.model_validate(data)
@@ -243,7 +241,7 @@ class TestPOURoundtrip:
 class TestProjectRoundtrip:
 
     @given(proj=projects(max_pous=3, max_depth=2))
-    @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_json_roundtrip(self, proj):
         """Full projects survive JSON serialization."""
         json_str = proj.model_dump_json()
@@ -251,21 +249,21 @@ class TestProjectRoundtrip:
         assert restored == proj
 
     @given(proj=projects(max_pous=4, max_depth=2))
-    @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_dict_roundtrip(self, proj):
         data = proj.model_dump()
         restored = Project.model_validate(data)
         assert restored == proj
 
     @given(proj=projects(max_pous=3))
-    @settings(max_examples=30, suppress_health_check=[HealthCheck.too_slow])
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_unique_pou_names(self, proj):
         """Generated projects always have unique POU names."""
         names = [p.name for p in proj.pous]
         assert len(names) == len(set(names))
 
     @given(proj=projects(max_pous=3))
-    @settings(max_examples=30, suppress_health_check=[HealthCheck.too_slow])
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_unique_type_names(self, proj):
         """Generated projects always have unique type names."""
         names = [t.name for t in proj.data_types]
@@ -279,7 +277,7 @@ class TestProjectRoundtrip:
 class TestGVLRoundtrip:
 
     @given(gvl=global_variable_lists())
-    @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_json_roundtrip(self, gvl):
         json_str = gvl.model_dump_json()
         restored = GlobalVariableList.model_validate_json(json_str)

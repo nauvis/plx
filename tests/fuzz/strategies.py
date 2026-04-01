@@ -50,6 +50,7 @@ from plx.model import (
     BitAccessExpr,
     TypeConversionExpr,
     DerefExpr,
+    SubstringExpr,
     SystemFlag,
     SystemFlagExpr,
     # Statements
@@ -69,14 +70,30 @@ from plx.model import (
     FBInvocation,
     EmptyStatement,
     PragmaStatement,
+    TryCatchStatement,
+    JumpStatement,
+    LabelStatement,
+    # SFC
+    ActionQualifier,
+    Action,
+    Step,
+    SFCTransition,
+    SFCBody,
     # POU
     POUType,
+    AccessSpecifier,
     Network,
     POUInterface,
+    POUAction,
+    Method,
+    Property,
+    PropertyAccessor,
     POU,
     # Task
     PeriodicTask,
     ContinuousTask,
+    EventTask,
+    StartupTask,
     # Project
     GlobalVariableList,
     Project,
@@ -303,6 +320,27 @@ def variables(draw: st.DrawFn, name: str | None = None) -> Variable:
 
 
 @st.composite
+def rich_variables(draw: st.DrawFn, name: str | None = None) -> Variable:
+    """Generate a Variable with full field coverage."""
+    vname = name or draw(identifiers(min_size=2))
+    dtype = draw(type_refs(max_depth=1))
+    initial_value = draw(st.one_of(
+        st.none(),
+        st.sampled_from(["0", "1", "TRUE", "FALSE", "0.0"]),
+    ))
+    description = draw(st.one_of(st.just(""), st.text(min_size=1, max_size=30)))
+    constant = draw(st.just(False))  # constant + retain is unusual, keep simple
+    retain = draw(st.booleans())
+    persistent = draw(st.booleans())
+    edge = draw(st.sampled_from(["", "rising", "falling"]))
+    return Variable(
+        name=vname, data_type=dtype, initial_value=initial_value,
+        description=description, constant=constant, retain=retain,
+        persistent=persistent, edge=edge,
+    )
+
+
+@st.composite
 def variable_lists(draw: st.DrawFn, min_size: int = 0, max_size: int = 5) -> list[Variable]:
     """Generate a list of Variables with unique names."""
     n = draw(st.integers(min_value=min_size, max_value=max_size))
@@ -352,11 +390,11 @@ def expressions(
     draw: st.DrawFn,
     max_depth: int = 3,
     var_pool: list[str] | None = None,
-) -> LiteralExpr | VariableRef | BinaryExpr | UnaryExpr | FunctionCallExpr | MemberAccessExpr | ArrayAccessExpr | BitAccessExpr | TypeConversionExpr | DerefExpr | SystemFlagExpr:
+) -> LiteralExpr | VariableRef | BinaryExpr | UnaryExpr | FunctionCallExpr | MemberAccessExpr | ArrayAccessExpr | BitAccessExpr | TypeConversionExpr | DerefExpr | SubstringExpr | SystemFlagExpr:
     """Generate a random Expression tree with bounded depth.
 
-    When *var_pool* is provided, VariableRef nodes draw from it
-    (useful for generating semantically coherent programs).
+    Covers all 12 Expression union members. When *var_pool* is provided,
+    VariableRef nodes draw from it (semantically coherent programs).
     """
     leaves = st.one_of(
         literal_exprs(),
@@ -369,7 +407,7 @@ def expressions(
 
     child = expressions(max_depth=max_depth - 1, var_pool=var_pool)
 
-    choice = draw(st.integers(min_value=0, max_value=8))
+    choice = draw(st.integers(min_value=0, max_value=11))
 
     if choice <= 2:
         # Leaf (weighted higher to keep trees small)
@@ -407,17 +445,51 @@ def expressions(
             target_type=draw(primitive_type_refs()),
             source=draw(child),
         )
-    else:
+    elif choice == 8:
         # Bit access
         return BitAccessExpr(
             target=draw(child),
             bit_index=draw(st.integers(min_value=0, max_value=31)),
         )
+    elif choice == 9:
+        # Array access
+        n_indices = draw(st.integers(min_value=1, max_value=3))
+        return ArrayAccessExpr(
+            array=draw(child),
+            indices=[draw(child) for _ in range(n_indices)],
+        )
+    elif choice == 10:
+        # Deref
+        return DerefExpr(pointer=draw(child))
+    else:
+        # Substring
+        string_expr = draw(child)
+        single_char = draw(st.booleans())
+        if single_char:
+            return SubstringExpr(
+                string=string_expr,
+                start=draw(child),
+                single_char=True,
+            )
+        else:
+            start = draw(st.one_of(st.none(), child))
+            end = draw(st.one_of(st.none(), child))
+            return SubstringExpr(string=string_expr, start=start, end=end)
 
 
 # ---------------------------------------------------------------------------
 # Statements (recursive, depth-bounded)
 # ---------------------------------------------------------------------------
+
+def _optional_comment(draw: st.DrawFn) -> str:
+    """Draw an optional comment string (empty most of the time)."""
+    return draw(st.one_of(
+        st.just(""),
+        st.just(""),
+        st.just(""),
+        st.text(min_size=1, max_size=40, alphabet="abcdefghijklmnopqrstuvwxyz 0123456789"),
+    ))
+
 
 @st.composite
 def assignments(
@@ -427,7 +499,15 @@ def assignments(
 ) -> Assignment:
     target = draw(variable_ref_exprs(var_pool))
     value = draw(expressions(max_depth=max_depth, var_pool=var_pool))
-    return Assignment(target=target, value=value)
+    return Assignment(target=target, value=value, comment=_optional_comment(draw))
+
+
+@st.composite
+def case_ranges(draw: st.DrawFn) -> CaseRange:
+    """Generate a valid CaseRange with start <= end."""
+    start = draw(st.integers(min_value=0, max_value=50))
+    end = draw(st.integers(min_value=start, max_value=start + 50))
+    return CaseRange(start=start, end=end)
 
 
 @st.composite
@@ -435,11 +515,11 @@ def statements(
     draw: st.DrawFn,
     max_depth: int = 2,
     var_pool: list[str] | None = None,
-) -> Assignment | IfStatement | CaseStatement | ForStatement | WhileStatement | RepeatStatement | ExitStatement | ContinueStatement | ReturnStatement | FunctionCallStatement | FBInvocation | EmptyStatement:
+) -> Assignment | IfStatement | CaseStatement | ForStatement | WhileStatement | RepeatStatement | ExitStatement | ContinueStatement | ReturnStatement | FunctionCallStatement | FBInvocation | EmptyStatement | PragmaStatement | TryCatchStatement | JumpStatement | LabelStatement:
     """Generate a random Statement tree with bounded depth.
 
-    Compound statements (IF, FOR, WHILE, CASE) recurse into their
-    bodies with decremented depth.
+    Covers all 16 Statement union members. Compound statements (IF, FOR,
+    WHILE, CASE, TRY) recurse into their bodies with decremented depth.
     """
     expr = expressions(max_depth=min(max_depth, 2), var_pool=var_pool)
     child_stmts = st.lists(
@@ -450,31 +530,41 @@ def statements(
 
     if max_depth <= 0:
         # Only leaf statements at depth 0
-        choice = draw(st.integers(min_value=0, max_value=3))
+        choice = draw(st.integers(min_value=0, max_value=6))
     else:
-        choice = draw(st.integers(min_value=0, max_value=10))
+        choice = draw(st.integers(min_value=0, max_value=14))
 
-    # Leaf statements (weighted higher)
+    # Leaf statements
     if choice <= 1:
         return draw(assignments(max_depth=max_depth, var_pool=var_pool))
     elif choice == 2:
-        return EmptyStatement()
+        return EmptyStatement(comment=_optional_comment(draw))
     elif choice == 3:
         return ReturnStatement()
+    elif choice == 4:
+        return JumpStatement(label=draw(identifiers()))
+    elif choice == 5:
+        return LabelStatement(name=draw(identifiers()))
+    elif choice == 6:
+        return PragmaStatement(text=draw(st.text(min_size=1, max_size=30, alphabet="abcdefghijklmnopqrstuvwxyz_0123456789 ")))
 
     # Compound statements
-    elif choice == 4:
-        # IF
+    elif choice == 7:
+        # IF with optional ELSIF branches
         body = draw(child_stmts)
-        else_body = draw(st.one_of(
-            st.just([]),
-            child_stmts,
-        ))
+        n_elsif = draw(st.integers(min_value=0, max_value=2))
+        elsif_branches = [
+            IfBranch(condition=draw(expr), body=draw(child_stmts))
+            for _ in range(n_elsif)
+        ]
+        else_body = draw(st.one_of(st.just([]), child_stmts))
         return IfStatement(
             if_branch=IfBranch(condition=draw(expr), body=body),
+            elsif_branches=elsif_branches,
             else_body=else_body,
+            comment=_optional_comment(draw),
         )
-    elif choice == 5:
+    elif choice == 8:
         # FOR
         loop_var = draw(identifiers())
         return ForStatement(
@@ -482,21 +572,24 @@ def statements(
             from_expr=LiteralExpr(value=str(draw(st.integers(min_value=0, max_value=5)))),
             to_expr=LiteralExpr(value=str(draw(st.integers(min_value=5, max_value=20)))),
             body=draw(child_stmts),
+            comment=_optional_comment(draw),
         )
-    elif choice == 6:
+    elif choice == 9:
         # WHILE
         return WhileStatement(
             condition=draw(expr),
             body=draw(child_stmts),
+            comment=_optional_comment(draw),
         )
-    elif choice == 7:
+    elif choice == 10:
         # REPEAT
         return RepeatStatement(
             body=draw(child_stmts),
             until=draw(expr),
+            comment=_optional_comment(draw),
         )
-    elif choice == 8:
-        # CASE
+    elif choice == 11:
+        # CASE with optional ranges
         selector = draw(expr)
         n_branches = draw(st.integers(min_value=1, max_value=4))
         branches = []
@@ -506,14 +599,20 @@ def statements(
                 lambda v: v not in used_values
             ))
             used_values.add(val)
+            ranges = draw(st.lists(case_ranges(), min_size=0, max_size=1))
             branches.append(
                 CaseBranch(
                     values=[val],
+                    ranges=ranges,
                     body=draw(child_stmts),
                 )
             )
-        return CaseStatement(selector=selector, branches=branches)
-    elif choice == 9:
+        else_body = draw(st.one_of(st.just([]), child_stmts))
+        return CaseStatement(
+            selector=selector, branches=branches, else_body=else_body,
+            comment=_optional_comment(draw),
+        )
+    elif choice == 12:
         # Function call statement
         n_args = draw(st.integers(min_value=0, max_value=3))
         args = [CallArg(value=draw(expr)) for _ in range(n_args)]
@@ -521,7 +620,7 @@ def statements(
             function_name=draw(st.sampled_from(["ABS", "SQRT", "CONCAT"])),
             args=args,
         )
-    else:
+    elif choice == 13:
         # FB invocation
         fb_type = draw(st.sampled_from(_FB_TYPES))
         inst_name = draw(identifiers(min_size=2))
@@ -529,6 +628,19 @@ def statements(
             instance_name=inst_name,
             fb_type=NamedTypeRef(name=fb_type),
             inputs={"IN": draw(expr)},
+            comment=_optional_comment(draw),
+        )
+    else:
+        # TryCatch
+        try_body = draw(child_stmts)
+        catch_var = draw(st.one_of(st.none(), identifiers()))
+        catch_body = draw(st.one_of(st.just([]), child_stmts))
+        finally_body = draw(st.one_of(st.just([]), child_stmts))
+        return TryCatchStatement(
+            try_body=try_body,
+            catch_var=catch_var,
+            catch_body=catch_body,
+            finally_body=finally_body,
         )
 
 
@@ -546,6 +658,80 @@ def statement_lists(
 
 
 # ---------------------------------------------------------------------------
+# SFC (Sequential Function Chart)
+# ---------------------------------------------------------------------------
+
+@st.composite
+def sfc_actions(draw: st.DrawFn, name: str | None = None, max_depth: int = 1, var_pool: list[str] | None = None) -> Action:
+    """Generate an SFC Action with inline body."""
+    action_name = name or draw(identifiers(min_size=2))
+    qualifier = draw(st.sampled_from(list(ActionQualifier)))
+    duration = None
+    if qualifier in (ActionQualifier.L, ActionQualifier.D, ActionQualifier.SD, ActionQualifier.DS, ActionQualifier.SL):
+        duration = draw(st.sampled_from(["T#1s", "T#5s", "T#100ms"]))
+    body = draw(statement_lists(min_size=0, max_size=2, max_depth=max_depth, var_pool=var_pool))
+    return Action(name=action_name, qualifier=qualifier, duration=duration, body=body)
+
+
+@st.composite
+def sfc_bodies(draw: st.DrawFn, max_depth: int = 1, var_pool: list[str] | None = None) -> SFCBody:
+    """Generate a valid SFCBody with 2-5 steps in a linear chain."""
+    n_steps = draw(st.integers(min_value=2, max_value=5))
+    # Need unique names for steps + all actions across all steps
+    n_action_names = n_steps * 3  # up to 3 actions per step (body, entry, exit)
+    all_names = draw(_unique_identifiers(n_steps + n_action_names))
+    step_names = all_names[:n_steps]
+    action_name_pool = all_names[n_steps:]
+    action_idx = 0
+
+    steps = []
+    for i, sname in enumerate(step_names):
+        step_actions = []
+        if draw(st.booleans()):
+            step_actions = [draw(sfc_actions(
+                name=action_name_pool[action_idx],
+                max_depth=max_depth, var_pool=var_pool,
+            ))]
+            action_idx += 1
+
+        entry = []
+        if draw(st.booleans()):
+            entry = [draw(sfc_actions(
+                name=action_name_pool[action_idx],
+                max_depth=max_depth, var_pool=var_pool,
+            ))]
+            action_idx += 1
+
+        exit_ = []
+        if draw(st.booleans()):
+            exit_ = [draw(sfc_actions(
+                name=action_name_pool[action_idx],
+                max_depth=max_depth, var_pool=var_pool,
+            ))]
+            action_idx += 1
+
+        steps.append(Step(
+            name=sname,
+            is_initial=(i == 0),
+            actions=step_actions,
+            entry_actions=entry,
+            exit_actions=exit_,
+        ))
+
+    # Linear chain: S0 → S1 → S2 → ... → S0
+    transitions = []
+    for i in range(n_steps):
+        src = step_names[i]
+        tgt = step_names[(i + 1) % n_steps]
+        cond = draw(expressions(max_depth=1, var_pool=var_pool))
+        transitions.append(SFCTransition(
+            source_steps=[src], target_steps=[tgt], condition=cond,
+        ))
+
+    return SFCBody(steps=steps, transitions=transitions)
+
+
+# ---------------------------------------------------------------------------
 # Networks, POUInterface, POU
 # ---------------------------------------------------------------------------
 
@@ -557,7 +743,9 @@ def networks(
     var_pool: list[str] | None = None,
 ) -> Network:
     stmts = draw(statement_lists(min_size=1, max_size=max_stmts, max_depth=max_depth, var_pool=var_pool))
-    return Network(statements=stmts)
+    label = draw(st.one_of(st.none(), identifiers()))
+    comment = draw(st.one_of(st.none(), st.just(""), st.text(min_size=1, max_size=40, alphabet="abcdefghijklmnopqrstuvwxyz 0123456789")))
+    return Network(statements=stmts, label=label, comment=comment)
 
 
 @st.composite
@@ -613,6 +801,101 @@ def pous(draw: st.DrawFn, max_networks: int = 3, max_depth: int = 2) -> POU:
     )
 
 
+@st.composite
+def methods(draw: st.DrawFn, max_depth: int = 1, var_pool: list[str] | None = None) -> Method:
+    """Generate a Method with its own interface and body."""
+    name = draw(identifiers(min_size=2))
+    access = draw(st.sampled_from(list(AccessSpecifier)))
+    return_type = draw(st.one_of(st.none(), primitive_type_refs()))
+    iface = draw(pou_interfaces())
+    method_vars = (
+        [v.name for v in iface.input_vars]
+        + [v.name for v in iface.output_vars]
+        + [v.name for v in iface.static_vars]
+    )
+    nets = [draw(networks(max_stmts=3, max_depth=max_depth, var_pool=method_vars or var_pool))]
+    return Method(
+        name=name, access=access, return_type=return_type,
+        interface=iface, networks=nets,
+    )
+
+
+@st.composite
+def properties(draw: st.DrawFn, max_depth: int = 1, var_pool: list[str] | None = None) -> Property:
+    """Generate a Property with optional getter/setter."""
+    name = draw(identifiers(min_size=2))
+    data_type = draw(primitive_type_refs())
+    access = draw(st.sampled_from(list(AccessSpecifier)))
+    getter = None
+    setter = None
+    if draw(st.booleans()):
+        getter = PropertyAccessor(
+            networks=[draw(networks(max_stmts=2, max_depth=max_depth, var_pool=var_pool))],
+        )
+    if draw(st.booleans()):
+        setter = PropertyAccessor(
+            networks=[draw(networks(max_stmts=2, max_depth=max_depth, var_pool=var_pool))],
+        )
+    return Property(name=name, data_type=data_type, access=access, getter=getter, setter=setter)
+
+
+@st.composite
+def pou_actions(draw: st.DrawFn, max_depth: int = 1, var_pool: list[str] | None = None) -> POUAction:
+    """Generate a named POU action."""
+    name = draw(identifiers(min_size=2))
+    body = [draw(networks(max_stmts=3, max_depth=max_depth, var_pool=var_pool))]
+    return POUAction(name=name, body=body)
+
+
+@st.composite
+def rich_pous(draw: st.DrawFn, max_networks: int = 3, max_depth: int = 2) -> POU:
+    """Generate POUs with methods, properties, actions, and optionally SFC body."""
+    pou_type = draw(st.sampled_from([POUType.FUNCTION_BLOCK, POUType.PROGRAM]))
+    name = draw(identifiers(min_size=3, max_size=15))
+    iface = draw(pou_interfaces())
+    var_pool = (
+        [v.name for v in iface.input_vars]
+        + [v.name for v in iface.output_vars]
+        + [v.name for v in iface.static_vars]
+    )
+
+    use_sfc = draw(st.booleans())
+
+    if use_sfc:
+        sfc = draw(sfc_bodies(max_depth=1, var_pool=var_pool))
+        nets = []
+    else:
+        sfc = None
+        n_nets = draw(st.integers(min_value=1, max_value=max_networks))
+        nets = [draw(networks(max_stmts=4, max_depth=max_depth, var_pool=var_pool)) for _ in range(n_nets)]
+
+    # OOP: methods, properties, actions — all names must be unique
+    n_methods = draw(st.integers(min_value=0, max_value=2)) if pou_type == POUType.FUNCTION_BLOCK else 0
+    n_props = draw(st.integers(min_value=0, max_value=2)) if pou_type == POUType.FUNCTION_BLOCK else 0
+    n_actions = draw(st.integers(min_value=0, max_value=2))
+    total_oop = n_methods + n_props + n_actions
+    oop_names = draw(_unique_identifiers(total_oop)) if total_oop > 0 else []
+
+    method_list = [
+        draw(methods(max_depth=1, var_pool=var_pool)).model_copy(update={"name": oop_names[i]})
+        for i in range(n_methods)
+    ]
+    prop_list = [
+        draw(properties(max_depth=1, var_pool=var_pool)).model_copy(update={"name": oop_names[n_methods + i]})
+        for i in range(n_props)
+    ]
+    action_list = [
+        draw(pou_actions(max_depth=1, var_pool=var_pool)).model_copy(update={"name": oop_names[n_methods + n_props + i]})
+        for i in range(n_actions)
+    ]
+
+    return POU(
+        pou_type=pou_type, name=name, interface=iface,
+        networks=nets, sfc_body=sfc,
+        methods=method_list, properties=prop_list, actions=action_list,
+    )
+
+
 # ---------------------------------------------------------------------------
 # GlobalVariableList
 # ---------------------------------------------------------------------------
@@ -637,6 +920,15 @@ def tasks() -> st.SearchStrategy:
         ),
         st.builds(
             ContinuousTask,
+            name=identifiers(min_size=3),
+        ),
+        st.builds(
+            EventTask,
+            name=identifiers(min_size=3),
+            trigger_variable=identifiers(min_size=2),
+        ),
+        st.builds(
+            StartupTask,
             name=identifiers(min_size=3),
         ),
     )
@@ -688,6 +980,49 @@ def projects(draw: st.DrawFn, max_pous: int = 4, max_depth: int = 2) -> Project:
         interval="T#10ms",
         assigned_pous=[pou_list[0].name] if pou_list else [],
     )
+
+    return Project(
+        name=proj_name,
+        pous=pou_list,
+        data_types=type_list,
+        global_variable_lists=gvl_list,
+        tasks=[task],
+    )
+
+
+@st.composite
+def rich_projects(draw: st.DrawFn, max_pous: int = 3, max_depth: int = 2) -> Project:
+    """Generate a Project using rich_pous (with methods, properties, SFC)."""
+    n_pous = draw(st.integers(min_value=1, max_value=max_pous))
+    n_types = draw(st.integers(min_value=0, max_value=2))
+    n_gvls = draw(st.integers(min_value=0, max_value=2))
+
+    total_names = 1 + n_pous + n_types + n_gvls + 1
+    all_names = draw(_unique_identifiers(total_names))
+    idx = 0
+
+    proj_name = all_names[idx]; idx += 1
+
+    pou_list = []
+    for i in range(n_pous):
+        p = draw(rich_pous(max_networks=2, max_depth=max_depth))
+        pou_list.append(p.model_copy(update={"name": all_names[idx]}))
+        idx += 1
+
+    type_list = []
+    for i in range(n_types):
+        td = draw(type_definitions())
+        type_list.append(td.model_copy(update={"name": all_names[idx]}))
+        idx += 1
+
+    gvl_list = []
+    for i in range(n_gvls):
+        gvl = draw(global_variable_lists())
+        gvl_list.append(gvl.model_copy(update={"name": all_names[idx]}))
+        idx += 1
+
+    task_name = all_names[idx]
+    task = draw(tasks()).model_copy(update={"name": task_name})
 
     return Project(
         name=proj_name,
