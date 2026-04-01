@@ -19,6 +19,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Check branch is rebased on main
+        run: |
+          if ! git merge-base --is-ancestor origin/main HEAD; then
+            echo "::error::Branch is not rebased on the latest main. Please rebase before merging."
+            exit 1
+          fi
+          echo "Branch is up to date with main."
+
       - name: Check version was bumped
         run: |
           PR_VERSION=$(cat VERSION)
