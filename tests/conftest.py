@@ -4,6 +4,29 @@ import ast
 import textwrap
 
 import pytest
+from hypothesis import HealthCheck, settings
+
+# ---------------------------------------------------------------------------
+# Hypothesis profiles — selected via HYPOTHESIS_PROFILE env var
+# ---------------------------------------------------------------------------
+# default: fast local dev (what's in each test's @settings)
+# ci: moderate bump for push-to-main fuzz job (~5x default)
+# nightly: aggressive exploration for overnight runs (~10x default)
+settings.register_profile("default", max_examples=100)
+settings.register_profile(
+    "ci",
+    max_examples=500,
+    suppress_health_check=[HealthCheck.too_slow],
+)
+settings.register_profile(
+    "nightly",
+    max_examples=2000,
+    suppress_health_check=[HealthCheck.too_slow],
+    deadline=None,
+)
+import os
+_profile = os.environ.get("HYPOTHESIS_PROFILE", "default")
+settings.load_profile(_profile)
 
 from plx.framework._compiler import ASTCompiler, CompileContext
 from plx.framework._registry import _snapshot_registries, _restore_registries

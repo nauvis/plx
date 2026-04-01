@@ -28,3 +28,5 @@ jobs:
           restore-keys: hypothesis-nightly-
       - run: pip install -e ".[dev]"
       - run: pytest tests/ -m fuzz -v
+        env:
+          HYPOTHESIS_PROFILE: nightly
