@@ -91,4 +91,4 @@ jobs:
           token: ${{ secrets.VENDOR_CI_TOKEN }}
           repository: nauvis/plx-vendor
           event-type: public-repo-check
-          client-payload: '{"ref": "${{ github.head_ref }}", "pr": "${{ github.event.number }}"}'
+          client-payload: '{"ref": "${{ github.head_ref }}", "sha": "${{ github.event.pull_request.head.sha }}", "pr": "${{ github.event.number }}"}'
