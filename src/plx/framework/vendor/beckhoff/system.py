@@ -37,10 +37,10 @@ from plx.framework._descriptors import Input, Output
 from plx.framework._library import LibraryFB, LibraryStruct
 from plx.framework._types import BOOL, DWORD, INT, TIME, UDINT, WORD
 
-
 # ---------------------------------------------------------------------------
 # Data types
 # ---------------------------------------------------------------------------
+
 
 class T_AmsNetId(LibraryStruct, vendor="beckhoff", library="Tc2_System"):
     """AMS Net ID string (e.g., '172.16.2.131.1.1').
@@ -48,7 +48,7 @@ class T_AmsNetId(LibraryStruct, vendor="beckhoff", library="Tc2_System"):
     Shallow stub — the real type is STRING(23).
     """
 
-    pass  # STRING(23) alias — fields populated on demand
+    # STRING(23) alias — fields populated on demand
 
 
 class ST_AmsAddr(LibraryStruct, vendor="beckhoff", library="Tc2_System"):
@@ -64,6 +64,7 @@ class ST_AmsAddr(LibraryStruct, vendor="beckhoff", library="Tc2_System"):
 # ---------------------------------------------------------------------------
 # ADS communication
 # ---------------------------------------------------------------------------
+
 
 class ADSREAD(LibraryFB, vendor="beckhoff", library="Tc2_System"):
     """Read data from an ADS device.
@@ -145,6 +146,7 @@ class ADSRDSTATE(LibraryFB, vendor="beckhoff", library="Tc2_System"):
 # ---------------------------------------------------------------------------
 # File I/O
 # ---------------------------------------------------------------------------
+
 
 class FB_FileOpen(LibraryFB, vendor="beckhoff", library="Tc2_System"):
     """Open or create a file on the TwinCAT target.
@@ -268,11 +270,10 @@ class FB_FilePuts(LibraryFB, vendor="beckhoff", library="Tc2_System"):
 # System
 # ---------------------------------------------------------------------------
 
+
 class FB_IecCriticalSection(LibraryFB, vendor="beckhoff", library="Tc2_System"):
     """Mutual exclusion for critical sections.
 
     In user code, call the Enter() and Leave() methods to protect
     shared data. This stub has no I/O parameters.
     """
-
-    pass

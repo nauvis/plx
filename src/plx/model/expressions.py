@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated, Literal, Self, Union
 
 from pydantic import Field, model_validator
 
 from ._base import IRModel
-
 from .types import TypeRef
 
 
-class SystemFlag(str, Enum):
+class SystemFlag(StrEnum):
     """PLC system-level flags accessible in logic."""
 
     FIRST_SCAN = "first_scan"
@@ -35,7 +34,7 @@ class SystemFlagExpr(IRModel):
     flag: SystemFlag
 
 
-class BinaryOp(str, Enum):
+class BinaryOp(StrEnum):
     """Binary operators for arithmetic, logic, comparison, and bit manipulation."""
 
     ADD = "ADD"
@@ -47,7 +46,7 @@ class BinaryOp(str, Enum):
     OR = "OR"
     XOR = "XOR"
     BAND = "BAND"  # Bitwise AND (from Python &)
-    BOR = "BOR"    # Bitwise OR (from Python |)
+    BOR = "BOR"  # Bitwise OR (from Python |)
     EQ = "EQ"
     NE = "NE"
     GT = "GT"
@@ -60,10 +59,10 @@ class BinaryOp(str, Enum):
     ROR = "ROR"
     EXPT = "EXPT"
     AND_THEN = "AND_THEN"  # Short-circuit AND (Beckhoff ExST extension)
-    OR_ELSE = "OR_ELSE"    # Short-circuit OR (Beckhoff ExST extension)
+    OR_ELSE = "OR_ELSE"  # Short-circuit OR (Beckhoff ExST extension)
 
 
-class UnaryOp(str, Enum):
+class UnaryOp(StrEnum):
     """Unary operators: negation, logical NOT, bitwise complement."""
 
     NEG = "NEG"
@@ -139,7 +138,7 @@ class ArrayAccessExpr(IRModel):
     indices: list[Expression]
 
     @model_validator(mode="after")
-    def _non_empty_indices(self) -> "ArrayAccessExpr":
+    def _non_empty_indices(self) -> ArrayAccessExpr:
         if not self.indices:
             raise ValueError("ArrayAccessExpr must have at least one index")
         return self

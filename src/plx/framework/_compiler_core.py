@@ -33,10 +33,10 @@ from plx.model.variables import Variable
 from ._descriptors import VarDirection
 from ._errors import PlxError
 
-
 # ---------------------------------------------------------------------------
 # CompileError
 # ---------------------------------------------------------------------------
+
 
 class CompileError(PlxError):
     """Error during AST compilation with source location."""
@@ -45,7 +45,7 @@ class CompileError(PlxError):
         self,
         message: str,
         node: ast.AST | None = None,
-        ctx: "CompileContext | None" = None,
+        ctx: CompileContext | None = None,
         source_file: str | None = None,
         pou_name: str | None = None,
     ):
@@ -74,6 +74,7 @@ class CompileError(PlxError):
 # ---------------------------------------------------------------------------
 # CompileContext
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class CompileContext:
@@ -138,11 +139,9 @@ _BINOP_MAP: dict[type, BinaryOp] = {
     ast.Pow: BinaryOp.EXPT,
 }
 
-_REJECTED_BINOP_MESSAGES: dict[type, str] = {
-}
+_REJECTED_BINOP_MESSAGES: dict[type, str] = {}
 
-_REJECTED_AUGOP_MESSAGES: dict[type, str] = {
-}
+_REJECTED_AUGOP_MESSAGES: dict[type, str] = {}
 
 _CMPOP_MAP: dict[type, BinaryOp] = {
     ast.Eq: BinaryOp.EQ,
@@ -182,17 +181,49 @@ _BIT_ACCESSIBLE_WIDTHS: dict[PrimitiveType, int] = {
     PrimitiveType.ULINT: 64,
 }
 
-_BUILTIN_FUNCS = frozenset({
-    "ABS", "SQRT", "LN", "LOG", "EXP", "SIN", "COS", "TAN",
-    "ASIN", "ACOS", "ATAN",
-    "CEIL", "FLOOR",
-    "MIN", "MAX", "LIMIT", "SEL", "MUX",
-    "SHL", "SHR", "ROL", "ROR",
-    "TRUNC", "ROUND",
-    "LEN", "LEFT", "RIGHT", "MID", "FIND", "REPLACE", "INSERT", "DELETE",
-    "AND", "OR", "XOR", "NOT",
-    "ADR", "ADRINST", "SIZEOF",
-})
+_BUILTIN_FUNCS = frozenset(
+    {
+        "ABS",
+        "SQRT",
+        "LN",
+        "LOG",
+        "EXP",
+        "SIN",
+        "COS",
+        "TAN",
+        "ASIN",
+        "ACOS",
+        "ATAN",
+        "CEIL",
+        "FLOOR",
+        "MIN",
+        "MAX",
+        "LIMIT",
+        "SEL",
+        "MUX",
+        "SHL",
+        "SHR",
+        "ROL",
+        "ROR",
+        "TRUNC",
+        "ROUND",
+        "LEN",
+        "LEFT",
+        "RIGHT",
+        "MID",
+        "FIND",
+        "REPLACE",
+        "INSERT",
+        "DELETE",
+        "AND",
+        "OR",
+        "XOR",
+        "NOT",
+        "ADR",
+        "ADRINST",
+        "SIZEOF",
+    }
+)
 
 _PYTHON_BUILTIN_MAP: dict[str, str] = {
     "abs": "ABS",
@@ -302,71 +333,96 @@ _REJECTED_BUILTINS: dict[str, str] = {
     "all": "all() is not supported. Use a for loop with range().",
     "repr": "repr() does not exist in PLC logic.",
     "format": "format() does not exist in PLC logic.",
-    "CONCAT": "CONCAT() is not available directly. Use an f-string instead: f\"prefix {self.var}\"",
+    "CONCAT": 'CONCAT() is not available directly. Use an f-string instead: f"prefix {self.var}"',
 }
 
 # ---------------------------------------------------------------------------
 # Unified sentinel registry
 # ---------------------------------------------------------------------------
 
+
 @dataclasses.dataclass(frozen=True)
 class SentinelDef:
     """Metadata for a single sentinel function."""
 
-    name: str                   # Python function name (e.g. "delayed")
-    category: str               # "timer" | "edge" | "counter" | "bistable" | "system_flag"
-    fb_type: str                # IEC FB type (e.g. "TON", "R_TRIG")
+    name: str  # Python function name (e.g. "delayed")
+    category: str  # "timer" | "edge" | "counter" | "bistable" | "system_flag"
+    fb_type: str  # IEC FB type (e.g. "TON", "R_TRIG")
     params: dict[str, str] = dataclasses.field(default_factory=dict)
     system_flag: SystemFlag | None = None
 
 
 SENTINEL_REGISTRY: dict[str, SentinelDef] = {
     "delayed": SentinelDef(
-        name="delayed", category="timer", fb_type="TON",
+        name="delayed",
+        category="timer",
+        fb_type="TON",
         params={"signal": "IN", "duration": "PT"},
     ),
     "sustained": SentinelDef(
-        name="sustained", category="timer", fb_type="TOF",
+        name="sustained",
+        category="timer",
+        fb_type="TOF",
         params={"signal": "IN", "duration": "PT"},
     ),
     "pulse": SentinelDef(
-        name="pulse", category="timer", fb_type="TP",
+        name="pulse",
+        category="timer",
+        fb_type="TP",
         params={"signal": "IN", "duration": "PT"},
     ),
     "retentive": SentinelDef(
-        name="retentive", category="timer", fb_type="RTO",
+        name="retentive",
+        category="timer",
+        fb_type="RTO",
         params={"signal": "IN", "duration": "PT"},
     ),
     "rising": SentinelDef(
-        name="rising", category="edge", fb_type="R_TRIG",
+        name="rising",
+        category="edge",
+        fb_type="R_TRIG",
         params={"signal": "CLK"},
     ),
     "falling": SentinelDef(
-        name="falling", category="edge", fb_type="F_TRIG",
+        name="falling",
+        category="edge",
+        fb_type="F_TRIG",
         params={"signal": "CLK"},
     ),
     "count_up": SentinelDef(
-        name="count_up", category="counter", fb_type="CTU",
+        name="count_up",
+        category="counter",
+        fb_type="CTU",
         params={"signal": "CU", "preset": "PV", "control": "RESET"},
     ),
     "count_down": SentinelDef(
-        name="count_down", category="counter", fb_type="CTD",
+        name="count_down",
+        category="counter",
+        fb_type="CTD",
         params={"signal": "CD", "preset": "PV", "control": "LOAD"},
     ),
     "count_up_down": SentinelDef(
-        name="count_up_down", category="ctud", fb_type="CTUD",
+        name="count_up_down",
+        category="ctud",
+        fb_type="CTUD",
         params={"up": "CU", "down": "CD", "preset": "PV", "reset": "RESET", "load": "LOAD"},
     ),
     "set_dominant": SentinelDef(
-        name="set_dominant", category="bistable", fb_type="SR",
+        name="set_dominant",
+        category="bistable",
+        fb_type="SR",
         params={"set": "SET1", "reset": "RESET"},
     ),
     "reset_dominant": SentinelDef(
-        name="reset_dominant", category="bistable", fb_type="RS",
+        name="reset_dominant",
+        category="bistable",
+        fb_type="RS",
         params={"set": "SET", "reset": "RESET1"},
     ),
     "first_scan": SentinelDef(
-        name="first_scan", category="system_flag", fb_type="",
+        name="first_scan",
+        category="system_flag",
+        fb_type="",
         system_flag=SystemFlag.FIRST_SCAN,
     ),
 }
@@ -406,12 +462,15 @@ _REJECTED_NODES: dict[type, str] = {
 
 # Also reject TryStar if available (Python 3.11+)
 if hasattr(ast, "TryStar"):
-    _REJECTED_NODES[ast.TryStar] = "try/except* statements are not allowed in PLC logic. PLCs don't have exceptions — use if/else and error flags."
+    _REJECTED_NODES[ast.TryStar] = (
+        "try/except* statements are not allowed in PLC logic. PLCs don't have exceptions — use if/else and error flags."
+    )
 
 
 # ---------------------------------------------------------------------------
 # Annotation resolution (shared by compiler + decorators)
 # ---------------------------------------------------------------------------
+
 
 def resolve_annotation(
     ann: ast.expr,
@@ -429,7 +488,8 @@ def resolve_annotation(
         if ann.id == "float":
             raise CompileError(
                 "float is ambiguous in PLC — use real (32-bit REAL) or lreal (64-bit LREAL)",
-                node, ctx,
+                node,
+                ctx,
             )
         if ann.id in _PYTHON_ANNOTATION_MAP:
             return _PYTHON_ANNOTATION_MAP[ann.id]
@@ -441,7 +501,9 @@ def resolve_annotation(
         return NamedTypeRef(name=ann.attr)
     if isinstance(ann, ast.Constant) and ann.value is None:
         return None
-    msg = f"Unsupported type annotation: {ast.dump(ann)}. Use a PLC type (BOOL, INT, REAL, etc.), @struct, or @fb class."
+    msg = (
+        f"Unsupported type annotation: {ast.dump(ann)}. Use a PLC type (BOOL, INT, REAL, etc.), @struct, or @fb class."
+    )
     if location_hint:
         msg = f"{msg} ({location_hint})"
     raise CompileError(msg, node, ctx)
@@ -450,6 +512,7 @@ def resolve_annotation(
 # ---------------------------------------------------------------------------
 # Type inference for bare assignments
 # ---------------------------------------------------------------------------
+
 
 def _infer_type(node: ast.expr, ctx: CompileContext) -> TypeRef | None:
     """Try to infer a PLC type from an AST expression node.

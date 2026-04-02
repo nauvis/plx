@@ -9,15 +9,13 @@ from plx.model.pou import (
     POU,
     AccessSpecifier,
     Method,
-    Network,
     POUAction,
     POUInterface,
     POUType,
     Property,
 )
 from plx.model.project import GlobalVariableList, Project
-from plx.model.sfc import Action, ActionQualifier, SFCBody, Step, Transition
-from plx.model.statements import Statement
+from plx.model.sfc import Action, ActionQualifier, Transition
 from plx.model.task import (
     ContinuousTask,
     EventTask,
@@ -28,7 +26,6 @@ from plx.model.task import (
 from plx.model.types import (
     AliasType,
     ArrayTypeRef,
-    DimensionRange,
     EnumType,
     NamedTypeRef,
     PointerTypeRef,
@@ -44,7 +41,6 @@ from plx.model.types import (
 from plx.model.variables import Variable
 
 from ._expressions import _ExpressionWriterMixin
-from ._statements import _StatementWriterMixin
 from ._helpers import (
     _NAMED_TYPE_PY_NAME,
     _POU_DECORATOR,
@@ -63,6 +59,7 @@ from ._helpers import (
     _topo_sort_data_types,
     _topo_sort_fbs,
 )
+from ._statements import _StatementWriterMixin
 
 
 class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
@@ -113,9 +110,6 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
     def write_project(self, proj: Project) -> None:
         self._line("from plx.framework import *")
         self._line()
-
-        # Collect POU names for identifier reference
-        pou_names = {p.name for p in proj.pous}
 
         # Data types (sorted so dependencies come first)
         for td in _topo_sort_data_types(proj.data_types):
@@ -174,10 +168,7 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
                 stacklevel=2,
             )
         elif isinstance(td, AliasType):
-            self._line(
-                f"# AliasType '{td.name}' = {self._type_ref(td.base_type)}"
-                f" — no Python framework equivalent"
-            )
+            self._line(f"# AliasType '{td.name}' = {self._type_ref(td.base_type)} — no Python framework equivalent")
             warnings.warn(
                 f"plx export: AliasType '{td.name}' has no Python equivalent — emitted as comment",
                 stacklevel=2,
@@ -240,7 +231,7 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
         # Decorator
         decorator_args: list[str] = []
         if gvl.description:
-            decorator_args.append(f'description={_quote_string(gvl.description)}')
+            decorator_args.append(f"description={_quote_string(gvl.description)}")
         if gvl.folder:
             decorator_args.append(f'folder="{gvl.folder}"')
         if gvl.scope:
@@ -279,7 +270,7 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
             elif formatted is not None:
                 self._line(f"{name}: {type_str} = {formatted}")
             else:
-                self._line(f"{name}: {type_str} = Field(initial={repr(v.initial_value)})")
+                self._line(f"{name}: {type_str} = Field(initial={v.initial_value!r})")
         else:
             self._line(f"{name}: {type_str}")
 
@@ -302,7 +293,8 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
 
         if pou.extends and self._project is not None:
             inherited_vars, inherited_methods, resolved = _build_inherited_self_context(
-                pou.extends, self._project.pous,
+                pou.extends,
+                self._project.pous,
             )
             self._self_vars |= inherited_vars
             self._self_methods |= inherited_methods
@@ -480,8 +472,12 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
     def _has_metadata(self, v: Variable) -> bool:
         """Check if a variable has metadata beyond initial value."""
         return bool(
-            v.description or v.retain or v.persistent or v.constant
-            or v.metadata.get("hardware") or v.metadata.get("external")
+            v.description
+            or v.retain
+            or v.persistent
+            or v.constant
+            or v.metadata.get("hardware")
+            or v.metadata.get("external")
         )
 
     def _build_field_kwargs(self, v: Variable) -> str:
@@ -492,9 +488,9 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
             if formatted is not None:
                 kwargs.append(f"initial={formatted}")
             else:
-                kwargs.append(f"initial={repr(v.initial_value)}")
+                kwargs.append(f"initial={v.initial_value!r}")
         if v.description:
-            kwargs.append(f'description={_quote_string(v.description)}')
+            kwargs.append(f"description={_quote_string(v.description)}")
         if v.retain:
             kwargs.append("retain=True")
         if v.persistent:
@@ -528,7 +524,7 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
             elif formatted is not None:
                 self._line(f"{name}: {wrapper}[{type_str}] = {formatted}")
             else:
-                self._line(f"{name}: {wrapper}[{type_str}] = Field(initial={repr(v.initial_value)})")
+                self._line(f"{name}: {wrapper}[{type_str}] = Field(initial={v.initial_value!r})")
         else:
             self._line(f"{name}: {wrapper}[{type_str}]")
 
@@ -556,7 +552,7 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
             elif formatted is not None:
                 self._line(f"{name}: {type_str} = {formatted}")
             else:
-                self._line(f"{name}: {type_str} = Field(initial={repr(v.initial_value)})")
+                self._line(f"{name}: {type_str} = Field(initial={v.initial_value!r})")
         else:
             self._line(f"{name}: {type_str}")
 
@@ -726,8 +722,7 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
         self._line(f"# ACTION {action.name}")
         if action.body:
             warnings.warn(
-                f"plx export: POUAction '{action.name}' body cannot be represented in Python "
-                f"— emitted as comment",
+                f"plx export: POUAction '{action.name}' body cannot be represented in Python — emitted as comment",
                 stacklevel=2,
             )
             self._line(f"# (body omitted — {len(action.body)} network(s))")
@@ -852,6 +847,7 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
                 # Check library registry before quoting — library types
                 # will be imported by _collect_library_imports
                 from plx.framework._library import get_library_type
+
                 if get_library_type(tr.name) is not None:
                     return tr.name
                 return repr(tr.name)

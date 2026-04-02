@@ -16,10 +16,8 @@ from plx.model.types import (
     EnumType,
     NamedTypeRef,
     PointerTypeRef,
-    PrimitiveTypeRef,
     ReferenceTypeRef,
     StructType,
-    TypeRef,
 )
 from plx.model.variables import Variable
 
@@ -27,7 +25,7 @@ from ._executor import ExecutionEngine
 from ._pointers import PointerTable
 from ._proxy import StructProxy
 from ._trace import ScanTrace
-from ._triggers import ScanTrigger, SimulationTimeout
+from ._triggers import ScanTrigger
 from ._values import SimulationError, _coerce_input_value, parse_literal, type_default
 
 
@@ -91,9 +89,12 @@ class SimulationContext:
         known = set(state.keys())
         # Exclude internal keys from known vars (not user-accessible)
         known -= {
-            "__sfc_active_steps", "__sfc_step_entry_time",
-            "__sfc_just_activated", "__sfc_just_deactivated",
-            "__sfc_action_start_time", "__sfc_stored_actions",
+            "__sfc_active_steps",
+            "__sfc_step_entry_time",
+            "__sfc_just_activated",
+            "__sfc_just_deactivated",
+            "__sfc_action_start_time",
+            "__sfc_stored_actions",
             "__sfc_initialized",
             "__system_first_scan",
         }
@@ -195,12 +196,11 @@ class SimulationContext:
 
     def _allocate_array(self, dt: ArrayTypeRef) -> list:
         """Build nested list from ArrayTypeRef dimensions."""
+
         def _build(dims, idx):
             dim = dims[idx]
             if not isinstance(dim.lower, int) or not isinstance(dim.upper, int):
-                raise SimulationError(
-                    f"Cannot simulate array with expression-based bounds"
-                )
+                raise SimulationError("Cannot simulate array with expression-based bounds")
             size = dim.upper - dim.lower + 1
             if idx == len(dims) - 1:
                 # Innermost dimension — allocate element defaults
@@ -218,6 +218,7 @@ class SimulationContext:
         """Allocate a named type (library FB, user FB, struct, enum)."""
         # Library type (includes IEC standard FBs, vendor stubs)
         from plx.framework._library import LibraryEnum, LibraryFB, LibraryStruct, get_library_type
+
         lib_type = get_library_type(name)
         if lib_type is not None:
             if issubclass(lib_type, LibraryFB):
@@ -255,7 +256,9 @@ class SimulationContext:
         for member in typedef.members:
             if member.initial_value is not None:
                 result[member.name] = parse_literal(
-                    member.initial_value, member.data_type, self._enum_registry,
+                    member.initial_value,
+                    member.data_type,
+                    self._enum_registry,
                 )
             else:
                 default = type_default(member.data_type)
@@ -459,10 +462,7 @@ class SimulationContext:
         known = object.__getattribute__(self, "_known_vars")
         for name, value in kwargs.items():
             if name not in known:
-                raise AttributeError(
-                    f"'{type(self).__name__}' has no variable '{name}'. "
-                    f"Available: {sorted(known)}"
-                )
+                raise AttributeError(f"'{type(self).__name__}' has no variable '{name}'. Available: {sorted(known)}")
             self._state[name] = _coerce_input_value(value)
 
     # -----------------------------------------------------------------------
@@ -499,10 +499,7 @@ class SimulationContext:
                 return StructProxy(val)
             return val
         known = object.__getattribute__(self, "_known_vars")
-        raise AttributeError(
-            f"'{type(self).__name__}' has no variable '{name}'. "
-            f"Available: {sorted(known)}"
-        )
+        raise AttributeError(f"'{type(self).__name__}' has no variable '{name}'. Available: {sorted(known)}")
 
     def __setattr__(self, name: str, value: object) -> None:
         """Provide attribute-style write access to POU variables.

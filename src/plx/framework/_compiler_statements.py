@@ -43,12 +43,12 @@ from plx.model.types import (
 from plx.model.variables import Variable
 
 from ._compiler_core import (
-    CompileError,
-    SENTINEL_REGISTRY,
+    _BINOP_MAP,
     _PYTHON_BUILTIN_MAP,
     _REJECTED_AUGOP_MESSAGES,
     _REJECTED_BUILTINS,
-    _BINOP_MAP,
+    SENTINEL_REGISTRY,
+    CompileError,
     _infer_type,
     resolve_annotation,
 )
@@ -61,10 +61,12 @@ if TYPE_CHECKING:
 def _is_negative_step(node: ast.expr) -> bool:
     """Check if an AST expression is a statically known negative integer."""
     # -<positive literal>
-    if (isinstance(node, ast.UnaryOp)
-            and isinstance(node.op, ast.USub)
-            and isinstance(node.operand, ast.Constant)
-            and isinstance(node.operand.value, (int, float))):
+    if (
+        isinstance(node, ast.UnaryOp)
+        and isinstance(node.op, ast.USub)
+        and isinstance(node.operand, ast.Constant)
+        and isinstance(node.operand.value, (int, float))
+    ):
         return node.operand.value > 0
     # Negative constant (Python 3.8+ may fold -1 into Constant directly)
     if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
@@ -76,6 +78,7 @@ def _is_negative_step(node: ast.expr) -> bool:
 # Statement mixin
 # ---------------------------------------------------------------------------
 
+
 class _StatementMixin:
     """Mixin providing statement compilation methods for ASTCompiler."""
 
@@ -85,7 +88,8 @@ class _StatementMixin:
             raise CompileError(
                 "Multiple assignment targets (a = b = value) are not supported. "
                 "Assign each variable on a separate line.",
-                node, self.ctx,
+                node,
+                self.ctx,
             )
         target_node = node.targets[0]
 
@@ -114,21 +118,23 @@ class _StatementMixin:
                 raise CompileError(
                     f"Undeclared variable '{name}'. Use a type annotation "
                     f"(e.g. '{name}: INT = 0') to declare temp variables.",
-                    stmt_node, self.ctx,
+                    stmt_node,
+                    self.ctx,
                 )
             return VariableRef(name=name)
         if isinstance(target_node, ast.Subscript):
             return self.compile_expression(target_node)
         if isinstance(target_node, ast.Tuple):
             raise CompileError(
-                "Tuple unpacking (a, b = ...) is not supported in PLC logic. "
-                "Assign each variable on a separate line.",
-                stmt_node, self.ctx,
+                "Tuple unpacking (a, b = ...) is not supported in PLC logic. Assign each variable on a separate line.",
+                stmt_node,
+                self.ctx,
             )
         raise CompileError(
             f"Unsupported assignment target: {type(target_node).__name__}. "
             f"Assign to self.var, a local name, or a subscript (arr[i]).",
-            stmt_node, self.ctx,
+            stmt_node,
+            self.ctx,
         )
 
     def _compile_augassign(self, node: ast.AugAssign) -> list[Statement]:
@@ -150,31 +156,37 @@ class _StatementMixin:
                 raise CompileError(
                     "String concatenation with += is not supported. "
                     'Use an f-string instead: self.msg = f"{self.msg} suffix"',
-                    node, self.ctx,
+                    node,
+                    self.ctx,
                 )
         target = self._compile_target(node.target, node)
         # Floor division: x //= y → x := TRUNC(x / y)
         if isinstance(node.op, ast.FloorDiv):
             rhs, pending = self._compile_expr_and_flush(node.value)
-            pending.append(Assignment(
-                target=target,
-                value=FunctionCallExpr(
-                    function_name="TRUNC",
-                    args=[CallArg(value=BinaryExpr(op=BinaryOp.DIV, left=target, right=rhs))],
-                ),
-            ))
+            pending.append(
+                Assignment(
+                    target=target,
+                    value=FunctionCallExpr(
+                        function_name="TRUNC",
+                        args=[CallArg(value=BinaryExpr(op=BinaryOp.DIV, left=target, right=rhs))],
+                    ),
+                )
+            )
             return pending
         op = _BINOP_MAP.get(type(node.op))
         if op is None:
             raise CompileError(
                 f"Unsupported augmented assignment operator: {type(node.op).__name__}",
-                node, self.ctx,
+                node,
+                self.ctx,
             )
         rhs, pending = self._compile_expr_and_flush(node.value)
-        pending.append(Assignment(
-            target=target,
-            value=BinaryExpr(op=op, left=target, right=rhs),
-        ))
+        pending.append(
+            Assignment(
+                target=target,
+                value=BinaryExpr(op=op, left=target, right=rhs),
+            )
+        )
         return pending
 
     def _compile_annassign(self, node: ast.AnnAssign) -> list[Statement]:
@@ -182,7 +194,8 @@ class _StatementMixin:
         if not isinstance(node.target, ast.Name):
             raise CompileError(
                 "Type annotations are only supported on simple names",
-                node, self.ctx,
+                node,
+                self.ctx,
             )
         name = node.target.id
         type_ref = self._resolve_annotation(node.annotation, node)
@@ -195,10 +208,12 @@ class _StatementMixin:
 
         if node.value is not None:
             value, pending = self._compile_expr_and_flush(node.value)
-            pending.append(Assignment(
-                target=VariableRef(name=name),
-                value=value,
-            ))
+            pending.append(
+                Assignment(
+                    target=VariableRef(name=name),
+                    value=value,
+                )
+            )
             return pending
         return []
 
@@ -231,11 +246,13 @@ class _StatementMixin:
                 else_body = self._compile_body_list(orelse)
                 break
 
-        pending.append(IfStatement(
-            if_branch=IfBranch(condition=cond, body=if_body),
-            elsif_branches=elsif_branches,
-            else_body=else_body,
-        ))
+        pending.append(
+            IfStatement(
+                if_branch=IfBranch(condition=cond, body=if_body),
+                elsif_branches=elsif_branches,
+                else_body=else_body,
+            )
+        )
         return pending
 
     def _compile_for(self, node: ast.For) -> list[Statement]:
@@ -244,22 +261,25 @@ class _StatementMixin:
             raise CompileError(
                 "for/else is not supported in PLC logic. "
                 "Use a flag variable to track whether the loop completed without break.",
-                node, self.ctx,
+                node,
+                self.ctx,
             )
         if not isinstance(node.target, ast.Name):
             raise CompileError(
                 "For loop variable must be a simple name",
-                node, self.ctx,
+                node,
+                self.ctx,
             )
         loop_var = node.target.id
 
         # Only range() is supported
-        if not (isinstance(node.iter, ast.Call)
-                and isinstance(node.iter.func, ast.Name)
-                and node.iter.func.id == "range"):
+        if not (
+            isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name) and node.iter.func.id == "range"
+        ):
             raise CompileError(
                 "For loops only support range() iteration",
-                node, self.ctx,
+                node,
+                self.ctx,
             )
 
         args = node.iter.args
@@ -310,20 +330,23 @@ class _StatementMixin:
 
         body = self._compile_body_list(node.body)
 
-        return [ForStatement(
-            loop_var=loop_var,
-            from_expr=from_expr,
-            to_expr=to_expr,
-            by_expr=by_expr,
-            body=body,
-        )]
+        return [
+            ForStatement(
+                loop_var=loop_var,
+                from_expr=from_expr,
+                to_expr=to_expr,
+                by_expr=by_expr,
+                body=body,
+            )
+        ]
 
     def _compile_while(self, node: ast.While) -> list[Statement]:
         if node.orelse:
             raise CompileError(
                 "while/else is not supported in PLC logic. "
                 "Use a flag variable to track whether the loop completed without break.",
-                node, self.ctx,
+                node,
+                self.ctx,
             )
         cond, pending = self._compile_expr_and_flush(node.test)
         body = self._compile_body_list(node.body)
@@ -349,11 +372,13 @@ class _StatementMixin:
             body = self._compile_body_list(case.body)
             branches.append(CaseBranch(values=values, body=body))
 
-        pending.append(CaseStatement(
-            selector=selector,
-            branches=branches,
-            else_body=else_body,
-        ))
+        pending.append(
+            CaseStatement(
+                selector=selector,
+                branches=branches,
+                else_body=else_body,
+            )
+        )
         return pending
 
     def _extract_case_values(self, pattern: ast.pattern, node: ast.stmt) -> list[int | str]:
@@ -368,7 +393,8 @@ class _StatementMixin:
         raise CompileError(
             f"Unsupported match pattern: {type(pattern).__name__}. "
             f"Only integer/enum values and | alternatives are supported.",
-            node, self.ctx,
+            node,
+            self.ctx,
         )
 
     def _pattern_to_case_value(self, value_node: ast.expr, node: ast.stmt) -> int | str:
@@ -381,10 +407,12 @@ class _StatementMixin:
         if isinstance(value_node, ast.Constant) and isinstance(value_node.value, int):
             return value_node.value
         # Negative constants: UnaryOp(USub, Constant)
-        if (isinstance(value_node, ast.UnaryOp)
-                and isinstance(value_node.op, ast.USub)
-                and isinstance(value_node.operand, ast.Constant)
-                and isinstance(value_node.operand.value, int)):
+        if (
+            isinstance(value_node, ast.UnaryOp)
+            and isinstance(value_node.op, ast.USub)
+            and isinstance(value_node.operand, ast.Constant)
+            and isinstance(value_node.operand.value, int)
+        ):
             return -value_node.operand.value
         # Enum-style: SomeEnum.MEMBER
         if isinstance(value_node, ast.Attribute) and isinstance(value_node.value, ast.Name):
@@ -395,7 +423,8 @@ class _StatementMixin:
                 if member_name not in members:
                     raise CompileError(
                         f"'{member_name}' is not a member of enum '{enum_name}'",
-                        node, self.ctx,
+                        node,
+                        self.ctx,
                     )
                 # plx @enumeration → preserve as "EnumName#MEMBER" (IEC typed literal)
                 # Plain IntEnum → resolve to raw integer value
@@ -404,12 +433,13 @@ class _StatementMixin:
                 return members[member_name]
             raise CompileError(
                 f"Unknown enum type '{enum_name}'",
-                node, self.ctx,
+                node,
+                self.ctx,
             )
         raise CompileError(
-            f"Case pattern must be an integer literal or enum member, "
-            f"got {type(value_node).__name__}",
-            node, self.ctx,
+            f"Case pattern must be an integer literal or enum member, got {type(value_node).__name__}",
+            node,
+            self.ctx,
         )
 
     def _compile_return(self, node: ast.Return) -> list[Statement]:
@@ -480,7 +510,8 @@ class _StatementMixin:
                 raise CompileError(
                     f"{name}() must be used in an expression (e.g. in an assignment or if condition), "
                     f"not as a standalone statement",
-                    call_node, self.ctx,
+                    call_node,
+                    self.ctx,
                 )
             # Rejected Python builtins
             if name in _REJECTED_BUILTINS:
@@ -551,7 +582,8 @@ class _StatementMixin:
         if self.ctx.pou_class is None:
             raise CompileError(
                 "super().logic() used but no class context available",
-                node, self.ctx,
+                node,
+                self.ctx,
             )
 
         # Walk MRO to find the first parent with its own logic()
@@ -565,9 +597,9 @@ class _StatementMixin:
 
         if parent_class is None:
             raise CompileError(
-                f"super().logic(): no parent class with a logic() method "
-                f"found in MRO of {self.ctx.pou_class.__name__}",
-                node, self.ctx,
+                f"super().logic(): no parent class with a logic() method found in MRO of {self.ctx.pou_class.__name__}",
+                node,
+                self.ctx,
             )
 
         # Get parent's logic source
@@ -579,7 +611,8 @@ class _StatementMixin:
         if not tree.body or not isinstance(tree.body[0], ast.FunctionDef):
             raise CompileError(
                 f"Could not parse {parent_class.__name__}.logic()",
-                node, self.ctx,
+                node,
+                self.ctx,
             )
 
         # Temporarily set pou_class to the parent so nested

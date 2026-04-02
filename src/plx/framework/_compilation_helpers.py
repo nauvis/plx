@@ -9,20 +9,19 @@ from __future__ import annotations
 import ast
 import inspect
 import textwrap
+from enum import IntEnum
 from typing import Any
 
 from plx.model.types import TypeRef
-
-from enum import IntEnum
 
 from ._compiler_core import CompileContext, CompileError
 from ._descriptors import VarDirection, _collect_descriptors
 from ._protocols import CompiledEnum, CompiledPOU
 
-
 # ---------------------------------------------------------------------------
 # Source parsing
 # ---------------------------------------------------------------------------
+
 
 def _parse_function_source(
     func: Any,
@@ -92,8 +91,7 @@ def _parse_function_source(
         body = func_def.body
         if len(body) != 1 or not isinstance(body[0], ast.Return):
             raise CompileError(
-                f"{context_name} must have exactly one statement: "
-                f"'return <condition>'",
+                f"{context_name} must have exactly one statement: 'return <condition>'",
                 source_file=_src_file,
             )
         if body[0].value is None:
@@ -108,6 +106,7 @@ def _parse_function_source(
 # ---------------------------------------------------------------------------
 # CompileContext construction
 # ---------------------------------------------------------------------------
+
 
 def _build_compile_context(
     enum_source: Any,
@@ -154,6 +153,7 @@ def _build_compile_context(
 # Enum discovery
 # ---------------------------------------------------------------------------
 
+
 def _discover_enums(func: Any) -> tuple[dict[str, dict[str, int]], set[str]]:
     """Discover @enumeration types visible to *func* (globals + closure).
 
@@ -165,7 +165,7 @@ def _discover_enums(func: Any) -> tuple[dict[str, dict[str, int]], set[str]]:
     known: dict[str, dict[str, int]] = {}
     plx_names: set[str] = set()
     # Module-level globals (guard for objects without __globals__, e.g. builtins)
-    if not hasattr(func, '__globals__'):
+    if not hasattr(func, "__globals__"):
         return known, plx_names
     for name, obj in func.__globals__.items():
         if isinstance(obj, CompiledEnum):
@@ -174,10 +174,10 @@ def _discover_enums(func: Any) -> tuple[dict[str, dict[str, int]], set[str]]:
         elif isinstance(obj, type) and issubclass(obj, IntEnum) and obj is not IntEnum:
             known[name] = {m.name: m.value for m in obj}
     # Closure variables (locally-scoped enums)
-    code = getattr(func, '__code__', None)
-    closure = getattr(func, '__closure__', None)
+    code = getattr(func, "__code__", None)
+    closure = getattr(func, "__closure__", None)
     if code and closure:
-        for name, cell in zip(code.co_freevars, closure):
+        for name, cell in zip(code.co_freevars, closure, strict=True):
             try:
                 obj = cell.cell_contents
             except ValueError:
@@ -199,12 +199,22 @@ def _discover_enums(func: Any) -> tuple[dict[str, dict[str, int]], set[str]]:
 
 # Names to exclude — Python builtins, dunder names, and common non-constant
 # module-level objects that happen to be int/str/bool.
-_CONSTANT_EXCLUDES = frozenset({
-    "True", "False", "None",
-    # Common module-level names that aren't user constants
-    "__name__", "__doc__", "__file__", "__spec__", "__loader__",
-    "__package__", "__builtins__", "__cached__",
-})
+_CONSTANT_EXCLUDES = frozenset(
+    {
+        "True",
+        "False",
+        "None",
+        # Common module-level names that aren't user constants
+        "__name__",
+        "__doc__",
+        "__file__",
+        "__spec__",
+        "__loader__",
+        "__package__",
+        "__builtins__",
+        "__cached__",
+    }
+)
 
 
 def _discover_constants(func: Any) -> dict[str, int | float | bool | str]:
@@ -238,6 +248,7 @@ def _discover_constants(func: Any) -> dict[str, int | float | bool | str]:
 # ---------------------------------------------------------------------------
 # POU helpers (shared by _decorators.py and _sfc.py)
 # ---------------------------------------------------------------------------
+
 
 def _detect_parent_pou(cls: type) -> str | None:
     """Walk MRO to find the first parent with a compiled POU (inheritance)."""

@@ -16,8 +16,12 @@ def _collect_variable_names(target: Union[Project, POU]) -> set[str]:
     for pou in pous:
         iface = pou.interface
         for var_list in (
-            iface.input_vars, iface.output_vars, iface.inout_vars,
-            iface.static_vars, iface.temp_vars, iface.constant_vars,
+            iface.input_vars,
+            iface.output_vars,
+            iface.inout_vars,
+            iface.static_vars,
+            iface.temp_vars,
+            iface.constant_vars,
             iface.external_vars,
         ):
             for v in var_list:
@@ -25,10 +29,18 @@ def _collect_variable_names(target: Union[Project, POU]) -> set[str]:
     return names
 
 
-_VAR_BLOCK_KEYWORDS = frozenset({
-    "VAR_INPUT", "VAR_OUTPUT", "VAR_IN_OUT", "VAR", "VAR_TEMP",
-    "VAR CONSTANT", "VAR_GLOBAL", "VAR_EXTERNAL",
-})
+_VAR_BLOCK_KEYWORDS = frozenset(
+    {
+        "VAR_INPUT",
+        "VAR_OUTPUT",
+        "VAR_IN_OUT",
+        "VAR",
+        "VAR_TEMP",
+        "VAR CONSTANT",
+        "VAR_GLOBAL",
+        "VAR_EXTERNAL",
+    }
+)
 
 
 def _build_source_map(st_text: str, variable_names: set[str]) -> list[dict]:
@@ -43,9 +55,7 @@ def _build_source_map(st_text: str, variable_names: set[str]) -> list[dict]:
 
     # Sort longest-first so the alternation doesn't short-circuit on prefixes
     sorted_names = sorted(variable_names, key=len, reverse=True)
-    pattern = re.compile(
-        r'\b(' + '|'.join(re.escape(n) for n in sorted_names) + r')\b'
-    )
+    pattern = re.compile(r"\b(" + "|".join(re.escape(n) for n in sorted_names) + r")\b")
 
     entries: list[dict] = []
     in_var_block = False
@@ -74,9 +84,11 @@ def _build_source_map(st_text: str, variable_names: set[str]) -> list[dict]:
             if name in seen_on_line:
                 continue
             seen_on_line.add(name)
-            entries.append({
-                "name": name,
-                "line": line_num,
-                "column": match.start() + 1,
-            })
+            entries.append(
+                {
+                    "name": name,
+                    "line": line_num,
+                    "column": match.start() + 1,
+                }
+            )
     return entries

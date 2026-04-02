@@ -1,16 +1,18 @@
 """Tests for variable descriptors (annotation + Field() syntax)."""
 
+from datetime import timedelta
+
 import pytest
 
 from plx.framework._descriptors import (
-    Input,
-    Output,
-    InOut,
-    Static,
-    Temp,
     External,
     Field,
     FieldDescriptor,
+    InOut,
+    Input,
+    Output,
+    Static,
+    Temp,
     VarDirection,
     _collect_descriptors,
     _determine_direction,
@@ -19,8 +21,7 @@ from plx.framework._descriptors import (
 )
 from plx.framework._errors import DeclarationError
 from plx.framework._plc_types import real
-from datetime import timedelta
-from plx.framework._types import REAL, BOOL, INT, DINT, timedelta_to_iec
+from plx.framework._types import BOOL, DINT, INT, REAL
 from plx.model.types import (
     NamedTypeRef,
     PrimitiveType,
@@ -29,10 +30,10 @@ from plx.model.types import (
 )
 from plx.model.variables import Variable
 
-
 # ---------------------------------------------------------------------------
 # _format_initial
 # ---------------------------------------------------------------------------
+
 
 class TestFormatInitial:
     def test_none(self):
@@ -67,6 +68,7 @@ class TestFormatInitial:
 # ---------------------------------------------------------------------------
 # Field() function
 # ---------------------------------------------------------------------------
+
 
 class TestField:
     def test_basic(self):
@@ -107,8 +109,7 @@ class TestField:
         assert f.constant is True
 
     def test_all_kwargs(self):
-        f = Field(initial=0.0, description="Speed", retain=True,
-                  persistent=True)
+        f = Field(initial=0.0, description="Speed", retain=True, persistent=True)
         assert f.initial_value == "0.0"
         assert f.description == "Speed"
         assert f.retain is True
@@ -164,6 +165,7 @@ class TestField:
 # Annotation wrappers
 # ---------------------------------------------------------------------------
 
+
 class TestAnnotationWrappers:
     def test_input_annotation(self):
         class MyFB:
@@ -186,8 +188,10 @@ class TestAnnotationWrappers:
     def test_float_annotation_rejected(self):
         """float is ambiguous — must use real or lreal."""
         with pytest.raises(DeclarationError, match="float is ambiguous"):
+
             class MyFB:
                 valve: Output[float]
+
             _collect_descriptors(MyFB)
 
     def test_inout_annotation(self):
@@ -260,6 +264,7 @@ class TestAnnotationWrappers:
 # Field() with annotation wrappers
 # ---------------------------------------------------------------------------
 
+
 class TestAnnotationWithField:
     def test_input_with_field(self):
         class MyFB:
@@ -330,112 +335,144 @@ class TestAnnotationWithField:
 # Field validation per direction
 # ---------------------------------------------------------------------------
 
+
 class TestFieldValidation:
     def test_temp_rejects_retain(self):
         with pytest.raises(DeclarationError, match="retain"):
+
             class MyFB:
                 x: Temp[bool] = Field(retain=True)
+
             _collect_descriptors(MyFB)
 
     def test_temp_rejects_description(self):
         with pytest.raises(DeclarationError, match="description"):
+
             class MyFB:
                 x: Temp[bool] = Field(description="nope")
+
             _collect_descriptors(MyFB)
 
     def test_inout_rejects_initial(self):
         with pytest.raises(DeclarationError, match="initial"):
+
             class MyFB:
                 x: InOut[bool] = Field(initial=True)
+
             _collect_descriptors(MyFB)
 
     def test_inout_rejects_retain(self):
         with pytest.raises(DeclarationError, match="retain"):
+
             class MyFB:
                 x: InOut[bool] = Field(retain=True)
+
             _collect_descriptors(MyFB)
 
     def test_external_rejects_initial(self):
         with pytest.raises(DeclarationError, match="initial"):
+
             class MyFB:
                 x: External[int] = Field(initial=0)
+
             _collect_descriptors(MyFB)
 
     def test_external_rejects_retain(self):
         with pytest.raises(DeclarationError, match="retain"):
+
             class MyFB:
                 x: External[int] = Field(retain=True)
+
             _collect_descriptors(MyFB)
 
     def test_constant_rejects_retain(self):
         with pytest.raises(DeclarationError, match="retain"):
+
             class MyFB:
                 x: real = Field(initial=3.14, retain=True, constant=True)
+
             _collect_descriptors(MyFB)
 
     def test_constant_requires_initial(self):
         with pytest.raises(DeclarationError, match="requires an initial"):
+
             class MyFB:
                 x: int = Field(constant=True)
+
             _collect_descriptors(MyFB)
 
     def test_temp_rejects_hardware(self):
         with pytest.raises(DeclarationError, match="hardware"):
+
             class MyFB:
                 x: Temp[bool] = Field(hardware="input")
+
             _collect_descriptors(MyFB)
 
     def test_temp_rejects_external(self):
         with pytest.raises(DeclarationError, match="external"):
+
             class MyFB:
                 x: Temp[bool] = Field(external=True)
+
             _collect_descriptors(MyFB)
 
     def test_constant_rejects_hardware(self):
         with pytest.raises(DeclarationError, match="hardware"):
+
             class MyFB:
                 x: real = Field(initial=3.14, hardware="input", constant=True)
+
             _collect_descriptors(MyFB)
 
     def test_constant_rejects_external(self):
         with pytest.raises(DeclarationError, match="external"):
+
             class MyFB:
                 x: real = Field(initial=3.14, external=True, constant=True)
+
             _collect_descriptors(MyFB)
 
     def test_invalid_hardware_value(self):
         with pytest.raises(DeclarationError, match="Invalid hardware"):
+
             class MyFB:
                 x: Input[bool] = Field(hardware="analog")
+
             _collect_descriptors(MyFB)
 
     def test_hardware_on_input_ok(self):
         class MyFB:
             x: Input[bool] = Field(hardware="input")
+
         groups = _collect_descriptors(MyFB)
         assert groups["input"][0].metadata.get("hardware") == "input"
 
     def test_hardware_on_output_ok(self):
         class MyFB:
             x: Output[bool] = Field(hardware="output")
+
         groups = _collect_descriptors(MyFB)
         assert groups["output"][0].metadata.get("hardware") == "output"
 
     def test_external_on_input_ok(self):
         class MyFB:
             x: Input[bool] = Field(external=True)
+
         groups = _collect_descriptors(MyFB)
         assert groups["input"][0].metadata.get("external") == "readwrite"
 
     def test_external_read_on_static(self):
         class MyFB:
             x: bool = Field(external="read")
+
         groups = _collect_descriptors(MyFB)
         assert groups["static"][0].metadata.get("external") == "read"
 
     def test_hardware_and_external_metadata(self):
         class MyFB:
             x: Output[bool] = Field(hardware="output", external=True)
+
         groups = _collect_descriptors(MyFB)
         var = groups["output"][0]
         assert var.metadata.get("hardware") == "output"
@@ -444,6 +481,7 @@ class TestFieldValidation:
     def test_no_hardware_or_external_no_metadata(self):
         class MyFB:
             x: Input[bool]
+
         groups = _collect_descriptors(MyFB)
         var = groups["input"][0]
         assert "hardware" not in var.metadata
@@ -454,16 +492,19 @@ class TestFieldValidation:
 # Python builtin types
 # ---------------------------------------------------------------------------
 
+
 class TestPythonBuiltinTypes:
     def test_input_bool(self):
         class MyFB:
             sensor: Input[bool]
+
         groups = _collect_descriptors(MyFB)
         assert groups["input"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.BOOL)
 
     def test_static_int(self):
         class MyFB:
             count: int = 0
+
         groups = _collect_descriptors(MyFB)
         assert groups["static"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.INT)
         assert groups["static"][0].initial_value == "0"
@@ -471,12 +512,14 @@ class TestPythonBuiltinTypes:
     def test_output_real(self):
         class MyFB:
             valve: Output[real]
+
         groups = _collect_descriptors(MyFB)
         assert groups["output"][0].data_type == PrimitiveTypeRef(type=PrimitiveType.REAL)
 
     def test_static_str(self):
         class MyFB:
             name: str
+
         groups = _collect_descriptors(MyFB)
         assert groups["static"][0].data_type == StringTypeRef(wide=False, max_length=255)
 
@@ -484,6 +527,7 @@ class TestPythonBuiltinTypes:
 # ---------------------------------------------------------------------------
 # _collect_descriptors
 # ---------------------------------------------------------------------------
+
 
 class TestCollectDescriptors:
     def test_basic_collection(self):
@@ -533,7 +577,9 @@ class TestCollectDescriptors:
         class MyFB:
             sensor: Input[BOOL]
             some_constant = 42
-            some_method = lambda self: None
+
+            def some_method(self):
+                return None
 
         groups = _collect_descriptors(MyFB)
         assert len(groups["input"]) == 1
@@ -618,6 +664,7 @@ class TestCollectDescriptors:
 # Constant wrapper integration with @fb
 # ---------------------------------------------------------------------------
 
+
 class TestConstantIntegration:
     def test_fb_with_constant(self):
         from plx.framework import fb
@@ -642,6 +689,7 @@ class TestConstantIntegration:
 # External wrapper
 # ---------------------------------------------------------------------------
 
+
 class TestExternalWrapper:
     def test_basic(self):
         class MyFB:
@@ -662,7 +710,7 @@ class TestExternalWrapper:
 
     def test_string_type(self):
         class MyFB:
-            config: External["SystemConfig"]
+            config: External["SystemConfig"]  # noqa: F821
 
         groups = _collect_descriptors(MyFB)
         assert groups["external"][0].data_type == NamedTypeRef(name="SystemConfig")
@@ -681,6 +729,7 @@ class TestExternalWrapper:
 # ---------------------------------------------------------------------------
 # Annotation inheritance + override
 # ---------------------------------------------------------------------------
+
 
 class TestAnnotationInheritance:
     def test_annotation_inheritance(self):
@@ -715,6 +764,7 @@ class TestAnnotationInheritance:
 # Struct/Array type annotations
 # ---------------------------------------------------------------------------
 
+
 class TestStructArrayAnnotations:
     def test_input_with_struct_type(self):
         from plx.framework._data_types import struct
@@ -744,6 +794,7 @@ class TestStructArrayAnnotations:
 # ---------------------------------------------------------------------------
 # _determine_direction
 # ---------------------------------------------------------------------------
+
 
 class TestDetermineDirection:
     def test_input(self):
@@ -786,6 +837,7 @@ class TestDetermineDirection:
 # _resolve_declaration
 # ---------------------------------------------------------------------------
 
+
 class TestResolveDeclaration:
     def test_each_wrapper_direction(self):
         for wrapper, expected in [
@@ -823,6 +875,7 @@ class TestResolveDeclaration:
 
     def test_annotated_field(self):
         from typing import Annotated
+
         hint = Annotated[Input[int], Field(description="Sensor")]
         desc = _resolve_declaration("x", hint, None, type("D", (), {}))
         assert desc is not None
@@ -842,16 +895,22 @@ class TestResolveDeclaration:
 # Bug fix: Constant + Field() without initial raises DeclarationError
 # ---------------------------------------------------------------------------
 
+
 class TestConstantFieldBugFix:
     def test_constant_with_field_no_initial_raises_declaration_error(self):
         with pytest.raises(DeclarationError, match="requires an initial"):
+
             class MyFB:
                 x: int = Field(constant=True)
+
             _collect_descriptors(MyFB)
 
     def test_constant_with_annotated_field_no_initial_raises_declaration_error(self):
         from typing import Annotated
+
         with pytest.raises(DeclarationError, match="requires an initial"):
+
             class MyFB:
                 x: Annotated[int, Field(constant=True)]
+
             _collect_descriptors(MyFB)

@@ -5,6 +5,7 @@ Examples
 ::
 
     from plx.analyze import analyze
+
     result = analyze(project_ir)
     for f in result.findings:
         print(f"{f.severity.value}: {f.pou_name}: {f.message}")

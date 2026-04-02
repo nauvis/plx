@@ -29,10 +29,7 @@ def validate_iec_identifier(name: str) -> str:
         If *name* does not match the IEC 61131-3 identifier pattern.
     """
     if not _IEC_IDENT_RE.match(name):
-        raise ValueError(
-            f"'{name}' is not a valid IEC 61131-3 identifier "
-            f"(must match [A-Za-z_][A-Za-z0-9_]*)"
-        )
+        raise ValueError(f"'{name}' is not a valid IEC 61131-3 identifier (must match [A-Za-z_][A-Za-z0-9_]*)")
     return name
 
 

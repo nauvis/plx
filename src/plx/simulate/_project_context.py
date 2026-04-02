@@ -29,10 +29,10 @@ from ._trace import ScanSnapshot, ScanTrace
 from ._triggers import ScanTrigger
 from ._values import SimulationError, parse_literal, type_default
 
-
 # ---------------------------------------------------------------------------
 # Scheduled task wrapper
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class _ScheduledTask:
@@ -49,6 +49,7 @@ class _ScheduledTask:
 # ---------------------------------------------------------------------------
 # Base period computation
 # ---------------------------------------------------------------------------
+
 
 def _compute_base_period(
     tasks: list[_ScheduledTask],
@@ -67,6 +68,7 @@ def _compute_base_period(
 # ---------------------------------------------------------------------------
 # GVL initialization (standalone — no SimulationContext dependency)
 # ---------------------------------------------------------------------------
+
 
 def _init_gvl_var(
     var: Variable,
@@ -95,12 +97,11 @@ def _init_array(
     enum_registry: dict[str, type[IntEnum]],
 ) -> list:
     """Build nested list from ArrayTypeRef dimensions."""
+
     def _build(dims, idx):
         dim = dims[idx]
         if not isinstance(dim.lower, int) or not isinstance(dim.upper, int):
-            raise SimulationError(
-                "Cannot simulate array with expression-based bounds"
-            )
+            raise SimulationError("Cannot simulate array with expression-based bounds")
         size = dim.upper - dim.lower + 1
         if idx == len(dims) - 1:
             elem_default = type_default(dt.element_type)
@@ -167,7 +168,9 @@ def _init_struct(
     for member in typedef.members:
         if member.initial_value is not None:
             result[member.name] = parse_literal(
-                member.initial_value, member.data_type, enum_registry,
+                member.initial_value,
+                member.data_type,
+                enum_registry,
             )
         else:
             d = type_default(member.data_type)
@@ -175,11 +178,15 @@ def _init_struct(
                 result[member.name] = d
             elif isinstance(member.data_type, NamedTypeRef):
                 result[member.name] = _init_named(
-                    member.data_type.name, data_type_registry, enum_registry,
+                    member.data_type.name,
+                    data_type_registry,
+                    enum_registry,
                 )
             elif isinstance(member.data_type, ArrayTypeRef):
                 result[member.name] = _init_array(
-                    member.data_type, data_type_registry, enum_registry,
+                    member.data_type,
+                    data_type_registry,
+                    enum_registry,
                 )
             else:
                 result[member.name] = 0
@@ -197,7 +204,9 @@ def _init_global_state(
         gvl_dict: dict[str, object] = {}
         for var in gvl.variables:
             gvl_dict[var.name] = _init_gvl_var(
-                var, data_type_registry, enum_registry,
+                var,
+                data_type_registry,
+                enum_registry,
             )
         state[gvl.name] = gvl_dict
     return state
@@ -206,6 +215,7 @@ def _init_global_state(
 # ---------------------------------------------------------------------------
 # ProjectSimulationContext
 # ---------------------------------------------------------------------------
+
 
 class ProjectSimulationContext:
     """Multi-program simulation context with task scheduling.
@@ -238,11 +248,7 @@ class ProjectSimulationContext:
             if isinstance(dt, (StructType, EnumType)):
                 data_type_registry[dt.name] = dt
             if isinstance(dt, EnumType):
-                members = {
-                    m.name: m.value
-                    for m in dt.members
-                    if m.value is not None
-                }
+                members = {m.name: m.value for m in dt.members if m.value is not None}
                 if members:
                     enum_registry[dt.name] = IntEnum(dt.name, members)
 
@@ -270,9 +276,7 @@ class ProjectSimulationContext:
         self._base_period_ms = _compute_base_period(scheduled, scan_period_ms)
 
         # Create per-program SimulationContexts
-        program_pous = [
-            p for p in project_ir.pous if p.pou_type == POUType.PROGRAM
-        ]
+        program_pous = [p for p in project_ir.pous if p.pou_type == POUType.PROGRAM]
         if not program_pous:
             raise SimulationError("Project has no PROGRAM POUs to simulate")
 
@@ -430,9 +434,7 @@ class ProjectSimulationContext:
                 for k in ctx._known_vars:
                     if k in ctx._state:
                         values[f"{pname}.{k}"] = ctx._state[k]
-            result._snapshots.append(
-                ScanSnapshot(clock_ms=self._clock_ms, values=values)
-            )
+            result._snapshots.append(ScanSnapshot(clock_ms=self._clock_ms, values=values))
         return result
 
     def scan_until(
@@ -504,13 +506,10 @@ class ProjectSimulationContext:
         try:
             programs = object.__getattribute__(self, "_programs")
         except AttributeError:
-            raise AttributeError(name)
+            raise AttributeError(name) from None
         if name in programs:
             return programs[name]
-        raise AttributeError(
-            f"'{type(self).__name__}' has no program '{name}'. "
-            f"Available: {sorted(programs.keys())}"
-        )
+        raise AttributeError(f"'{type(self).__name__}' has no program '{name}'. Available: {sorted(programs.keys())}")
 
     def __getitem__(self, name: str) -> SimulationContext:
         return self._programs[name]

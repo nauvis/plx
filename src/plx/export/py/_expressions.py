@@ -80,9 +80,18 @@ class _ExpressionWriterMixin:
 
         # Date/time typed literal: DATE#2024-01-15 -> "DATE#2024-01-15"
         _DATE_TIME_PREFIXES = {
-            "DATE", "LDATE", "TOD", "LTOD", "DT", "LDT",
-            "TIME_OF_DAY", "LTIME_OF_DAY", "DATE_AND_TIME", "LDATE_AND_TIME",
-            "D", "LD",
+            "DATE",
+            "LDATE",
+            "TOD",
+            "LTOD",
+            "DT",
+            "LDT",
+            "TIME_OF_DAY",
+            "LTIME_OF_DAY",
+            "DATE_AND_TIME",
+            "LDATE_AND_TIME",
+            "D",
+            "LD",
         }
         if "#" in v:
             prefix = v.split("#", 1)[0].upper()
@@ -91,10 +100,21 @@ class _ExpressionWriterMixin:
 
         # Typed numeric literal: BYTE#255 -> 255, REAL#3.14 -> 3.14
         _NUMERIC_TYPE_PREFIXES = {
-            "BYTE", "WORD", "DWORD", "LWORD",
-            "SINT", "INT", "DINT", "LINT",
-            "USINT", "UINT", "UDINT", "ULINT",
-            "REAL", "LREAL", "BOOL",
+            "BYTE",
+            "WORD",
+            "DWORD",
+            "LWORD",
+            "SINT",
+            "INT",
+            "DINT",
+            "LINT",
+            "USINT",
+            "UINT",
+            "UDINT",
+            "ULINT",
+            "REAL",
+            "LREAL",
+            "BOOL",
         }
         if "#" in v:
             prefix, _, suffix = v.partition("#")
@@ -136,7 +156,7 @@ class _ExpressionWriterMixin:
             pass
 
         # String literal -- convert IEC escapes to Python
-        if v.startswith("'") or v.startswith('"'):
+        if v.startswith(("'", '"')):
             return _iec_string_to_python(v)
 
         return v
@@ -306,8 +326,8 @@ class _ExpressionWriterMixin:
 
         The compiler emits::
 
-            OR(OR(EQ(x, a), EQ(x, b)), EQ(x, c))     # x in (a, b, c)
-            AND(AND(NE(x, a), NE(x, b)), NE(x, c))    # x not in (a, b, c)
+            OR(OR(EQ(x, a), EQ(x, b)), EQ(x, c))  # x in (a, b, c)
+            AND(AND(NE(x, a), NE(x, b)), NE(x, c))  # x not in (a, b, c)
 
         Walks the left spine collecting EQ/NE leaves.  All leaves must
         compare the same ``left`` expression (structural equality via

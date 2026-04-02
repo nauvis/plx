@@ -15,32 +15,24 @@ from plx.framework._descriptors import (
     InOut,
     Input,
     Output,
-    VarDirection,
     _collect_descriptors,
 )
 from plx.framework._library import (
-    FBParam,
+    _LIBRARY_TYPE_REGISTRY,
     LibraryEnum,
     LibraryFB,
     LibraryStruct,
     LibraryType,
-    _clear_library_registry,
-    _LIBRARY_TYPE_REGISTRY,
     get_library_fb,
     get_library_type,
 )
 from plx.framework._types import (
     BOOL,
     DINT,
-    INT,
-    LREAL,
     REAL,
-    UDINT,
-    WORD,
     _resolve_type_ref,
 )
 from plx.model.types import NamedTypeRef, PrimitiveType, PrimitiveTypeRef
-
 
 # ---------------------------------------------------------------------------
 # Test fixtures — local stub definitions (avoid polluting global registry)
@@ -48,6 +40,7 @@ from plx.model.types import NamedTypeRef, PrimitiveType, PrimitiveTypeRef
 
 # Note: these are defined at module level because __init_subclass__ runs
 # at class definition time.  Tests that need isolation use _clear_library_registry.
+
 
 class _TestFB(LibraryFB, vendor="test_vendor", library="TestLib"):
     Enable: Input[BOOL]
@@ -78,7 +71,6 @@ class _TestStruct(LibraryStruct, vendor="test_vendor", library="TestLib"):
 
 class _TestEmptyStruct(LibraryStruct, vendor="test_vendor", library="TestLib"):
     """Empty stub — fields populated on demand."""
-    pass
 
 
 class _TestEnum(LibraryEnum, vendor="test_vendor", library="TestLib"):
@@ -90,12 +82,12 @@ class _TestEnum(LibraryEnum, vendor="test_vendor", library="TestLib"):
 
 class _TestEnumEmpty(LibraryEnum, vendor="test_vendor", library="TestLib"):
     """Enum with no values."""
-    pass
 
 
 # ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
+
 
 class TestRegistration:
     def test_library_fb_registered(self):
@@ -127,6 +119,7 @@ class TestRegistration:
 # ---------------------------------------------------------------------------
 # Metadata
 # ---------------------------------------------------------------------------
+
 
 class TestMetadata:
     def test_fb_vendor(self):
@@ -161,6 +154,7 @@ class TestMetadata:
 # ---------------------------------------------------------------------------
 # Interface parsing
 # ---------------------------------------------------------------------------
+
 
 class TestFBInterfaceParsing:
     def test_input_params(self):
@@ -237,6 +231,7 @@ class TestEnumValueParsing:
 # Type resolution
 # ---------------------------------------------------------------------------
 
+
 class TestTypeResolution:
     def test_resolve_library_fb(self):
         result = _resolve_type_ref(_TestFB)
@@ -265,6 +260,7 @@ class TestTypeResolution:
 # ---------------------------------------------------------------------------
 # Variable collection (_collect_descriptors)
 # ---------------------------------------------------------------------------
+
 
 class TestVariableCollection:
     def test_annotation_style(self):
@@ -310,6 +306,7 @@ class TestVariableCollection:
 # initial_state / execute
 # ---------------------------------------------------------------------------
 
+
 class TestInitialState:
     def test_fb_initial_state(self):
         state = _TestFB.initial_state()
@@ -352,11 +349,12 @@ class TestInitialState:
 # Simulation integration
 # ---------------------------------------------------------------------------
 
+
 class TestSimulationIntegration:
     def _make_pou_with_library_fb(self):
         """Build a POU IR that uses a library FB instance."""
-        from plx.model.expressions import LiteralExpr, MemberAccessExpr, VariableRef
-        from plx.model.pou import POU, POUInterface, POUType, Network
+        from plx.model.expressions import MemberAccessExpr, VariableRef
+        from plx.model.pou import POU, Network, POUInterface, POUType
         from plx.model.statements import Assignment, FBInvocation
         from plx.model.variables import Variable
 
@@ -476,19 +474,23 @@ class TestSimulationIntegration:
 # Beckhoff vendor stubs (integration test)
 # ---------------------------------------------------------------------------
 
+
 class TestBeckhoffStubs:
     def test_mc_power_registered(self):
         from plx.framework.vendor.beckhoff.mc2 import MC_Power
+
         assert get_library_type("MC_Power") is MC_Power
         assert get_library_fb("MC_Power") is MC_Power
 
     def test_mc_power_metadata(self):
         from plx.framework.vendor.beckhoff.mc2 import MC_Power
+
         assert MC_Power._vendor == "beckhoff"
         assert MC_Power._library == "Tc2_MC2"
 
     def test_mc_power_interface(self):
         from plx.framework.vendor.beckhoff.mc2 import MC_Power
+
         iface = MC_Power._interface
         assert iface["Enable"].direction == "input"
         assert iface["Status"].direction == "output"
@@ -496,6 +498,7 @@ class TestBeckhoffStubs:
 
     def test_mc_power_execute(self):
         from plx.framework.vendor.beckhoff.mc2 import MC_Power
+
         state = MC_Power.initial_state()
         state["Enable"] = True
         MC_Power.execute(state, 0)
@@ -505,22 +508,26 @@ class TestBeckhoffStubs:
 
     def test_axis_ref_registered(self):
         from plx.framework.vendor.beckhoff.mc2 import AXIS_REF
+
         assert get_library_type("AXIS_REF") is AXIS_REF
         assert AXIS_REF._vendor == "beckhoff"
 
     def test_mc_direction_registered(self):
         from plx.framework.vendor.beckhoff.mc2 import MC_Direction
+
         assert get_library_type("MC_Direction") is MC_Direction
         assert MC_Direction._values["MC_Positive_Direction"] == 1
         assert MC_Direction.default_value() == 1
 
     def test_resolve_mc_power_type(self):
         from plx.framework.vendor.beckhoff.mc2 import MC_Power
+
         result = _resolve_type_ref(MC_Power)
         assert result == NamedTypeRef(name="MC_Power")
 
     def test_mc_move_absolute_initial_state(self):
         from plx.framework.vendor.beckhoff.mc2 import MC_MoveAbsolute
+
         state = MC_MoveAbsolute.initial_state()
         assert state["Execute"] is False
         assert state["Done"] is False
@@ -536,10 +543,11 @@ class TestBeckhoffStubs:
 # Compilation integration
 # ---------------------------------------------------------------------------
 
+
 class TestCompilationIntegration:
     def test_fb_with_library_instance_compiles(self):
         """@fb class with a library FB instance compiles to correct IR."""
-        from plx.framework import fb, BOOL, REAL
+        from plx.framework import BOOL, REAL, fb
         from plx.model.types import NamedTypeRef
 
         @fb
@@ -555,7 +563,7 @@ class TestCompilationIntegration:
 
     def test_fb_with_library_annotation_compiles(self):
         """@fb class with library type annotation compiles correctly."""
-        from plx.framework import fb, BOOL
+        from plx.framework import BOOL, fb
 
         @fb
         class AxisCtrl:
@@ -569,7 +577,7 @@ class TestCompilationIntegration:
 
     def test_fb_invocation_in_logic(self):
         """Library FB call in logic() compiles to FBInvocation IR."""
-        from plx.framework import fb, BOOL
+        from plx.framework import BOOL, fb
         from plx.model.statements import FBInvocation
 
         @fb
@@ -596,13 +604,14 @@ class TestCompilationIntegration:
 # Python export — library imports
 # ---------------------------------------------------------------------------
 
+
 class TestPythonExportLibraryImports:
     def test_collect_library_imports_from_interface(self):
         """_collect_library_imports finds library types in POU interface."""
         from plx.export.py._helpers import _collect_library_imports
         from plx.model.pou import POU, POUInterface, POUType
-        from plx.model.variables import Variable
         from plx.model.project import Project
+        from plx.model.variables import Variable
 
         pou = POU(
             name="TestPOU",
@@ -625,9 +634,9 @@ class TestPythonExportLibraryImports:
         """Project-local types are not treated as library imports."""
         from plx.export.py._helpers import _collect_library_imports
         from plx.model.pou import POU, POUInterface, POUType
-        from plx.model.variables import Variable
         from plx.model.project import Project
         from plx.model.types import StructType
+        from plx.model.variables import Variable
 
         local_struct = StructType(name="MyStruct", members=[])
         pou = POU(
@@ -647,10 +656,10 @@ class TestPythonExportLibraryImports:
     def test_collect_library_imports_from_fb_invocation(self):
         """_collect_library_imports finds library types in FBInvocation fb_type."""
         from plx.export.py._helpers import _collect_library_imports
-        from plx.model.pou import POU, POUInterface, POUType, Network
-        from plx.model.variables import Variable
-        from plx.model.statements import FBInvocation
+        from plx.model.pou import POU, Network, POUInterface, POUType
         from plx.model.project import Project
+        from plx.model.statements import FBInvocation
+        from plx.model.variables import Variable
 
         pou = POU(
             name="TestPOU",
@@ -661,13 +670,15 @@ class TestPythonExportLibraryImports:
                 ]
             ),
             networks=[
-                Network(statements=[
-                    FBInvocation(
-                        instance_name="power",
-                        fb_type=NamedTypeRef(name="MC_Power"),
-                        inputs={},
-                    ),
-                ]),
+                Network(
+                    statements=[
+                        FBInvocation(
+                            instance_name="power",
+                            fb_type=NamedTypeRef(name="MC_Power"),
+                            inputs={},
+                        ),
+                    ]
+                ),
             ],
         )
         project = Project(name="test", pous=[pou])
@@ -679,8 +690,8 @@ class TestPythonExportLibraryImports:
         """generate_files() emits vendor-qualified imports for library types."""
         from plx.export.py import generate_files
         from plx.model.pou import POU, POUInterface, POUType
-        from plx.model.variables import Variable
         from plx.model.project import Project
+        from plx.model.variables import Variable
 
         pou = POU(
             name="TestPOU",
@@ -709,8 +720,8 @@ class TestPythonExportLibraryImports:
         """PyWriter emits library types unquoted (not as string literals)."""
         from plx.export.py._writer import PyWriter
         from plx.model.pou import POU, POUInterface, POUType
-        from plx.model.variables import Variable
         from plx.model.project import Project
+        from plx.model.variables import Variable
 
         pou = POU(
             name="TestPOU",
@@ -732,14 +743,13 @@ class TestPythonExportLibraryImports:
 
     def test_collect_library_imports_groups_by_vendor(self):
         """Imports from different vendors produce separate import lines."""
+        # Explicitly import vendor stubs to register them
+        import plx.framework.vendor.beckhoff
+        import plx.framework.vendor.siemens  # noqa: F401
         from plx.export.py._helpers import _collect_library_imports
         from plx.model.pou import POU, POUInterface, POUType
-        from plx.model.variables import Variable
         from plx.model.project import Project
-
-        # Explicitly import vendor stubs to register them
-        import plx.framework.vendor.beckhoff  # noqa: F401
-        import plx.framework.vendor.siemens  # noqa: F401
+        from plx.model.variables import Variable
 
         # Use types unique to each vendor to avoid registry name collisions
         # (MC_Power exists for both beckhoff and siemens — last import wins)
@@ -769,13 +779,14 @@ class TestPythonExportLibraryImports:
 # Beckhoff raise pass — library auto-detection
 # ---------------------------------------------------------------------------
 
+
 class TestBeckhoffRaiseLibraryAutoDetection:
     def test_auto_adds_library_refs(self):
         """Beckhoff raise pass auto-detects library references from type usage."""
-        from plx.model.pou import POU, POUInterface, POUType, Network
-        from plx.model.variables import Variable
-        from plx.model.statements import FBInvocation
+        from plx.model.pou import POU, Network, POUInterface, POUType
         from plx.model.project import Project
+        from plx.model.statements import FBInvocation
+        from plx.model.variables import Variable
 
         pou = POU(
             name="MotionTest",
@@ -787,13 +798,15 @@ class TestBeckhoffRaiseLibraryAutoDetection:
                 ]
             ),
             networks=[
-                Network(statements=[
-                    FBInvocation(
-                        instance_name="power",
-                        fb_type=NamedTypeRef(name="MC_Power"),
-                        inputs={},
-                    ),
-                ]),
+                Network(
+                    statements=[
+                        FBInvocation(
+                            instance_name="power",
+                            fb_type=NamedTypeRef(name="MC_Power"),
+                            inputs={},
+                        ),
+                    ]
+                ),
             ],
         )
         project = Project(name="test", pous=[pou])
@@ -813,8 +826,8 @@ class TestBeckhoffRaiseLibraryAutoDetection:
     def test_no_duplicate_default_libraries(self):
         """Auto-detection does not duplicate default libraries."""
         from plx.model.pou import POU, POUInterface, POUType
-        from plx.model.variables import Variable
         from plx.model.project import Project
+        from plx.model.variables import Variable
 
         pou = POU(
             name="TestPOU",

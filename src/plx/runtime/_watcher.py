@@ -8,13 +8,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Callable, Awaitable
 
 logger = logging.getLogger("plx.runtime")
 
 try:
-    from watchfiles import awatch, Change
+    from watchfiles import awatch
 
     _HAS_WATCHFILES = True
 except ImportError:
@@ -45,10 +45,7 @@ class FileWatcher:
         debounce_ms: int = 250,
     ) -> None:
         if not _HAS_WATCHFILES:
-            raise RuntimeError(
-                "watchfiles is not installed. "
-                "Install with: pip install plx-controls[runtime]"
-            )
+            raise RuntimeError("watchfiles is not installed. Install with: pip install plx-controls[runtime]")
 
         self._source_path = source_path
         self._project_path = project_path
@@ -83,10 +80,7 @@ class FileWatcher:
                 step=100,
             ):
                 # Filter for .py changes only
-                py_changes = [
-                    (change, path) for change, path in changes
-                    if path.endswith(".py")
-                ]
+                py_changes = [(change, path) for change, path in changes if path.endswith(".py")]
                 if not py_changes:
                     continue
 

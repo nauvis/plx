@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from plx.model.expressions import BitAccessExpr, LiteralExpr, VariableRef
 from plx.model.pou import (
-    Method,
-    Network,
     POU,
+    Method,
     POUAction,
     POUInterface,
     POUType,
@@ -29,8 +29,8 @@ from plx.model.types import (
 )
 from plx.model.variables import Variable
 
-
 # ---------- POUInterface: duplicate variable names ----------
+
 
 class TestPOUInterfaceDuplicateVars:
     def test_same_section_rejects_duplicate(self):
@@ -58,7 +58,7 @@ class TestPOUInterfaceDuplicateVars:
         assert len(iface.input_vars) == 1
 
     def test_error_mentions_sections(self):
-        with pytest.raises(ValueError, match="input_vars.*output_vars"):
+        with pytest.raises(ValueError, match=r"input_vars.*output_vars"):
             POUInterface(
                 input_vars=[Variable(name="val", data_type=PrimitiveTypeRef(type="INT"))],
                 output_vars=[Variable(name="val", data_type=PrimitiveTypeRef(type="INT"))],
@@ -66,6 +66,7 @@ class TestPOUInterfaceDuplicateVars:
 
 
 # ---------- POU: duplicate method / property / action names ----------
+
 
 class TestPOUDuplicateMethods:
     def test_duplicate_method_rejected(self):
@@ -135,6 +136,7 @@ class TestPOUDuplicateActions:
 
 # ---------- INTERFACE POU constraints ----------
 
+
 class TestInterfacePOUConstraints:
     def test_interface_rejects_static_vars(self):
         with pytest.raises(ValueError, match="INTERFACE POUs must not have static_vars"):
@@ -175,6 +177,7 @@ class TestInterfacePOUConstraints:
 
 # ---------- Project: duplicate POU / data type / GVL / task names ----------
 
+
 def _simple_fb(name: str) -> POU:
     return POU(pou_type=POUType.FUNCTION_BLOCK, name=name)
 
@@ -209,19 +212,28 @@ class TestProjectDuplicatePOUs:
 
 class TestProjectDuplicateDataTypes:
     def test_duplicate_data_type_rejected(self):
-        dt = StructType(name="MyStruct", members=[
-            StructMember(name="x", data_type=PrimitiveTypeRef(type="INT")),
-        ])
+        dt = StructType(
+            name="MyStruct",
+            members=[
+                StructMember(name="x", data_type=PrimitiveTypeRef(type="INT")),
+            ],
+        )
         with pytest.raises(ValueError, match="Duplicate data type name 'MyStruct'"):
             Project(name="Test", data_types=[dt, dt])
 
     def test_unique_data_types_accepted(self):
-        dt1 = StructType(name="Struct1", members=[
-            StructMember(name="x", data_type=PrimitiveTypeRef(type="INT")),
-        ])
-        dt2 = StructType(name="Struct2", members=[
-            StructMember(name="y", data_type=PrimitiveTypeRef(type="REAL")),
-        ])
+        dt1 = StructType(
+            name="Struct1",
+            members=[
+                StructMember(name="x", data_type=PrimitiveTypeRef(type="INT")),
+            ],
+        )
+        dt2 = StructType(
+            name="Struct2",
+            members=[
+                StructMember(name="y", data_type=PrimitiveTypeRef(type="REAL")),
+            ],
+        )
         proj = Project(name="Test", data_types=[dt1, dt2])
         assert len(proj.data_types) == 2
 
@@ -272,6 +284,7 @@ class TestProjectDuplicateTasks:
 
 # ---------- GVL: duplicate variable names ----------
 
+
 class TestGVLDuplicateVars:
     def test_duplicate_var_rejected(self):
         with pytest.raises(ValueError, match="Duplicate variable name 'speed'"):
@@ -296,78 +309,105 @@ class TestGVLDuplicateVars:
 
 # ---------- Type definitions: duplicate member names ----------
 
+
 class TestStructDuplicateMembers:
     def test_duplicate_member_rejected(self):
-        with pytest.raises(ValueError, match="Duplicate member name 'x'.*struct.*MyStruct"):
-            StructType(name="MyStruct", members=[
-                StructMember(name="x", data_type=PrimitiveTypeRef(type="INT")),
-                StructMember(name="x", data_type=PrimitiveTypeRef(type="REAL")),
-            ])
+        with pytest.raises(ValueError, match=r"Duplicate member name 'x'.*struct.*MyStruct"):
+            StructType(
+                name="MyStruct",
+                members=[
+                    StructMember(name="x", data_type=PrimitiveTypeRef(type="INT")),
+                    StructMember(name="x", data_type=PrimitiveTypeRef(type="REAL")),
+                ],
+            )
 
     def test_unique_members_accepted(self):
-        st = StructType(name="MyStruct", members=[
-            StructMember(name="x", data_type=PrimitiveTypeRef(type="INT")),
-            StructMember(name="y", data_type=PrimitiveTypeRef(type="REAL")),
-        ])
+        st = StructType(
+            name="MyStruct",
+            members=[
+                StructMember(name="x", data_type=PrimitiveTypeRef(type="INT")),
+                StructMember(name="y", data_type=PrimitiveTypeRef(type="REAL")),
+            ],
+        )
         assert len(st.members) == 2
 
 
 class TestEnumDuplicateMembers:
     def test_duplicate_member_rejected(self):
-        with pytest.raises(ValueError, match="Duplicate member name 'RED'.*enum.*Colors"):
-            EnumType(name="Colors", members=[
-                EnumMember(name="RED", value=0),
-                EnumMember(name="RED", value=1),
-            ])
+        with pytest.raises(ValueError, match=r"Duplicate member name 'RED'.*enum.*Colors"):
+            EnumType(
+                name="Colors",
+                members=[
+                    EnumMember(name="RED", value=0),
+                    EnumMember(name="RED", value=1),
+                ],
+            )
 
     def test_unique_members_accepted(self):
-        et = EnumType(name="Colors", members=[
-            EnumMember(name="RED", value=0),
-            EnumMember(name="GREEN", value=1),
-            EnumMember(name="BLUE", value=2),
-        ])
+        et = EnumType(
+            name="Colors",
+            members=[
+                EnumMember(name="RED", value=0),
+                EnumMember(name="GREEN", value=1),
+                EnumMember(name="BLUE", value=2),
+            ],
+        )
         assert len(et.members) == 3
 
     def test_duplicate_values_allowed(self):
         """Enum aliases (same value, different name) are valid."""
-        et = EnumType(name="Status", members=[
-            EnumMember(name="OK", value=0),
-            EnumMember(name="SUCCESS", value=0),
-        ])
+        et = EnumType(
+            name="Status",
+            members=[
+                EnumMember(name="OK", value=0),
+                EnumMember(name="SUCCESS", value=0),
+            ],
+        )
         assert len(et.members) == 2
 
 
 class TestUnionDuplicateMembers:
     def test_duplicate_member_rejected(self):
-        with pytest.raises(ValueError, match="Duplicate member name 'val'.*union.*MyUnion"):
-            UnionType(name="MyUnion", members=[
-                StructMember(name="val", data_type=PrimitiveTypeRef(type="INT")),
-                StructMember(name="val", data_type=PrimitiveTypeRef(type="REAL")),
-            ])
+        with pytest.raises(ValueError, match=r"Duplicate member name 'val'.*union.*MyUnion"):
+            UnionType(
+                name="MyUnion",
+                members=[
+                    StructMember(name="val", data_type=PrimitiveTypeRef(type="INT")),
+                    StructMember(name="val", data_type=PrimitiveTypeRef(type="REAL")),
+                ],
+            )
 
     def test_unique_members_accepted(self):
-        ut = UnionType(name="MyUnion", members=[
-            StructMember(name="int_val", data_type=PrimitiveTypeRef(type="INT")),
-            StructMember(name="real_val", data_type=PrimitiveTypeRef(type="REAL")),
-        ])
+        ut = UnionType(
+            name="MyUnion",
+            members=[
+                StructMember(name="int_val", data_type=PrimitiveTypeRef(type="INT")),
+                StructMember(name="real_val", data_type=PrimitiveTypeRef(type="REAL")),
+            ],
+        )
         assert len(ut.members) == 2
 
 
 # ---------- SFC: step names and transition references ----------
 
+
 class TestSFCStepNames:
     def test_duplicate_step_names_rejected(self):
         with pytest.raises(ValueError, match="Duplicate step name 'IDLE'"):
-            SFCBody(steps=[
-                Step(name="IDLE", is_initial=True),
-                Step(name="IDLE"),
-            ])
+            SFCBody(
+                steps=[
+                    Step(name="IDLE", is_initial=True),
+                    Step(name="IDLE"),
+                ]
+            )
 
     def test_unique_step_names_accepted(self):
-        body = SFCBody(steps=[
-            Step(name="IDLE", is_initial=True),
-            Step(name="RUN"),
-        ])
+        body = SFCBody(
+            steps=[
+                Step(name="IDLE", is_initial=True),
+                Step(name="RUN"),
+            ]
+        )
         assert len(body.steps) == 2
 
 
@@ -419,6 +459,7 @@ class TestSFCTransitionRefs:
 
 # ---------- CaseStatement: non-empty branches ----------
 
+
 class TestCaseStatementBranches:
     def test_empty_branches_rejected(self):
         with pytest.raises(ValueError, match="at least one branch"):
@@ -436,6 +477,7 @@ class TestCaseStatementBranches:
 
 
 # ---------- StringTypeRef: positive max_length ----------
+
 
 class TestStringTypeRefMaxLength:
     def test_zero_max_length_accepted(self):
@@ -458,9 +500,10 @@ class TestStringTypeRefMaxLength:
 
 # ---------- BitAccessExpr: non-negative index ----------
 
+
 class TestBitAccessExprIndex:
     def test_negative_index_rejected(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             BitAccessExpr(
                 target=VariableRef(name="word"),
                 bit_index=-1,

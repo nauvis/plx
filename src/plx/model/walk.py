@@ -12,20 +12,23 @@ Examples
 
     # Collect all FB invocation types in a project
     fb_types: set[str] = set()
+
+
     def on_stmt(stmt):
         if isinstance(stmt, FBInvocation) and isinstance(stmt.fb_type, NamedTypeRef):
             fb_types.add(stmt.fb_type.name)
+
+
     walk_project(project, on_stmt=on_stmt)
 
     # Collect all function calls in an expression tree
     calls: list[str] = []
-    walk_expressions(expr, on_expr=lambda e: calls.append(e.function_name)
-                     if isinstance(e, FunctionCallExpr) else None)
+    walk_expressions(expr, on_expr=lambda e: calls.append(e.function_name) if isinstance(e, FunctionCallExpr) else None)
 """
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 from .expressions import (
     ArrayAccessExpr,
@@ -61,6 +64,7 @@ StmtCallback = Callable[[Statement], None]
 # ---------------------------------------------------------------------------
 # Expression walking
 # ---------------------------------------------------------------------------
+
 
 def walk_expressions(expr: Expression, on_expr: ExprCallback) -> None:
     """Walk an expression tree depth-first (pre-order), calling *on_expr* for every node.
@@ -115,6 +119,7 @@ def _expr_children(expr: Expression) -> list[Expression]:
 # ---------------------------------------------------------------------------
 # Statement walking
 # ---------------------------------------------------------------------------
+
 
 def walk_statements(
     stmts: list[Statement],
@@ -232,8 +237,9 @@ def _stmt_expressions(stmt: Statement) -> list[Expression]:
 # POU and Project walking
 # ---------------------------------------------------------------------------
 
+
 def walk_pou(
-    pou: "POU",
+    pou: POU,
     on_stmt: StmtCallback | None = None,
     on_expr: ExprCallback | None = None,
 ) -> None:
@@ -250,7 +256,6 @@ def walk_pou(
     on_expr : ExprCallback or None, optional
         Callback invoked for every expression node.
     """
-    from .pou import POU  # noqa: F811 — deferred to avoid circular import
 
     # Networks (main body)
     for net in pou.networks:
@@ -281,7 +286,7 @@ def walk_pou(
 
 
 def walk_project(
-    project: "Project",
+    project: Project,
     on_stmt: StmtCallback | None = None,
     on_expr: ExprCallback | None = None,
 ) -> None:
@@ -301,7 +306,7 @@ def walk_project(
 
 
 def _walk_sfc_body(
-    sfc_body: "SFCBody | None",
+    sfc_body: SFCBody | None,
     on_stmt: StmtCallback | None,
     on_expr: ExprCallback | None,
 ) -> None:

@@ -7,12 +7,10 @@ foundation for all runtime value handling.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from plx.framework._errors import PlxError
 from plx.model.types import (
-    ArrayTypeRef,
-    NamedTypeRef,
     PointerTypeRef,
     PrimitiveType,
     PrimitiveTypeRef,
@@ -58,14 +56,8 @@ def _parse_time_literal(value: str) -> int:
     us = float(m.group(6)) if m.group(6) else 0.0
     # ns ignored for millisecond resolution
 
-    total_ms = (
-        hours * 3_600_000
-        + minutes * 60_000
-        + seconds * 1_000
-        + ms
-        + us / 1_000
-    )
-    return sign * int(round(total_ms))
+    total_ms = hours * 3_600_000 + minutes * 60_000 + seconds * 1_000 + ms + us / 1_000
+    return sign * round(total_ms)
 
 
 # ---------------------------------------------------------------------------
@@ -93,7 +85,7 @@ def _parse_date_literal(value: str) -> int:
     m = _DATE_RE.match(value)
     if m is None:
         raise SimulationError(f"Invalid DATE literal: {value!r}")
-    dt = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), tzinfo=timezone.utc)
+    dt = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), tzinfo=UTC)
     return int(dt.timestamp() * 1000)
 
 
@@ -114,39 +106,65 @@ def _parse_dt_literal(value: str) -> int:
     if m is None:
         raise SimulationError(f"Invalid DT literal: {value!r}")
     dt = datetime(
-        int(m.group(1)), int(m.group(2)), int(m.group(3)),
-        int(m.group(4)), int(m.group(5)), int(m.group(6)),
-        tzinfo=timezone.utc,
+        int(m.group(1)),
+        int(m.group(2)),
+        int(m.group(3)),
+        int(m.group(4)),
+        int(m.group(5)),
+        int(m.group(6)),
+        tzinfo=UTC,
     )
     frac_str = m.group(7) or "0"
     frac_ms = int(frac_str.ljust(3, "0")[:3])
     return int(dt.timestamp() * 1000) + frac_ms
 
 
-_DATE_TYPES = frozenset({
-    PrimitiveType.DATE, PrimitiveType.LDATE,
-    PrimitiveType.TOD, PrimitiveType.LTOD,
-    PrimitiveType.DT, PrimitiveType.LDT,
-})
+_DATE_TYPES = frozenset(
+    {
+        PrimitiveType.DATE,
+        PrimitiveType.LDATE,
+        PrimitiveType.TOD,
+        PrimitiveType.LTOD,
+        PrimitiveType.DT,
+        PrimitiveType.LDT,
+    }
+)
 
 
 # ---------------------------------------------------------------------------
 # Literal parsing
 # ---------------------------------------------------------------------------
 
-_INTEGER_TYPES = frozenset({
-    PrimitiveType.SINT, PrimitiveType.INT, PrimitiveType.DINT, PrimitiveType.LINT,
-    PrimitiveType.USINT, PrimitiveType.UINT, PrimitiveType.UDINT, PrimitiveType.ULINT,
-    PrimitiveType.BYTE, PrimitiveType.WORD, PrimitiveType.DWORD, PrimitiveType.LWORD,
-})
+_INTEGER_TYPES = frozenset(
+    {
+        PrimitiveType.SINT,
+        PrimitiveType.INT,
+        PrimitiveType.DINT,
+        PrimitiveType.LINT,
+        PrimitiveType.USINT,
+        PrimitiveType.UINT,
+        PrimitiveType.UDINT,
+        PrimitiveType.ULINT,
+        PrimitiveType.BYTE,
+        PrimitiveType.WORD,
+        PrimitiveType.DWORD,
+        PrimitiveType.LWORD,
+    }
+)
 
-_FLOAT_TYPES = frozenset({
-    PrimitiveType.REAL, PrimitiveType.LREAL,
-})
+_FLOAT_TYPES = frozenset(
+    {
+        PrimitiveType.REAL,
+        PrimitiveType.LREAL,
+    }
+)
 
-_TIME_TYPES = frozenset({
-    PrimitiveType.TIME, PrimitiveType.LTIME,
-})
+_TIME_TYPES = frozenset(
+    {
+        PrimitiveType.TIME,
+        PrimitiveType.LTIME,
+    }
+)
 
 
 def parse_literal(
@@ -265,6 +283,7 @@ def parse_literal(
 # Type defaults
 # ---------------------------------------------------------------------------
 
+
 def type_default(data_type: TypeRef) -> object:
     """Return the default zero-value for a type.
 
@@ -312,6 +331,7 @@ def type_default(data_type: TypeRef) -> object:
 # Type coercion
 # ---------------------------------------------------------------------------
 
+
 def coerce_type(value: object, target_type: TypeRef) -> object:
     """Coerce a value to match a target type.
 
@@ -356,6 +376,7 @@ def coerce_type(value: object, target_type: TypeRef) -> object:
 # ---------------------------------------------------------------------------
 # Input value coercion
 # ---------------------------------------------------------------------------
+
 
 def _coerce_input_value(value: object) -> object:
     """Coerce user-supplied values at the simulator boundary.

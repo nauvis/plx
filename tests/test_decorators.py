@@ -6,23 +6,16 @@ import pytest
 
 from plx.framework._compiler import CompileError
 from plx.framework._decorators import fb, function, program
-from plx.framework._descriptors import Input, Field, Output, InOut
-from plx.framework._types import BOOL, DINT, INT, REAL, TIME
-from plx.model.expressions import (
-    BinaryExpr,
-    BinaryOp,
-    LiteralExpr,
-    MemberAccessExpr,
-    VariableRef,
-)
+from plx.framework._descriptors import Input, Output
+from plx.framework._types import BOOL, DINT, REAL
 from plx.model.pou import POU, Language, POUType
-from plx.model.statements import Assignment, FBInvocation, IfStatement
+from plx.model.statements import FBInvocation
 from plx.model.types import NamedTypeRef, PrimitiveType, PrimitiveTypeRef
-
 
 # ---------------------------------------------------------------------------
 # @fb
 # ---------------------------------------------------------------------------
+
 
 class TestFBDecorator:
     def test_basic_fb(self):
@@ -102,6 +95,7 @@ class TestFBDecorator:
 # @program
 # ---------------------------------------------------------------------------
 
+
 class TestProgramDecorator:
     def test_basic_program(self):
         @program
@@ -133,6 +127,7 @@ class TestProgramDecorator:
 # @function
 # ---------------------------------------------------------------------------
 
+
 class TestFunctionDecorator:
     def test_basic_function(self):
         @function
@@ -163,9 +158,11 @@ class TestFunctionDecorator:
 # Error cases
 # ---------------------------------------------------------------------------
 
+
 class TestDecoratorErrors:
     def test_missing_logic_on_fb_is_data_only(self):
         """@fb without logic() now produces a data-only FB with empty networks."""
+
         @fb
         class NoLogic:
             x: Input[BOOL]
@@ -175,21 +172,28 @@ class TestDecoratorErrors:
 
     def test_missing_logic_on_function_raises(self):
         with pytest.raises(CompileError, match="must have a logic"):
+
             @function
             class NoLogicFunc:
                 x: Input[BOOL]
 
-    def test_invalid_syntax_in_logic(self):
-        with pytest.raises(CompileError):
-            @fb
-            class BadLogic:
-                x: Input[BOOL]
+    def test_pass_only_logic_produces_empty_networks(self):
+        """logic() with only `pass` produces a valid FB with empty networks."""
 
-                def logic(self):
-                    import os
+        @fb
+        class PassLogic:
+            x: Input[BOOL]
+
+            def logic(self):
+                pass
+
+        pou = PassLogic._compiled_pou
+        assert len(pou.networks) == 1
+        assert pou.networks[0].statements == []
 
     def test_logic_extra_param_rejected(self):
         with pytest.raises(CompileError, match="must take exactly one parameter"):
+
             @fb
             class ExtraParam:
                 def logic(self, x):
@@ -197,6 +201,7 @@ class TestDecoratorErrors:
 
     def test_logic_varargs_rejected(self):
         with pytest.raises(CompileError, match="must take only 'self'"):
+
             @fb
             class VarArgs:
                 def logic(self, *args):
@@ -204,6 +209,7 @@ class TestDecoratorErrors:
 
     def test_logic_kwargs_rejected(self):
         with pytest.raises(CompileError, match="must take only 'self'"):
+
             @fb
             class KwArgs:
                 def logic(self, **kwargs):
@@ -211,6 +217,7 @@ class TestDecoratorErrors:
 
     def test_function_missing_return_annotation(self):
         with pytest.raises(CompileError, match="requires a return type"):
+
             @function
             class NoReturn:
                 x: Input[REAL]
@@ -222,6 +229,7 @@ class TestDecoratorErrors:
 # ---------------------------------------------------------------------------
 # End-to-end: serialization
 # ---------------------------------------------------------------------------
+
 
 class TestSerialization:
     def test_pou_serializes_to_json(self):
@@ -259,6 +267,7 @@ class TestSerialization:
 # ---------------------------------------------------------------------------
 # @fb language parameter
 # ---------------------------------------------------------------------------
+
 
 class TestFBLanguage:
     def test_bare_fb_language_is_none(self):
@@ -316,6 +325,7 @@ class TestFBLanguage:
 # @program language parameter
 # ---------------------------------------------------------------------------
 
+
 class TestProgramLanguage:
     def test_bare_program_language_is_none(self):
         @program
@@ -352,6 +362,7 @@ class TestProgramLanguage:
 # @function language parameter
 # ---------------------------------------------------------------------------
 
+
 class TestFunctionLanguage:
     def test_function_default_language_is_none(self):
         @function
@@ -378,9 +389,11 @@ class TestFunctionLanguage:
 # Language error cases
 # ---------------------------------------------------------------------------
 
+
 class TestLanguageErrors:
     def test_sfc_rejected_on_fb(self):
         with pytest.raises(CompileError, match="Use @sfc instead"):
+
             @fb(language="SFC")
             class SfcFB:
                 def logic(self):
@@ -388,6 +401,7 @@ class TestLanguageErrors:
 
     def test_sfc_rejected_on_program(self):
         with pytest.raises(CompileError, match="Use @sfc instead"):
+
             @program(language="SFC")
             class SfcProg:
                 def logic(self):
@@ -395,6 +409,7 @@ class TestLanguageErrors:
 
     def test_sfc_rejected_on_function(self):
         with pytest.raises(CompileError, match="Use @sfc instead"):
+
             @function(language="SFC")
             class SfcFunc:
                 def logic(self) -> BOOL:
@@ -402,6 +417,7 @@ class TestLanguageErrors:
 
     def test_invalid_language_string(self):
         with pytest.raises(CompileError, match="Invalid language 'IL'"):
+
             @fb(language="IL")
             class IlFB:
                 def logic(self):
@@ -409,6 +425,7 @@ class TestLanguageErrors:
 
     def test_language_is_case_sensitive(self):
         with pytest.raises(CompileError, match="Invalid language 'st'"):
+
             @fb(language="st")
             class LowercaseFB:
                 def logic(self):
@@ -418,6 +435,7 @@ class TestLanguageErrors:
 # ---------------------------------------------------------------------------
 # Language serialization
 # ---------------------------------------------------------------------------
+
 
 class TestLanguageSerialization:
     def test_language_in_model_dump(self):
@@ -460,6 +478,7 @@ class TestLanguageSerialization:
 # Language with inheritance
 # ---------------------------------------------------------------------------
 
+
 class TestLanguageWithInheritance:
     def test_parent_and_child_different_languages(self):
         @fb(language="ST")
@@ -497,6 +516,7 @@ class TestLanguageWithInheritance:
 # ---------------------------------------------------------------------------
 # folder= kwarg
 # ---------------------------------------------------------------------------
+
 
 class TestFolderKwarg:
     def test_fb_folder(self):

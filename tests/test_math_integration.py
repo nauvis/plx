@@ -6,26 +6,25 @@ import pytest
 
 from plx.framework import (
     REAL,
+    CompileError,
     Input,
     Output,
     fb,
     function,
-    CompileError,
 )
 from plx.model.expressions import (
     BinaryExpr,
     BinaryOp,
-    CallArg,
     FunctionCallExpr,
     LiteralExpr,
     VariableRef,
 )
 from plx.model.statements import Assignment
 
-
 # ---------------------------------------------------------------------------
 # math functions → IEC function calls
 # ---------------------------------------------------------------------------
+
 
 class TestMathFunctions:
     """math.func(x) compiles to IEC FunctionCallExpr."""
@@ -133,7 +132,8 @@ class TestMathFunctions:
 
     def test_atan2_rejected(self):
         """math.atan2() is not supported — no vendor supports it natively."""
-        with pytest.raises(CompileError, match="math.atan2.*not supported"):
+        with pytest.raises(CompileError, match=r"math\.atan2.*not supported"):
+
             @fb
             class Atan2FB:
                 y: Input[REAL]
@@ -145,13 +145,14 @@ class TestMathFunctions:
 
     def test_ceil_uppercase(self):
         """CEIL() works as a direct IEC function name."""
+
         @fb
         class CeilUpperFB:
             x: Input[REAL]
             result: Output[REAL]
 
             def logic(self):
-                self.result = CEIL(self.x)
+                self.result = CEIL(self.x)  # noqa: F821
 
         stmt = self._get_assignment(CeilUpperFB)
         assert isinstance(stmt.value, FunctionCallExpr)
@@ -159,13 +160,14 @@ class TestMathFunctions:
 
     def test_floor_uppercase(self):
         """FLOOR() works as a direct IEC function name."""
+
         @fb
         class FloorUpperFB:
             x: Input[REAL]
             result: Output[REAL]
 
             def logic(self):
-                self.result = FLOOR(self.x)
+                self.result = FLOOR(self.x)  # noqa: F821
 
         stmt = self._get_assignment(FloorUpperFB)
         assert isinstance(stmt.value, FunctionCallExpr)
@@ -267,6 +269,7 @@ class TestMathFunctions:
 # math constants
 # ---------------------------------------------------------------------------
 
+
 class TestMathConstants:
     """math.pi, math.e, math.tau compile to LiteralExpr."""
 
@@ -318,7 +321,7 @@ class TestMathConstants:
             area: Output[REAL]
 
             def logic(self):
-                self.area = math.pi * self.radius ** 2
+                self.area = math.pi * self.radius**2
 
         stmt = self._get_assignment(CircleFB)
         assert isinstance(stmt.value, BinaryExpr)
@@ -330,6 +333,7 @@ class TestMathConstants:
 # ---------------------------------------------------------------------------
 # Expressions with math
 # ---------------------------------------------------------------------------
+
 
 class TestMathExpressions:
     """math functions used in complex expressions."""
@@ -346,7 +350,7 @@ class TestMathExpressions:
             result: Output[REAL]
 
             def logic(self):
-                self.result = math.sqrt(self.x ** 2 + self.y ** 2)
+                self.result = math.sqrt(self.x**2 + self.y**2)
 
         stmt = self._get_assignment(ComplexFB)
         call = stmt.value
@@ -380,7 +384,7 @@ class TestMathExpressions:
             b: Input[REAL]
 
             def logic(self) -> REAL:
-                return math.sqrt(self.a ** 2 + self.b ** 2)
+                return math.sqrt(self.a**2 + self.b**2)
 
         pou = Hypotenuse.compile()
         ret_stmt = pou.networks[0].statements[0]
@@ -393,11 +397,13 @@ class TestMathExpressions:
 # Error handling
 # ---------------------------------------------------------------------------
 
+
 class TestMathErrors:
     """Unsupported math functions/attributes produce clear errors."""
 
     def test_unsupported_math_function(self):
-        with pytest.raises(CompileError, match="math.factorial.*not supported"):
+        with pytest.raises(CompileError, match=r"math\.factorial.*not supported"):
+
             @fb
             class BadFB:
                 x: Input[REAL]
@@ -407,7 +413,8 @@ class TestMathErrors:
                     self.result = math.factorial(self.x)
 
     def test_unsupported_math_constant(self):
-        with pytest.raises(CompileError, match="math.nan.*not supported"):
+        with pytest.raises(CompileError, match=r"math\.nan.*not supported"):
+
             @fb
             class BadFB2:
                 result: Output[REAL]
@@ -417,6 +424,7 @@ class TestMathErrors:
 
     def test_clamp_wrong_arg_count(self):
         with pytest.raises(CompileError, match="exactly 3"):
+
             @fb
             class BadClamp:
                 x: Input[REAL]
@@ -428,6 +436,7 @@ class TestMathErrors:
     def test_clamp_in_error_message(self):
         """math.clamp should appear in the supported functions list."""
         with pytest.raises(CompileError, match="clamp"):
+
             @fb
             class BadMathFB:
                 x: Input[REAL]
@@ -440,6 +449,7 @@ class TestMathErrors:
 # ---------------------------------------------------------------------------
 # math.clamp → LIMIT
 # ---------------------------------------------------------------------------
+
 
 class TestMathClamp:
     """math.clamp(value, min, max) → LIMIT(min, value, max)."""

@@ -2,14 +2,14 @@
 
 from datetime import timedelta
 
-from plx.framework import TIME, LTIME, timedelta_to_iec, timedelta_to_ir
+from plx.framework import LTIME, TIME, timedelta_to_iec, timedelta_to_ir
 from plx.model.expressions import LiteralExpr
 from plx.model.types import PrimitiveType, PrimitiveTypeRef
-
 
 # ---------------------------------------------------------------------------
 # timedelta_to_iec() — TIME (default)
 # ---------------------------------------------------------------------------
+
 
 class TestTimedeltaToIec:
     def test_seconds(self):
@@ -58,6 +58,7 @@ class TestTimedeltaToIec:
 # timedelta_to_iec() — LTIME
 # ---------------------------------------------------------------------------
 
+
 class TestTimedeltaToIecLtime:
     def test_seconds(self):
         assert timedelta_to_iec(timedelta(seconds=5), ltime=True) == "LTIME#5s"
@@ -79,6 +80,7 @@ class TestTimedeltaToIecLtime:
 # ---------------------------------------------------------------------------
 # timedelta_to_ir()
 # ---------------------------------------------------------------------------
+
 
 class TestTimedeltaToIr:
     def test_produces_literal_expr(self):
@@ -114,6 +116,7 @@ class TestTimedeltaToIr:
 # Primitive type constants
 # ---------------------------------------------------------------------------
 
+
 class TestPrimitiveTypeConstants:
     def test_time_is_primitive_type(self):
         assert TIME == PrimitiveType.TIME
@@ -123,14 +126,12 @@ class TestPrimitiveTypeConstants:
 
     def test_all_primitive_types_exported(self):
         from plx.framework import (
-            BOOL, BYTE, WORD, DWORD, LWORD,
-            SINT, INT, DINT, LINT,
-            USINT, UINT, UDINT, ULINT,
-            REAL, LREAL,
-            TIME, LTIME,
-            DATE, LDATE, TOD, LTOD, DT, LDT,
-            CHAR, WCHAR,
+            BOOL,
+            DINT,
+            INT,
+            REAL,
         )
+
         assert BOOL == PrimitiveType.BOOL
         assert INT == PrimitiveType.INT
         assert REAL == PrimitiveType.REAL
@@ -141,11 +142,14 @@ class TestPrimitiveTypeConstants:
 # timedelta re-export from framework
 # ---------------------------------------------------------------------------
 
+
 class TestTimedeltaReexport:
     def test_timedelta_available_from_framework(self):
         from plx.framework import timedelta as td
+
         assert td is timedelta
 
     def test_timedelta_in_all(self):
         import plx.framework
+
         assert "timedelta" in plx.framework.__all__

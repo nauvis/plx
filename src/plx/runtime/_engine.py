@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from plx.model.project import Project
 from plx.simulate._project_context import ProjectSimulationContext
@@ -67,7 +67,8 @@ class RuntimeEngine:
         self._project_ir = project_ir
         self._scan_period_ms = scan_period_ms
         self._sim = ProjectSimulationContext(
-            project_ir, scan_period_ms=scan_period_ms,
+            project_ir,
+            scan_period_ms=scan_period_ms,
         )
         self._stats = ScanStats()
         self._running = False
@@ -278,7 +279,8 @@ class RuntimeEngine:
         # Create new simulation context
         self._project_ir = new_ir
         self._sim = ProjectSimulationContext(
-            new_ir, scan_period_ms=self._scan_period_ms,
+            new_ir,
+            scan_period_ms=self._scan_period_ms,
         )
 
         # Restore compatible program state

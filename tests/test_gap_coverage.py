@@ -9,32 +9,24 @@ Covers:
 - _resolve_type_ref with CompiledPOU (1)
 """
 
+from typing import Annotated
+
 import pytest
 
 from plx.framework import (
     ARRAY,
     BOOL,
-    DINT,
     INT,
-    REAL,
-    CompileError,
     DeclarationError,
     Field,
     Input,
     Output,
     Static,
     fb,
-    program,
     sfc,
     step,
     transition,
 )
-from plx.framework._descriptors import (
-    External,
-    InOut,
-    Temp,
-)
-from plx.framework._types import _resolve_type_ref, first_scan
 from plx.framework._compiler import (
     count_down,
     count_up,
@@ -48,21 +40,26 @@ from plx.framework._compiler import (
     set_dominant,
     sustained,
 )
+from plx.framework._descriptors import (
+    External,
+    InOut,
+    Temp,
+)
+from plx.framework._types import _resolve_type_ref, first_scan
 from plx.model.statements import CaseStatement
 from plx.model.types import NamedTypeRef
-
-from typing import Annotated
-
 
 # ---------------------------------------------------------------------------
 # Field() validation per direction — 10 untested error paths
 # ---------------------------------------------------------------------------
+
 
 class TestFieldValidationPerDirection:
     """Each variable direction rejects certain Field() kwargs."""
 
     def test_temp_with_persistent_raises(self):
         with pytest.raises(DeclarationError, match="cannot use persistent"):
+
             @fb
             class Bad:
                 x: Annotated[Temp[int], Field(persistent=True)]
@@ -72,6 +69,7 @@ class TestFieldValidationPerDirection:
 
     def test_temp_with_description_raises(self):
         with pytest.raises(DeclarationError, match="cannot use description"):
+
             @fb
             class Bad:
                 x: Annotated[Temp[int], Field(description="nope")]
@@ -81,6 +79,7 @@ class TestFieldValidationPerDirection:
 
     def test_inout_with_initial_raises(self):
         with pytest.raises(DeclarationError, match="cannot use initial"):
+
             @fb
             class Bad:
                 x: Annotated[InOut[int], Field(initial=42)]
@@ -90,6 +89,7 @@ class TestFieldValidationPerDirection:
 
     def test_inout_with_retain_raises(self):
         with pytest.raises(DeclarationError, match="cannot use retain"):
+
             @fb
             class Bad:
                 x: Annotated[InOut[int], Field(retain=True)]
@@ -99,6 +99,7 @@ class TestFieldValidationPerDirection:
 
     def test_inout_with_persistent_raises(self):
         with pytest.raises(DeclarationError, match="cannot use persistent"):
+
             @fb
             class Bad:
                 x: Annotated[InOut[int], Field(persistent=True)]
@@ -108,6 +109,7 @@ class TestFieldValidationPerDirection:
 
     def test_external_with_initial_raises(self):
         with pytest.raises(DeclarationError, match="cannot use initial"):
+
             @fb
             class Bad:
                 x: Annotated[External[int], Field(initial=42)]
@@ -117,6 +119,7 @@ class TestFieldValidationPerDirection:
 
     def test_external_with_retain_raises(self):
         with pytest.raises(DeclarationError, match="cannot use retain"):
+
             @fb
             class Bad:
                 x: Annotated[External[int], Field(retain=True)]
@@ -126,6 +129,7 @@ class TestFieldValidationPerDirection:
 
     def test_external_with_persistent_raises(self):
         with pytest.raises(DeclarationError, match="cannot use persistent"):
+
             @fb
             class Bad:
                 x: Annotated[External[int], Field(persistent=True)]
@@ -135,6 +139,7 @@ class TestFieldValidationPerDirection:
 
     def test_constant_with_retain_raises(self):
         with pytest.raises(DeclarationError, match="cannot use retain"):
+
             @fb
             class Bad:
                 x: Annotated[int, Field(retain=True, constant=True)]
@@ -144,6 +149,7 @@ class TestFieldValidationPerDirection:
 
     def test_constant_with_persistent_raises(self):
         with pytest.raises(DeclarationError, match="cannot use persistent"):
+
             @fb
             class Bad:
                 x: Annotated[int, Field(persistent=True, constant=True)]
@@ -155,6 +161,7 @@ class TestFieldValidationPerDirection:
 # ---------------------------------------------------------------------------
 # ARRAY() constructor error paths
 # ---------------------------------------------------------------------------
+
 
 class TestArrayConstructorErrors:
     """ARRAY() raises on bad dimensions."""
@@ -179,6 +186,7 @@ class TestArrayConstructorErrors:
 # ---------------------------------------------------------------------------
 # match/case with negative literal
 # ---------------------------------------------------------------------------
+
 
 class TestMatchCaseNegativeLiteral:
     """match/case should support negative integer patterns like case -5."""
@@ -209,6 +217,7 @@ class TestMatchCaseNegativeLiteral:
 # ---------------------------------------------------------------------------
 # Sentinel direct-call guards
 # ---------------------------------------------------------------------------
+
 
 class TestSentinelDirectCallGuards:
     """All sentinel functions raise RuntimeError when called directly."""
@@ -266,6 +275,7 @@ class TestSentinelDirectCallGuards:
 # SFC resets= parameter in compiled IR
 # ---------------------------------------------------------------------------
 
+
 class TestSfcResetsParameter:
     """The resets= kwarg on @STEP.action should set action_name in IR."""
 
@@ -298,6 +308,7 @@ class TestSfcResetsParameter:
 # _resolve_type_ref with CompiledPOU (FB class as type argument)
 # ---------------------------------------------------------------------------
 
+
 class TestResolveTypeRefCompiledPOU:
     """_resolve_type_ref should accept @fb-decorated classes as type args."""
 
@@ -315,6 +326,7 @@ class TestResolveTypeRefCompiledPOU:
 
     def test_fb_as_static_var_type(self):
         """An @fb class used as a Static variable type compiles correctly."""
+
         @fb
         class HelperFB:
             val: Input[INT]

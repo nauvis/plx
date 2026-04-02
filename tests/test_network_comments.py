@@ -7,18 +7,16 @@ from datetime import timedelta
 from plx.framework import (
     BOOL,
     REAL,
+    Input,
+    Output,
     delayed,
     fb,
     function,
-    Input,
-    Output,
     program,
-    Field,
 )
 from plx.framework._decorators import _extract_comments, _split_body_by_comments
 from plx.model.pou import POU
 from plx.model.statements import FBInvocation, IfStatement
-
 
 # ---------------------------------------------------------------------------
 # Unit tests: _extract_comments

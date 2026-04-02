@@ -10,7 +10,7 @@ from plx.analyze import (
     Severity,
     analyze,
 )
-from plx.analyze._context import AnalysisContext, ReadInfo, WriteInfo
+from plx.analyze._context import AnalysisContext, ReadInfo
 from plx.analyze._rules import (
     ConstantOutOfRangeRule,
     CrossTaskWriteRule,
@@ -43,28 +43,14 @@ from plx.analyze._rules import (
 )
 from plx.framework import (
     BOOL,
-    DINT,
     INT,
-    REAL,
-    fb,
     Input,
     Output,
-    program,
+    fb,
     project,
     sfc,
     step,
     transition,
-    Field,
-)
-from plx.model.pou import (
-    Method,
-    Network,
-    POU,
-    POUAction,
-    POUInterface,
-    POUType,
-    Property,
-    PropertyAccessor,
 )
 from plx.model.expressions import (
     ArrayAccessExpr,
@@ -78,6 +64,16 @@ from plx.model.expressions import (
     UnaryExpr,
     UnaryOp,
     VariableRef,
+)
+from plx.model.pou import (
+    POU,
+    Method,
+    Network,
+    POUAction,
+    POUInterface,
+    POUType,
+    Property,
+    PropertyAccessor,
 )
 from plx.model.statements import (
     Assignment,
@@ -103,7 +99,6 @@ from plx.model.types import (
     PrimitiveTypeRef,
 )
 from plx.model.variables import Variable
-
 
 # ---------------------------------------------------------------------------
 # Helper: compile a decorated class to POU
@@ -456,9 +451,7 @@ class TestAnalyzeAPI:
         assert result.findings == []
 
     def test_result_counts_correct(self):
-        proj = _compile_project(
-            UnguardedOutputFB, GuardedOutputFB, EmptyFB
-        )
+        proj = _compile_project(UnguardedOutputFB, GuardedOutputFB, EmptyFB)
         result = analyze(proj)
         assert result.pou_count == 3
 
@@ -522,6 +515,7 @@ class TestFindingModel:
 # Test: visitor handles newly added statement types
 # ===========================================================================
 
+
 def _bool_type() -> PrimitiveTypeRef:
     return PrimitiveTypeRef(type=PrimitiveType.BOOL)
 
@@ -532,14 +526,8 @@ def _pou_with_stmts(*stmts, output_vars=(), input_vars=()) -> POU:
         pou_type=POUType.FUNCTION_BLOCK,
         name="TestFB",
         interface=POUInterface(
-            input_vars=[
-                Variable(name=name, data_type=_bool_type())
-                for name in input_vars
-            ],
-            output_vars=[
-                Variable(name=name, data_type=_bool_type())
-                for name in output_vars
-            ],
+            input_vars=[Variable(name=name, data_type=_bool_type()) for name in input_vars],
+            output_vars=[Variable(name=name, data_type=_bool_type()) for name in output_vars],
         ),
         networks=[Network(statements=list(stmts))],
     )
@@ -703,7 +691,8 @@ class TestExtractTargetName:
         # a.b[0] -> 'a'
         mem = MemberAccessExpr(struct=VariableRef(name="a"), member="b")
         expr = ArrayAccessExpr(
-            array=mem, indices=[LiteralExpr(value="0")],
+            array=mem,
+            indices=[LiteralExpr(value="0")],
         )
         assert self.ext(expr) == "a"
 
@@ -714,7 +703,8 @@ class TestExtractTargetName:
             indices=[LiteralExpr(value="0")],
         )
         expr = ArrayAccessExpr(
-            array=inner, indices=[LiteralExpr(value="1")],
+            array=inner,
+            indices=[LiteralExpr(value="1")],
         )
         assert self.ext(expr) == "a"
 
@@ -743,7 +733,6 @@ class TestExtractTargetName:
 
 
 class TestFBInvocationOutputs:
-
     def test_output_recorded_as_write(self):
         stmt = FBInvocation(
             instance_name="timer",
@@ -803,7 +792,6 @@ class TestFBInvocationOutputs:
 
 
 class TestReadTracking:
-
     def test_read_info_recorded(self):
         stmt = Assignment(
             target=VariableRef(name="out"),
@@ -867,7 +855,6 @@ def _base_pou(**kwargs) -> POU:
 
 
 class TestMethodTraversal:
-
     def test_method_writes_detected(self):
         method = Method(
             name="DoWork",
@@ -875,12 +862,14 @@ class TestMethodTraversal:
                 output_vars=[Variable(name="result", data_type=_BOOL_REF)],
             ),
             networks=[
-                Network(statements=[
-                    Assignment(
-                        target=VariableRef(name="result"),
-                        value=LiteralExpr(value="TRUE"),
-                    ),
-                ]),
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="result"),
+                            value=LiteralExpr(value="TRUE"),
+                        ),
+                    ]
+                ),
             ],
         )
         pou = _base_pou(methods=[method])
@@ -899,12 +888,14 @@ class TestMethodTraversal:
                 input_vars=[Variable(name="x", data_type=_INT_REF)],
             ),
             networks=[
-                Network(statements=[
-                    Assignment(
-                        target=VariableRef(name="main_out"),
-                        value=LiteralExpr(value="TRUE"),
-                    ),
-                ]),
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="main_out"),
+                            value=LiteralExpr(value="TRUE"),
+                        ),
+                    ]
+                ),
             ],
         )
         pou = _base_pou(methods=[method])
@@ -916,19 +907,20 @@ class TestMethodTraversal:
 
 
 class TestPropertyTraversal:
-
     def test_property_getter_traversed(self):
         prop = Property(
             name="Value",
             data_type=_INT_REF,
             getter=PropertyAccessor(
                 networks=[
-                    Network(statements=[
-                        Assignment(
-                            target=VariableRef(name="temp"),
-                            value=LiteralExpr(value="42"),
-                        ),
-                    ]),
+                    Network(
+                        statements=[
+                            Assignment(
+                                target=VariableRef(name="temp"),
+                                value=LiteralExpr(value="42"),
+                            ),
+                        ]
+                    ),
                 ],
             ),
         )
@@ -944,12 +936,14 @@ class TestPropertyTraversal:
             data_type=_INT_REF,
             setter=PropertyAccessor(
                 networks=[
-                    Network(statements=[
-                        Assignment(
-                            target=VariableRef(name="internal"),
-                            value=VariableRef(name="Speed"),
-                        ),
-                    ]),
+                    Network(
+                        statements=[
+                            Assignment(
+                                target=VariableRef(name="internal"),
+                                value=VariableRef(name="Speed"),
+                            ),
+                        ]
+                    ),
                 ],
             ),
         )
@@ -960,18 +954,19 @@ class TestPropertyTraversal:
 
 
 class TestActionTraversal:
-
     def test_action_shares_parent_scope(self):
         """Action writes appear in the parent POU's write tracking."""
         action = POUAction(
             name="Reset",
             body=[
-                Network(statements=[
-                    Assignment(
-                        target=VariableRef(name="main_out"),
-                        value=LiteralExpr(value="FALSE"),
-                    ),
-                ]),
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="main_out"),
+                            value=LiteralExpr(value="FALSE"),
+                        ),
+                    ]
+                ),
             ],
         )
         pou = _base_pou(actions=[action])
@@ -988,15 +983,11 @@ class TestActionTraversal:
 
 
 class TestTypeEnvironment:
-
-    def _make_env(self, *vars: tuple[str, PrimitiveType]) -> "TypeEnvironment":
+    def _make_env(self, *vars: tuple[str, PrimitiveType]) -> "TypeEnvironment":  # noqa: F821
         from plx.analyze._types import TypeEnvironment
 
         iface = POUInterface(
-            input_vars=[
-                Variable(name=n, data_type=PrimitiveTypeRef(type=t))
-                for n, t in vars
-            ],
+            input_vars=[Variable(name=n, data_type=PrimitiveTypeRef(type=t)) for n, t in vars],
         )
         return TypeEnvironment(iface)
 
@@ -1139,7 +1130,6 @@ class TestTypeEnvironment:
 
 
 class TestMultipleOutputWriteRule:
-
     def test_single_write_no_finding(self):
         pou = _pou_with_stmts(
             Assignment(target=VariableRef(name="out"), value=LiteralExpr(value="TRUE")),
@@ -1159,7 +1149,8 @@ class TestMultipleOutputWriteRule:
             Assignment(target=VariableRef(name="out"), value=LiteralExpr(value="FALSE")),
         ]
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 output_vars=[Variable(name="out", data_type=_BOOL_REF)],
             ),
@@ -1176,7 +1167,8 @@ class TestMultipleOutputWriteRule:
             Assignment(target=VariableRef(name="temp"), value=LiteralExpr(value="2")),
         ]
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 static_vars=[Variable(name="temp", data_type=_INT_REF)],
             ),
@@ -1186,23 +1178,28 @@ class TestMultipleOutputWriteRule:
 
 
 class TestWriteToInputRule:
-
     def test_no_write_to_input_no_finding(self):
         pou = _pou_with_stmts(
             Assignment(target=VariableRef(name="out"), value=VariableRef(name="inp")),
-            output_vars=("out",), input_vars=("inp",),
+            output_vars=("out",),
+            input_vars=("inp",),
         )
         assert WriteToInputRule().analyze_pou(pou) == []
 
     def test_write_to_input_finding(self):
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 input_vars=[Variable(name="speed", data_type=_INT_REF)],
             ),
-            networks=[Network(statements=[
-                Assignment(target=VariableRef(name="speed"), value=LiteralExpr(value="0")),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(target=VariableRef(name="speed"), value=LiteralExpr(value="0")),
+                    ]
+                )
+            ],
         )
         findings = WriteToInputRule().analyze_pou(pou)
         assert len(findings) == 1
@@ -1211,45 +1208,54 @@ class TestWriteToInputRule:
 
 
 class TestRealEqualityRule:
-
     def test_int_equality_no_finding(self):
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 input_vars=[Variable(name="a", data_type=_INT_REF)],
                 static_vars=[Variable(name="b", data_type=_INT_REF)],
             ),
-            networks=[Network(statements=[
-                Assignment(
-                    target=VariableRef(name="b"),
-                    value=BinaryExpr(
-                        op=BinaryOp.EQ,
-                        left=VariableRef(name="a"),
-                        right=LiteralExpr(value="10", data_type=_INT_REF),
-                    ),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="b"),
+                            value=BinaryExpr(
+                                op=BinaryOp.EQ,
+                                left=VariableRef(name="a"),
+                                right=LiteralExpr(value="10", data_type=_INT_REF),
+                            ),
+                        ),
+                    ]
+                )
+            ],
         )
         assert RealEqualityRule().analyze_pou(pou) == []
 
     def test_real_equality_finding(self):
         real_ref = PrimitiveTypeRef(type=PrimitiveType.REAL)
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 input_vars=[Variable(name="a", data_type=real_ref)],
                 static_vars=[Variable(name="b", data_type=real_ref)],
             ),
-            networks=[Network(statements=[
-                Assignment(
-                    target=VariableRef(name="b"),
-                    value=BinaryExpr(
-                        op=BinaryOp.EQ,
-                        left=VariableRef(name="a"),
-                        right=LiteralExpr(value="10.0", data_type=real_ref),
-                    ),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="b"),
+                            value=BinaryExpr(
+                                op=BinaryOp.EQ,
+                                left=VariableRef(name="a"),
+                                right=LiteralExpr(value="10.0", data_type=real_ref),
+                            ),
+                        ),
+                    ]
+                )
+            ],
         )
         findings = RealEqualityRule().analyze_pou(pou)
         assert len(findings) == 1
@@ -1258,21 +1264,26 @@ class TestRealEqualityRule:
     def test_real_ne_also_flagged(self):
         real_ref = PrimitiveTypeRef(type=PrimitiveType.REAL)
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 input_vars=[Variable(name="a", data_type=real_ref)],
                 output_vars=[Variable(name="out", data_type=_BOOL_REF)],
             ),
-            networks=[Network(statements=[
-                Assignment(
-                    target=VariableRef(name="out"),
-                    value=BinaryExpr(
-                        op=BinaryOp.NE,
-                        left=VariableRef(name="a"),
-                        right=LiteralExpr(value="0.0", data_type=real_ref),
-                    ),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="out"),
+                            value=BinaryExpr(
+                                op=BinaryOp.NE,
+                                left=VariableRef(name="a"),
+                                right=LiteralExpr(value="0.0", data_type=real_ref),
+                            ),
+                        ),
+                    ]
+                )
+            ],
         )
         findings = RealEqualityRule().analyze_pou(pou)
         assert len(findings) == 1
@@ -1281,29 +1292,33 @@ class TestRealEqualityRule:
         """REAL == in IF condition is caught (not just assignments)."""
         real_ref = PrimitiveTypeRef(type=PrimitiveType.REAL)
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 input_vars=[Variable(name="speed", data_type=real_ref)],
             ),
-            networks=[Network(statements=[
-                IfStatement(
-                    if_branch=IfBranch(
-                        condition=BinaryExpr(
-                            op=BinaryOp.EQ,
-                            left=VariableRef(name="speed"),
-                            right=LiteralExpr(value="0.0", data_type=real_ref),
+            networks=[
+                Network(
+                    statements=[
+                        IfStatement(
+                            if_branch=IfBranch(
+                                condition=BinaryExpr(
+                                    op=BinaryOp.EQ,
+                                    left=VariableRef(name="speed"),
+                                    right=LiteralExpr(value="0.0", data_type=real_ref),
+                                ),
+                                body=[EmptyStatement()],
+                            ),
                         ),
-                        body=[EmptyStatement()],
-                    ),
-                ),
-            ])],
+                    ]
+                )
+            ],
         )
         findings = RealEqualityRule().analyze_pou(pou)
         assert len(findings) == 1
 
 
 class TestMissingCaseElseRule:
-
     def test_case_with_else_no_finding(self):
         stmt = CaseStatement(
             selector=VariableRef(name="state"),
@@ -1325,7 +1340,6 @@ class TestMissingCaseElseRule:
 
 
 class TestForCounterWriteRule:
-
     def test_no_counter_write_no_finding(self):
         stmt = ForStatement(
             loop_var="i",
@@ -1386,47 +1400,57 @@ class TestForCounterWriteRule:
     def test_assignment_after_loop_not_flagged(self):
         """Assignment to former loop var AFTER the loop is not a violation."""
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 static_vars=[Variable(name="i", data_type=_INT_REF)],
             ),
-            networks=[Network(statements=[
-                ForStatement(
-                    loop_var="i",
-                    from_expr=LiteralExpr(value="0"),
-                    to_expr=LiteralExpr(value="10"),
-                    body=[],
-                ),
-                Assignment(
-                    target=VariableRef(name="i"),
-                    value=LiteralExpr(value="99"),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        ForStatement(
+                            loop_var="i",
+                            from_expr=LiteralExpr(value="0"),
+                            to_expr=LiteralExpr(value="10"),
+                            body=[],
+                        ),
+                        Assignment(
+                            target=VariableRef(name="i"),
+                            value=LiteralExpr(value="99"),
+                        ),
+                    ]
+                )
+            ],
         )
         assert ForCounterWriteRule().analyze_pou(pou) == []
 
 
 class TestUnusedVariableRule:
-
     def test_used_variable_no_finding(self):
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 input_vars=[Variable(name="sensor", data_type=_BOOL_REF)],
                 output_vars=[Variable(name="valve", data_type=_BOOL_REF)],
             ),
-            networks=[Network(statements=[
-                Assignment(
-                    target=VariableRef(name="valve"),
-                    value=VariableRef(name="sensor"),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="valve"),
+                            value=VariableRef(name="sensor"),
+                        ),
+                    ]
+                )
+            ],
         )
         assert UnusedVariableRule().analyze_pou(pou) == []
 
     def test_unused_variable_finding(self):
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 static_vars=[Variable(name="unused", data_type=_INT_REF)],
             ),
@@ -1439,7 +1463,8 @@ class TestUnusedVariableRule:
     def test_constants_and_externals_excluded(self):
         """Constant and external vars are not flagged as unused."""
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 constant_vars=[Variable(name="PI", data_type=_INT_REF)],
                 external_vars=[Variable(name="global_flag", data_type=_BOOL_REF)],
@@ -1450,26 +1475,31 @@ class TestUnusedVariableRule:
 
 
 class TestUnusedInputRule:
-
     def test_read_input_no_finding(self):
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 input_vars=[Variable(name="sensor", data_type=_BOOL_REF)],
                 output_vars=[Variable(name="out", data_type=_BOOL_REF)],
             ),
-            networks=[Network(statements=[
-                Assignment(
-                    target=VariableRef(name="out"),
-                    value=VariableRef(name="sensor"),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="out"),
+                            value=VariableRef(name="sensor"),
+                        ),
+                    ]
+                )
+            ],
         )
         assert UnusedInputRule().analyze_pou(pou) == []
 
     def test_unused_input_finding(self):
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 input_vars=[Variable(name="sensor", data_type=_BOOL_REF)],
             ),
@@ -1481,7 +1511,6 @@ class TestUnusedInputRule:
 
 
 class TestUnusedOutputRule:
-
     def test_written_output_no_finding(self):
         pou = _pou_with_stmts(
             Assignment(target=VariableRef(name="out"), value=LiteralExpr(value="TRUE")),
@@ -1491,7 +1520,8 @@ class TestUnusedOutputRule:
 
     def test_unused_output_finding(self):
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 output_vars=[Variable(name="valve", data_type=_BOOL_REF)],
             ),
@@ -1503,10 +1533,10 @@ class TestUnusedOutputRule:
 
 
 class TestTempFBInstanceRule:
-
     def test_static_fb_no_finding(self):
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 static_vars=[Variable(name="timer", data_type=NamedTypeRef(name="TON"))],
             ),
@@ -1516,7 +1546,8 @@ class TestTempFBInstanceRule:
 
     def test_temp_fb_finding(self):
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 temp_vars=[Variable(name="timer", data_type=NamedTypeRef(name="TON"))],
             ),
@@ -1529,7 +1560,8 @@ class TestTempFBInstanceRule:
 
     def test_temp_primitive_no_finding(self):
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 temp_vars=[Variable(name="scratch", data_type=_INT_REF)],
             ),
@@ -1539,7 +1571,6 @@ class TestTempFBInstanceRule:
 
 
 class TestEmptyBodyRule:
-
     def test_non_empty_no_finding(self):
         pou = _pou_with_stmts(
             Assignment(target=VariableRef(name="x"), value=LiteralExpr(value="1")),
@@ -1548,7 +1579,8 @@ class TestEmptyBodyRule:
 
     def test_empty_body_finding(self):
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="EmptyFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="EmptyFB",
             interface=POUInterface(),
             networks=[],
         )
@@ -1558,7 +1590,8 @@ class TestEmptyBodyRule:
 
     def test_empty_network_finding(self):
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="EmptyFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="EmptyFB",
             interface=POUInterface(),
             networks=[Network(statements=[])],
         )
@@ -1568,7 +1601,8 @@ class TestEmptyBodyRule:
     def test_interface_excluded(self):
         """INTERFACE POUs have no body by design."""
         pou = POU(
-            pou_type=POUType.INTERFACE, name="IMovable",
+            pou_type=POUType.INTERFACE,
+            name="IMovable",
             interface=POUInterface(),
             networks=[],
         )
@@ -1576,19 +1610,22 @@ class TestEmptyBodyRule:
 
 
 class TestSfcNoInitialStepRule:
-
     def test_has_initial_step_no_finding(self):
         from plx.model.sfc import SFCBody, Step, Transition
 
         pou = POU(
-            pou_type=POUType.PROGRAM, name="TestProg",
+            pou_type=POUType.PROGRAM,
+            name="TestProg",
             interface=POUInterface(),
             sfc_body=SFCBody(
                 steps=[Step(name="IDLE", is_initial=True), Step(name="RUN")],
-                transitions=[Transition(
-                    source_steps=["IDLE"], target_steps=["RUN"],
-                    condition=LiteralExpr(value="TRUE"),
-                )],
+                transitions=[
+                    Transition(
+                        source_steps=["IDLE"],
+                        target_steps=["RUN"],
+                        condition=LiteralExpr(value="TRUE"),
+                    )
+                ],
             ),
         )
         assert SfcNoInitialStepRule().analyze_pou(pou) == []
@@ -1599,17 +1636,31 @@ class TestSfcNoInitialStepRule:
 
         sfc = SFCBody.model_construct(
             steps=[Step(name="A"), Step(name="B")],
-            transitions=[Transition(
-                source_steps=["A"], target_steps=["B"],
-                condition=LiteralExpr(value="TRUE"),
-            )],
+            transitions=[
+                Transition(
+                    source_steps=["A"],
+                    target_steps=["B"],
+                    condition=LiteralExpr(value="TRUE"),
+                )
+            ],
         )
         pou = POU.model_construct(
-            pou_type=POUType.PROGRAM, name="TestProg",
-            interface=POUInterface(), networks=[],
-            sfc_body=sfc, actions=[], methods=[], properties=[],
-            abstract=False, description="", safety=False, language=None,
-            return_type=None, extends=None, implements=[], folder="",
+            pou_type=POUType.PROGRAM,
+            name="TestProg",
+            interface=POUInterface(),
+            networks=[],
+            sfc_body=sfc,
+            actions=[],
+            methods=[],
+            properties=[],
+            abstract=False,
+            description="",
+            safety=False,
+            language=None,
+            return_type=None,
+            extends=None,
+            implements=[],
+            folder="",
             metadata={},
         )
         findings = SfcNoInitialStepRule().analyze_pou(pou)
@@ -1618,12 +1669,12 @@ class TestSfcNoInitialStepRule:
 
 
 class TestSfcMultipleInitialStepsRule:
-
     def test_single_initial_no_finding(self):
         from plx.model.sfc import SFCBody, Step
 
         pou = POU(
-            pou_type=POUType.PROGRAM, name="TestProg",
+            pou_type=POUType.PROGRAM,
+            name="TestProg",
             interface=POUInterface(),
             sfc_body=SFCBody(
                 steps=[Step(name="IDLE", is_initial=True), Step(name="RUN")],
@@ -1644,11 +1695,22 @@ class TestSfcMultipleInitialStepsRule:
             transitions=[],
         )
         pou = POU.model_construct(
-            pou_type=POUType.PROGRAM, name="TestProg",
-            interface=POUInterface(), networks=[],
-            sfc_body=sfc, actions=[], methods=[], properties=[],
-            abstract=False, description="", safety=False, language=None,
-            return_type=None, extends=None, implements=[], folder="",
+            pou_type=POUType.PROGRAM,
+            name="TestProg",
+            interface=POUInterface(),
+            networks=[],
+            sfc_body=sfc,
+            actions=[],
+            methods=[],
+            properties=[],
+            abstract=False,
+            description="",
+            safety=False,
+            language=None,
+            return_type=None,
+            extends=None,
+            implements=[],
+            folder="",
             metadata={},
         )
         findings = SfcMultipleInitialStepsRule().analyze_pou(pou)
@@ -1663,43 +1725,57 @@ class TestSfcMultipleInitialStepsRule:
 
 
 class TestNarrowingConversionRule:
-
     def test_same_type_no_finding(self):
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 input_vars=[Variable(name="a", data_type=_INT_REF)],
                 output_vars=[Variable(name="b", data_type=_INT_REF)],
             ),
-            networks=[Network(statements=[
-                Assignment(target=VariableRef(name="b"), value=VariableRef(name="a")),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(target=VariableRef(name="b"), value=VariableRef(name="a")),
+                    ]
+                )
+            ],
         )
         assert NarrowingConversionRule().analyze_pou(pou) == []
 
     def test_widening_no_finding(self):
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 input_vars=[Variable(name="a", data_type=_INT_REF)],
                 static_vars=[Variable(name="b", data_type=PrimitiveTypeRef(type=PrimitiveType.DINT))],
             ),
-            networks=[Network(statements=[
-                Assignment(target=VariableRef(name="b"), value=VariableRef(name="a")),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(target=VariableRef(name="b"), value=VariableRef(name="a")),
+                    ]
+                )
+            ],
         )
         assert NarrowingConversionRule().analyze_pou(pou) == []
 
     def test_narrowing_finding(self):
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 input_vars=[Variable(name="big", data_type=PrimitiveTypeRef(type=PrimitiveType.DINT))],
                 output_vars=[Variable(name="small", data_type=_INT_REF)],
             ),
-            networks=[Network(statements=[
-                Assignment(target=VariableRef(name="small"), value=VariableRef(name="big")),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(target=VariableRef(name="small"), value=VariableRef(name="big")),
+                    ]
+                )
+            ],
         )
         findings = NarrowingConversionRule().analyze_pou(pou)
         assert len(findings) == 1
@@ -1707,34 +1783,43 @@ class TestNarrowingConversionRule:
 
 
 class TestConstantOutOfRangeRule:
-
     def test_in_range_no_finding(self):
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 output_vars=[Variable(name="x", data_type=PrimitiveTypeRef(type=PrimitiveType.BYTE))],
             ),
-            networks=[Network(statements=[
-                Assignment(
-                    target=VariableRef(name="x"),
-                    value=LiteralExpr(value="200"),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="x"),
+                            value=LiteralExpr(value="200"),
+                        ),
+                    ]
+                )
+            ],
         )
         assert ConstantOutOfRangeRule().analyze_pou(pou) == []
 
     def test_out_of_range_finding(self):
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 output_vars=[Variable(name="x", data_type=PrimitiveTypeRef(type=PrimitiveType.BYTE))],
             ),
-            networks=[Network(statements=[
-                Assignment(
-                    target=VariableRef(name="x"),
-                    value=LiteralExpr(value="300"),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="x"),
+                            value=LiteralExpr(value="300"),
+                        ),
+                    ]
+                )
+            ],
         )
         findings = ConstantOutOfRangeRule().analyze_pou(pou)
         assert len(findings) == 1
@@ -1742,58 +1827,72 @@ class TestConstantOutOfRangeRule:
 
     def test_negative_in_unsigned_finding(self):
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 output_vars=[Variable(name="x", data_type=PrimitiveTypeRef(type=PrimitiveType.UINT))],
             ),
-            networks=[Network(statements=[
-                Assignment(
-                    target=VariableRef(name="x"),
-                    value=LiteralExpr(value="-1"),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="x"),
+                            value=LiteralExpr(value="-1"),
+                        ),
+                    ]
+                )
+            ],
         )
         findings = ConstantOutOfRangeRule().analyze_pou(pou)
         assert len(findings) == 1
 
 
 class TestDivisionByZeroRule:
-
     def test_non_zero_divisor_no_finding(self):
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 static_vars=[Variable(name="x", data_type=_INT_REF)],
             ),
-            networks=[Network(statements=[
-                Assignment(
-                    target=VariableRef(name="x"),
-                    value=BinaryExpr(
-                        op=BinaryOp.DIV,
-                        left=LiteralExpr(value="10"),
-                        right=LiteralExpr(value="2"),
-                    ),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="x"),
+                            value=BinaryExpr(
+                                op=BinaryOp.DIV,
+                                left=LiteralExpr(value="10"),
+                                right=LiteralExpr(value="2"),
+                            ),
+                        ),
+                    ]
+                )
+            ],
         )
         assert DivisionByZeroRule().analyze_pou(pou) == []
 
     def test_literal_zero_divisor_finding(self):
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 static_vars=[Variable(name="x", data_type=_INT_REF)],
             ),
-            networks=[Network(statements=[
-                Assignment(
-                    target=VariableRef(name="x"),
-                    value=BinaryExpr(
-                        op=BinaryOp.DIV,
-                        left=VariableRef(name="x"),
-                        right=LiteralExpr(value="0"),
-                    ),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="x"),
+                            value=BinaryExpr(
+                                op=BinaryOp.DIV,
+                                left=VariableRef(name="x"),
+                                right=LiteralExpr(value="0"),
+                            ),
+                        ),
+                    ]
+                )
+            ],
         )
         findings = DivisionByZeroRule().analyze_pou(pou)
         assert len(findings) == 1
@@ -1801,20 +1900,25 @@ class TestDivisionByZeroRule:
 
     def test_mod_by_zero_finding(self):
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 static_vars=[Variable(name="x", data_type=_INT_REF)],
             ),
-            networks=[Network(statements=[
-                Assignment(
-                    target=VariableRef(name="x"),
-                    value=BinaryExpr(
-                        op=BinaryOp.MOD,
-                        left=VariableRef(name="x"),
-                        right=LiteralExpr(value="0"),
-                    ),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="x"),
+                            value=BinaryExpr(
+                                op=BinaryOp.MOD,
+                                left=VariableRef(name="x"),
+                                right=LiteralExpr(value="0"),
+                            ),
+                        ),
+                    ]
+                )
+            ],
         )
         findings = DivisionByZeroRule().analyze_pou(pou)
         assert len(findings) == 1
@@ -1822,7 +1926,6 @@ class TestDivisionByZeroRule:
 
 
 class TestCyclomaticComplexityRule:
-
     def test_simple_pou_no_finding(self):
         pou = _pou_with_stmts(
             Assignment(target=VariableRef(name="x"), value=LiteralExpr(value="1")),
@@ -1833,15 +1936,18 @@ class TestCyclomaticComplexityRule:
         """POU with CC > threshold triggers finding."""
         # Build a POU with many if-statements
         stmts = []
-        for i in range(10):
-            stmts.append(IfStatement(
-                if_branch=IfBranch(
-                    condition=VariableRef(name="cond"),
-                    body=[EmptyStatement()],
-                ),
-            ))
+        for _i in range(10):
+            stmts.append(
+                IfStatement(
+                    if_branch=IfBranch(
+                        condition=VariableRef(name="cond"),
+                        body=[EmptyStatement()],
+                    ),
+                )
+            )
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(),
             networks=[Network(statements=stmts)],
         )
@@ -1852,7 +1958,6 @@ class TestCyclomaticComplexityRule:
 
 
 class TestMaxNestingDepthRule:
-
     def test_shallow_no_finding(self):
         stmt = IfStatement(
             if_branch=IfBranch(
@@ -1880,23 +1985,28 @@ class TestMaxNestingDepthRule:
 
 
 class TestRecursiveCallRule:
-
     def test_no_recursion_no_finding(self):
         from plx.model.project import Project
 
         pou_a = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="A",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="A",
             interface=POUInterface(),
-            networks=[Network(statements=[
-                FBInvocation(
-                    instance_name="b_inst",
-                    fb_type=NamedTypeRef(name="B"),
-                    inputs={},
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        FBInvocation(
+                            instance_name="b_inst",
+                            fb_type=NamedTypeRef(name="B"),
+                            inputs={},
+                        ),
+                    ]
+                )
+            ],
         )
         pou_b = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="B",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="B",
             interface=POUInterface(),
             networks=[],
         )
@@ -1908,15 +2018,20 @@ class TestRecursiveCallRule:
         from plx.model.project import Project
 
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="SelfCall",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="SelfCall",
             interface=POUInterface(),
-            networks=[Network(statements=[
-                FBInvocation(
-                    instance_name="me",
-                    fb_type=NamedTypeRef(name="SelfCall"),
-                    inputs={},
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        FBInvocation(
+                            instance_name="me",
+                            fb_type=NamedTypeRef(name="SelfCall"),
+                            inputs={},
+                        ),
+                    ]
+                )
+            ],
         )
         proj = Project(name="Test", pous=[pou])
         findings = RecursiveCallRule().analyze_project(proj).findings
@@ -1927,18 +2042,28 @@ class TestRecursiveCallRule:
         from plx.model.project import Project
 
         pou_a = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="A",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="A",
             interface=POUInterface(),
-            networks=[Network(statements=[
-                FBInvocation(instance_name="b", fb_type=NamedTypeRef(name="B"), inputs={}),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        FBInvocation(instance_name="b", fb_type=NamedTypeRef(name="B"), inputs={}),
+                    ]
+                )
+            ],
         )
         pou_b = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="B",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="B",
             interface=POUInterface(),
-            networks=[Network(statements=[
-                FBInvocation(instance_name="a", fb_type=NamedTypeRef(name="A"), inputs={}),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        FBInvocation(instance_name="a", fb_type=NamedTypeRef(name="A"), inputs={}),
+                    ]
+                )
+            ],
         )
         proj = Project(name="Test", pous=[pou_a, pou_b])
         findings = RecursiveCallRule().analyze_project(proj).findings
@@ -1947,23 +2072,27 @@ class TestRecursiveCallRule:
 
 
 class TestVariableShadowRule:
-
     def test_no_shadow_no_finding(self):
         from plx.model.project import GlobalVariableList, Project
 
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 static_vars=[Variable(name="local_var", data_type=_INT_REF)],
             ),
             networks=[],
         )
         proj = Project(
-            name="Test", pous=[pou],
+            name="Test",
+            pous=[pou],
             global_variable_lists=[
-                GlobalVariableList(name="GVL", variables=[
-                    Variable(name="global_var", data_type=_INT_REF),
-                ]),
+                GlobalVariableList(
+                    name="GVL",
+                    variables=[
+                        Variable(name="global_var", data_type=_INT_REF),
+                    ],
+                ),
             ],
         )
         findings = VariableShadowRule().analyze_project(proj).findings
@@ -1973,18 +2102,23 @@ class TestVariableShadowRule:
         from plx.model.project import GlobalVariableList, Project
 
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 static_vars=[Variable(name="speed", data_type=_INT_REF)],
             ),
             networks=[],
         )
         proj = Project(
-            name="Test", pous=[pou],
+            name="Test",
+            pous=[pou],
             global_variable_lists=[
-                GlobalVariableList(name="GVL", variables=[
-                    Variable(name="speed", data_type=_INT_REF),
-                ]),
+                GlobalVariableList(
+                    name="GVL",
+                    variables=[
+                        Variable(name="speed", data_type=_INT_REF),
+                    ],
+                ),
             ],
         )
         findings = VariableShadowRule().analyze_project(proj).findings
@@ -1994,31 +2128,38 @@ class TestVariableShadowRule:
 
 
 class TestIncompleteCaseEnumRule:
-
     def test_complete_enum_no_finding(self):
         from plx.model.project import Project
         from plx.model.types import EnumMember, EnumType
 
-        enum = EnumType(name="Color", members=[
-            EnumMember(name="RED", value=0),
-            EnumMember(name="GREEN", value=1),
-            EnumMember(name="BLUE", value=2),
-        ])
+        enum = EnumType(
+            name="Color",
+            members=[
+                EnumMember(name="RED", value=0),
+                EnumMember(name="GREEN", value=1),
+                EnumMember(name="BLUE", value=2),
+            ],
+        )
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 input_vars=[Variable(name="c", data_type=NamedTypeRef(name="Color"))],
             ),
-            networks=[Network(statements=[
-                CaseStatement(
-                    selector=VariableRef(name="c"),
-                    branches=[
-                        CaseBranch(values=[0], body=[EmptyStatement()]),
-                        CaseBranch(values=[1], body=[EmptyStatement()]),
-                        CaseBranch(values=[2], body=[EmptyStatement()]),
-                    ],
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        CaseStatement(
+                            selector=VariableRef(name="c"),
+                            branches=[
+                                CaseBranch(values=[0], body=[EmptyStatement()]),
+                                CaseBranch(values=[1], body=[EmptyStatement()]),
+                                CaseBranch(values=[2], body=[EmptyStatement()]),
+                            ],
+                        ),
+                    ]
+                )
+            ],
         )
         proj = Project(name="Test", pous=[pou], data_types=[enum])
         findings = IncompleteCaseEnumRule().analyze_project(proj).findings
@@ -2028,25 +2169,33 @@ class TestIncompleteCaseEnumRule:
         from plx.model.project import Project
         from plx.model.types import EnumMember, EnumType
 
-        enum = EnumType(name="Color", members=[
-            EnumMember(name="RED", value=0),
-            EnumMember(name="GREEN", value=1),
-            EnumMember(name="BLUE", value=2),
-        ])
+        enum = EnumType(
+            name="Color",
+            members=[
+                EnumMember(name="RED", value=0),
+                EnumMember(name="GREEN", value=1),
+                EnumMember(name="BLUE", value=2),
+            ],
+        )
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 input_vars=[Variable(name="c", data_type=NamedTypeRef(name="Color"))],
             ),
-            networks=[Network(statements=[
-                CaseStatement(
-                    selector=VariableRef(name="c"),
-                    branches=[
-                        CaseBranch(values=[0], body=[EmptyStatement()]),
-                        CaseBranch(values=[1], body=[EmptyStatement()]),
-                    ],
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        CaseStatement(
+                            selector=VariableRef(name="c"),
+                            branches=[
+                                CaseBranch(values=[0], body=[EmptyStatement()]),
+                                CaseBranch(values=[1], body=[EmptyStatement()]),
+                            ],
+                        ),
+                    ]
+                )
+            ],
         )
         proj = Project(name="Test", pous=[pou], data_types=[enum])
         findings = IncompleteCaseEnumRule().analyze_project(proj).findings
@@ -2058,22 +2207,30 @@ class TestIncompleteCaseEnumRule:
         from plx.model.project import Project
         from plx.model.types import EnumMember, EnumType
 
-        enum = EnumType(name="Color", members=[
-            EnumMember(name="RED", value=0),
-            EnumMember(name="GREEN", value=1),
-        ])
+        enum = EnumType(
+            name="Color",
+            members=[
+                EnumMember(name="RED", value=0),
+                EnumMember(name="GREEN", value=1),
+            ],
+        )
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 input_vars=[Variable(name="c", data_type=NamedTypeRef(name="Color"))],
             ),
-            networks=[Network(statements=[
-                CaseStatement(
-                    selector=VariableRef(name="c"),
-                    branches=[CaseBranch(values=[0], body=[EmptyStatement()])],
-                    else_body=[EmptyStatement()],
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        CaseStatement(
+                            selector=VariableRef(name="c"),
+                            branches=[CaseBranch(values=[0], body=[EmptyStatement()])],
+                            else_body=[EmptyStatement()],
+                        ),
+                    ]
+                )
+            ],
         )
         proj = Project(name="Test", pous=[pou], data_types=[enum])
         findings = IncompleteCaseEnumRule().analyze_project(proj).findings
@@ -2086,31 +2243,41 @@ class TestIncompleteCaseEnumRule:
 
 
 class TestCrossTaskWriteRule:
-
     def test_no_overlap_no_finding(self):
         from plx.model.project import Project
         from plx.model.task import PeriodicTask
 
         pou_a = POU(
-            pou_type=POUType.PROGRAM, name="ProgA",
+            pou_type=POUType.PROGRAM,
+            name="ProgA",
             interface=POUInterface(
                 output_vars=[Variable(name="valve1", data_type=_BOOL_REF)],
             ),
-            networks=[Network(statements=[
-                Assignment(target=VariableRef(name="valve1"), value=LiteralExpr(value="TRUE")),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(target=VariableRef(name="valve1"), value=LiteralExpr(value="TRUE")),
+                    ]
+                )
+            ],
         )
         pou_b = POU(
-            pou_type=POUType.PROGRAM, name="ProgB",
+            pou_type=POUType.PROGRAM,
+            name="ProgB",
             interface=POUInterface(
                 output_vars=[Variable(name="valve2", data_type=_BOOL_REF)],
             ),
-            networks=[Network(statements=[
-                Assignment(target=VariableRef(name="valve2"), value=LiteralExpr(value="TRUE")),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(target=VariableRef(name="valve2"), value=LiteralExpr(value="TRUE")),
+                    ]
+                )
+            ],
         )
         proj = Project(
-            name="Test", pous=[pou_a, pou_b],
+            name="Test",
+            pous=[pou_a, pou_b],
             tasks=[
                 PeriodicTask(name="Fast", interval="T#10ms", assigned_pous=["ProgA"]),
                 PeriodicTask(name="Slow", interval="T#100ms", assigned_pous=["ProgB"]),
@@ -2123,21 +2290,32 @@ class TestCrossTaskWriteRule:
         from plx.model.task import PeriodicTask
 
         pou_a = POU(
-            pou_type=POUType.PROGRAM, name="ProgA",
+            pou_type=POUType.PROGRAM,
+            name="ProgA",
             interface=POUInterface(),
-            networks=[Network(statements=[
-                Assignment(target=VariableRef(name="shared"), value=LiteralExpr(value="1")),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(target=VariableRef(name="shared"), value=LiteralExpr(value="1")),
+                    ]
+                )
+            ],
         )
         pou_b = POU(
-            pou_type=POUType.PROGRAM, name="ProgB",
+            pou_type=POUType.PROGRAM,
+            name="ProgB",
             interface=POUInterface(),
-            networks=[Network(statements=[
-                Assignment(target=VariableRef(name="shared"), value=LiteralExpr(value="2")),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(target=VariableRef(name="shared"), value=LiteralExpr(value="2")),
+                    ]
+                )
+            ],
         )
         proj = Project(
-            name="Test", pous=[pou_a, pou_b],
+            name="Test",
+            pous=[pou_a, pou_b],
             tasks=[
                 PeriodicTask(name="Fast", interval="T#10ms", assigned_pous=["ProgA"]),
                 PeriodicTask(name="Slow", interval="T#100ms", assigned_pous=["ProgB"]),
@@ -2150,17 +2328,19 @@ class TestCrossTaskWriteRule:
 
 
 class TestUnusedPOURule:
-
     def test_used_pou_no_finding(self):
         from plx.model.project import Project
         from plx.model.task import PeriodicTask
 
         pou = POU(
-            pou_type=POUType.PROGRAM, name="Main",
-            interface=POUInterface(), networks=[],
+            pou_type=POUType.PROGRAM,
+            name="Main",
+            interface=POUInterface(),
+            networks=[],
         )
         proj = Project(
-            name="Test", pous=[pou],
+            name="Test",
+            pous=[pou],
             tasks=[PeriodicTask(name="T1", interval="T#10ms", assigned_pous=["Main"])],
         )
         assert UnusedPOURule().analyze_project(proj).findings == []
@@ -2170,18 +2350,26 @@ class TestUnusedPOURule:
         from plx.model.task import PeriodicTask
 
         helper = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="Helper",
-            interface=POUInterface(), networks=[],
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="Helper",
+            interface=POUInterface(),
+            networks=[],
         )
         main = POU(
-            pou_type=POUType.PROGRAM, name="Main",
+            pou_type=POUType.PROGRAM,
+            name="Main",
             interface=POUInterface(),
-            networks=[Network(statements=[
-                FBInvocation(instance_name="h", fb_type=NamedTypeRef(name="Helper"), inputs={}),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        FBInvocation(instance_name="h", fb_type=NamedTypeRef(name="Helper"), inputs={}),
+                    ]
+                )
+            ],
         )
         proj = Project(
-            name="Test", pous=[main, helper],
+            name="Test",
+            pous=[main, helper],
             tasks=[PeriodicTask(name="T1", interval="T#10ms", assigned_pous=["Main"])],
         )
         assert UnusedPOURule().analyze_project(proj).findings == []
@@ -2190,8 +2378,10 @@ class TestUnusedPOURule:
         from plx.model.project import Project
 
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="Orphan",
-            interface=POUInterface(), networks=[],
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="Orphan",
+            interface=POUInterface(),
+            networks=[],
         )
         proj = Project(name="Test", pous=[pou])
         findings = UnusedPOURule().analyze_project(proj).findings
@@ -2201,7 +2391,6 @@ class TestUnusedPOURule:
 
 
 class TestUnreachableCodeRule:
-
     def test_no_unreachable_no_finding(self):
         pou = _pou_with_stmts(
             Assignment(target=VariableRef(name="x"), value=LiteralExpr(value="1")),
@@ -2213,12 +2402,17 @@ class TestUnreachableCodeRule:
         from plx.model.statements import ReturnStatement
 
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(),
-            networks=[Network(statements=[
-                ReturnStatement(),
-                Assignment(target=VariableRef(name="x"), value=LiteralExpr(value="1")),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        ReturnStatement(),
+                        Assignment(target=VariableRef(name="x"), value=LiteralExpr(value="1")),
+                    ]
+                )
+            ],
         )
         findings = UnreachableCodeRule().analyze_pou(pou)
         assert len(findings) == 1
@@ -2229,19 +2423,24 @@ class TestUnreachableCodeRule:
         from plx.model.statements import ExitStatement
 
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(),
-            networks=[Network(statements=[
-                ForStatement(
-                    loop_var="i",
-                    from_expr=LiteralExpr(value="0"),
-                    to_expr=LiteralExpr(value="10"),
-                    body=[
-                        ExitStatement(),
-                        Assignment(target=VariableRef(name="x"), value=LiteralExpr(value="1")),
-                    ],
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        ForStatement(
+                            loop_var="i",
+                            from_expr=LiteralExpr(value="0"),
+                            to_expr=LiteralExpr(value="10"),
+                            body=[
+                                ExitStatement(),
+                                Assignment(target=VariableRef(name="x"), value=LiteralExpr(value="1")),
+                            ],
+                        ),
+                    ]
+                )
+            ],
         )
         findings = UnreachableCodeRule().analyze_pou(pou)
         assert len(findings) == 1
@@ -2249,43 +2448,53 @@ class TestUnreachableCodeRule:
 
 
 class TestIgnoredFBOutputRule:
-
     def test_output_read_no_finding(self):
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 static_vars=[Variable(name="timer", data_type=NamedTypeRef(name="TON"))],
                 output_vars=[Variable(name="done", data_type=_BOOL_REF)],
             ),
-            networks=[Network(statements=[
-                FBInvocation(
-                    instance_name="timer",
-                    fb_type=NamedTypeRef(name="TON"),
-                    inputs={"IN": LiteralExpr(value="TRUE")},
-                ),
-                Assignment(
-                    target=VariableRef(name="done"),
-                    value=MemberAccessExpr(
-                        struct=VariableRef(name="timer"), member="Q",
-                    ),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        FBInvocation(
+                            instance_name="timer",
+                            fb_type=NamedTypeRef(name="TON"),
+                            inputs={"IN": LiteralExpr(value="TRUE")},
+                        ),
+                        Assignment(
+                            target=VariableRef(name="done"),
+                            value=MemberAccessExpr(
+                                struct=VariableRef(name="timer"),
+                                member="Q",
+                            ),
+                        ),
+                    ]
+                )
+            ],
         )
         assert IgnoredFBOutputRule().analyze_pou(pou) == []
 
     def test_output_ignored_finding(self):
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 static_vars=[Variable(name="timer", data_type=NamedTypeRef(name="TON"))],
             ),
-            networks=[Network(statements=[
-                FBInvocation(
-                    instance_name="timer",
-                    fb_type=NamedTypeRef(name="TON"),
-                    inputs={"IN": LiteralExpr(value="TRUE")},
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        FBInvocation(
+                            instance_name="timer",
+                            fb_type=NamedTypeRef(name="TON"),
+                            inputs={"IN": LiteralExpr(value="TRUE")},
+                        ),
+                    ]
+                )
+            ],
         )
         findings = IgnoredFBOutputRule().analyze_pou(pou)
         assert len(findings) == 1
@@ -2294,32 +2503,41 @@ class TestIgnoredFBOutputRule:
 
 
 class TestUseBeforeDefRule:
-
     def test_write_then_read_no_finding(self):
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 temp_vars=[Variable(name="scratch", data_type=_INT_REF)],
                 output_vars=[Variable(name="out", data_type=_INT_REF)],
             ),
-            networks=[Network(statements=[
-                Assignment(target=VariableRef(name="scratch"), value=LiteralExpr(value="42")),
-                Assignment(target=VariableRef(name="out"), value=VariableRef(name="scratch")),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(target=VariableRef(name="scratch"), value=LiteralExpr(value="42")),
+                        Assignment(target=VariableRef(name="out"), value=VariableRef(name="scratch")),
+                    ]
+                )
+            ],
         )
         assert UseBeforeDefRule().analyze_pou(pou) == []
 
     def test_read_before_write_finding(self):
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 temp_vars=[Variable(name="scratch", data_type=_INT_REF)],
                 output_vars=[Variable(name="out", data_type=_INT_REF)],
             ),
-            networks=[Network(statements=[
-                Assignment(target=VariableRef(name="out"), value=VariableRef(name="scratch")),
-                Assignment(target=VariableRef(name="scratch"), value=LiteralExpr(value="42")),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(target=VariableRef(name="out"), value=VariableRef(name="scratch")),
+                        Assignment(target=VariableRef(name="scratch"), value=LiteralExpr(value="42")),
+                    ]
+                )
+            ],
         )
         findings = UseBeforeDefRule().analyze_pou(pou)
         assert len(findings) == 1
@@ -2329,14 +2547,19 @@ class TestUseBeforeDefRule:
     def test_static_var_not_flagged(self):
         """Static vars persist across scans — not flagged."""
         pou = POU(
-            pou_type=POUType.FUNCTION_BLOCK, name="TestFB",
+            pou_type=POUType.FUNCTION_BLOCK,
+            name="TestFB",
             interface=POUInterface(
                 static_vars=[Variable(name="counter", data_type=_INT_REF)],
                 output_vars=[Variable(name="out", data_type=_INT_REF)],
             ),
-            networks=[Network(statements=[
-                Assignment(target=VariableRef(name="out"), value=VariableRef(name="counter")),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(target=VariableRef(name="out"), value=VariableRef(name="counter")),
+                    ]
+                )
+            ],
         )
         assert UseBeforeDefRule().analyze_pou(pou) == []
 
@@ -2349,6 +2572,7 @@ class TestUseBeforeDefRule:
 # ---------------------------------------------------------------------------
 # Parametrized: unguarded output across all control flow variants
 # ---------------------------------------------------------------------------
+
 
 def _wrap_in_control_flow(inner_stmt, kind):
     """Wrap a statement inside a control flow construct."""
@@ -2404,14 +2628,11 @@ class TestUnguardedOutputParametrized:
 # Parametrized: missing-case-else with various branch counts
 # ---------------------------------------------------------------------------
 
-class TestMissingCaseElseParametrized:
 
+class TestMissingCaseElseParametrized:
     @pytest.mark.parametrize("n_branches", [1, 3, 5])
     def test_no_else_any_branch_count(self, n_branches):
-        branches = [
-            CaseBranch(values=[i], body=[EmptyStatement()])
-            for i in range(n_branches)
-        ]
+        branches = [CaseBranch(values=[i], body=[EmptyStatement()]) for i in range(n_branches)]
         stmt = CaseStatement(
             selector=VariableRef(name="state"),
             branches=branches,
@@ -2422,10 +2643,7 @@ class TestMissingCaseElseParametrized:
 
     @pytest.mark.parametrize("n_branches", [1, 3, 5])
     def test_with_else_any_branch_count(self, n_branches):
-        branches = [
-            CaseBranch(values=[i], body=[EmptyStatement()])
-            for i in range(n_branches)
-        ]
+        branches = [CaseBranch(values=[i], body=[EmptyStatement()]) for i in range(n_branches)]
         stmt = CaseStatement(
             selector=VariableRef(name="state"),
             branches=branches,
@@ -2438,6 +2656,7 @@ class TestMissingCaseElseParametrized:
 # ---------------------------------------------------------------------------
 # Integration: compile framework POUs and analyze
 # ---------------------------------------------------------------------------
+
 
 class TestIntegration:
     """Round-trip: compile framework POU → analyze → verify findings."""
@@ -2457,7 +2676,10 @@ class TestIntegration:
     def test_full_analysis_on_compiled_project(self):
         """Run ALL_RULES on a compiled project — no crashes."""
         proj = _compile_project(
-            GuardedOutputFB, UnguardedOutputFB, MixedOutputFB, EmptyFB,
+            GuardedOutputFB,
+            UnguardedOutputFB,
+            MixedOutputFB,
+            EmptyFB,
         )
         result = analyze(proj)
         assert isinstance(result, AnalysisResult)
@@ -2472,10 +2694,12 @@ class TestIntegration:
 
     def test_unused_input_on_compiled_fb(self):
         """Compiled FB with unused input triggers unused-input rule."""
+
         @fb
         class HasUnusedInput:
             unused_sensor: Input[BOOL]
             valve: Output[BOOL]
+
             def logic(self):
                 self.valve = True
 
@@ -2488,7 +2712,7 @@ class TestIntegration:
 # Fuzz: Hypothesis property-based tests
 # ---------------------------------------------------------------------------
 
-from hypothesis import given, settings, HealthCheck
+from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 
@@ -2517,7 +2741,9 @@ def st_expression(draw, max_depth=3):
         right = draw(st_expression(max_depth=max_depth - 1))
         return BinaryExpr(op=op, left=left, right=right)
     if kind == "unary":
-        from plx.model.expressions import UnaryOp as UOp, UnaryExpr as UExpr
+        from plx.model.expressions import UnaryExpr as UExpr
+        from plx.model.expressions import UnaryOp as UOp
+
         op = draw(st.sampled_from(list(UOp)))
         operand = draw(st_expression(max_depth=max_depth - 1))
         return UExpr(op=op, operand=operand)
@@ -2605,11 +2831,12 @@ class TestFuzz:
 # Performance: large project completes quickly
 # ---------------------------------------------------------------------------
 
-class TestPerformance:
 
+class TestPerformance:
     def test_100_pou_project_under_1s(self):
         """Analyze a project with 100 POUs in under 1 second."""
         import time
+
         from plx.model.project import Project
         from plx.model.task import PeriodicTask
 
@@ -2623,43 +2850,50 @@ class TestPerformance:
                     output_vars=[Variable(name="valve", data_type=_BOOL_REF)],
                     static_vars=[Variable(name="timer", data_type=NamedTypeRef(name="TON"))],
                 ),
-                networks=[Network(statements=[
-                    IfStatement(
-                        if_branch=IfBranch(
-                            condition=VariableRef(name="sensor"),
-                            body=[
-                                FBInvocation(
-                                    instance_name="timer",
-                                    fb_type=NamedTypeRef(name="TON"),
-                                    inputs={"IN": VariableRef(name="sensor")},
+                networks=[
+                    Network(
+                        statements=[
+                            IfStatement(
+                                if_branch=IfBranch(
+                                    condition=VariableRef(name="sensor"),
+                                    body=[
+                                        FBInvocation(
+                                            instance_name="timer",
+                                            fb_type=NamedTypeRef(name="TON"),
+                                            inputs={"IN": VariableRef(name="sensor")},
+                                        ),
+                                        Assignment(
+                                            target=VariableRef(name="valve"),
+                                            value=MemberAccessExpr(
+                                                struct=VariableRef(name="timer"),
+                                                member="Q",
+                                            ),
+                                        ),
+                                    ],
                                 ),
-                                Assignment(
-                                    target=VariableRef(name="valve"),
-                                    value=MemberAccessExpr(
-                                        struct=VariableRef(name="timer"),
-                                        member="Q",
+                                else_body=[
+                                    Assignment(
+                                        target=VariableRef(name="valve"),
+                                        value=LiteralExpr(value="FALSE"),
                                     ),
-                                ),
-                            ],
-                        ),
-                        else_body=[
-                            Assignment(
-                                target=VariableRef(name="valve"),
-                                value=LiteralExpr(value="FALSE"),
+                                ],
                             ),
-                        ],
-                    ),
-                ])],
+                        ]
+                    )
+                ],
             )
             pous.append(pou)
 
         proj = Project(
             name="PerfTest",
             pous=pous,
-            tasks=[PeriodicTask(
-                name="Main", interval="T#10ms",
-                assigned_pous=[f"FB_{i}" for i in range(100)],
-            )],
+            tasks=[
+                PeriodicTask(
+                    name="Main",
+                    interval="T#10ms",
+                    assigned_pous=[f"FB_{i}" for i in range(100)],
+                )
+            ],
         )
 
         start = time.perf_counter()
@@ -2689,9 +2923,13 @@ class TestEnumCastRule:
             interface=POUInterface(
                 static_vars=[Variable(name="x", data_type=_INT_TYPE_REF)],
             ),
-            networks=[Network(statements=[
-                Assignment(target=VariableRef(name="x"), value=expr),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(target=VariableRef(name="x"), value=expr),
+                    ]
+                )
+            ],
         )
 
     def test_no_finding_for_plain_variable_cast(self):

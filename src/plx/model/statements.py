@@ -6,10 +6,9 @@ from typing import Annotated, Any, Literal, Union
 
 from pydantic import Field, model_validator
 
-from ._base import IRModel, _IEC_IDENT_RE
-
+from ._base import _IEC_IDENT_RE, IRModel
 from .expressions import ArrayAccessExpr, BitAccessExpr, CallArg, Expression, MemberAccessExpr
-from .types import NamedTypeRef, TypeRef
+from .types import TypeRef
 
 
 class Assignment(IRModel):
@@ -68,9 +67,7 @@ class CaseRange(IRModel):
     @model_validator(mode="after")
     def _bounds_check(self):
         if self.start > self.end:
-            raise ValueError(
-                f"start ({self.start}) must be <= end ({self.end})"
-            )
+            raise ValueError(f"start ({self.start}) must be <= end ({self.end})")
         return self
 
 
@@ -98,9 +95,7 @@ class CaseBranch(IRModel):
     @model_validator(mode="after")
     def _check_non_empty(self):
         if not self.values and not self.ranges:
-            raise ValueError(
-                "CaseBranch must have at least one value or range"
-            )
+            raise ValueError("CaseBranch must have at least one value or range")
         return self
 
 
@@ -116,9 +111,7 @@ class CaseStatement(IRModel):
     @model_validator(mode="after")
     def _non_empty_branches(self):
         if not self.branches and not self.else_body:
-            raise ValueError(
-                "CaseStatement must have at least one branch or an else body"
-            )
+            raise ValueError("CaseStatement must have at least one branch or an else body")
         return self
 
 
@@ -223,7 +216,7 @@ class FBInvocation(IRModel):
         return data
 
     @model_validator(mode="after")
-    def _validate_instance_name(self) -> "FBInvocation":
+    def _validate_instance_name(self) -> FBInvocation:
         if isinstance(self.instance_name, str):
             if not self.instance_name:
                 raise ValueError("FBInvocation.instance_name must not be empty")
@@ -231,21 +224,14 @@ class FBInvocation(IRModel):
             # deref (e.g. "SUPER^") — each segment must be a valid identifier
             clean = self.instance_name.replace("^", "")
             if not clean:
-                raise ValueError(
-                    f"FBInvocation.instance_name '{self.instance_name}' "
-                    f"has no identifier segments"
-                )
+                raise ValueError(f"FBInvocation.instance_name '{self.instance_name}' has no identifier segments")
             segments = clean.split(".")
             for segment in segments:
                 if not segment:
-                    raise ValueError(
-                        f"FBInvocation.instance_name '{self.instance_name}' "
-                        f"contains empty segment"
-                    )
+                    raise ValueError(f"FBInvocation.instance_name '{self.instance_name}' contains empty segment")
                 if not _IEC_IDENT_RE.match(segment):
                     raise ValueError(
-                        f"FBInvocation.instance_name '{self.instance_name}' "
-                        f"contains invalid segment '{segment}'"
+                        f"FBInvocation.instance_name '{self.instance_name}' contains invalid segment '{segment}'"
                     )
         return self
 
@@ -281,10 +267,10 @@ class TryCatchStatement(IRModel):
     """
 
     kind: Literal["try_catch"] = "try_catch"
-    try_body: list["Statement"]
+    try_body: list[Statement]
     catch_var: str | None = None
-    catch_body: list["Statement"] = []
-    finally_body: list["Statement"] = []
+    catch_body: list[Statement] = []
+    finally_body: list[Statement] = []
     comment: str = ""
 
 

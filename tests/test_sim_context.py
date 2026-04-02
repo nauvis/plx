@@ -2,23 +2,20 @@
 
 import pytest
 
-from conftest import ptype, make_pou
-
-from plx.model.pou import Network, POU, POUInterface, POUType
+from conftest import make_pou, ptype
 from plx.model.expressions import (
     BinaryExpr,
     BinaryOp,
     LiteralExpr,
-    MemberAccessExpr,
     VariableRef,
 )
-from plx.model.statements import Assignment, FBInvocation
+from plx.model.pou import POU, POUInterface, POUType
+from plx.model.statements import Assignment
 from plx.model.types import (
     ArrayTypeRef,
     DimensionRange,
     NamedTypeRef,
     PrimitiveType,
-    PrimitiveTypeRef,
     StringTypeRef,
     StructMember,
     StructType,
@@ -26,64 +23,78 @@ from plx.model.types import (
 from plx.model.variables import Variable
 from plx.simulate._context import SimulationContext
 
-
 # ---------------------------------------------------------------------------
 # Allocation
 # ---------------------------------------------------------------------------
 
+
 class TestAllocation:
     def test_bool_default(self):
-        pou = make_pou(input_vars=[
-            Variable(name="flag", data_type=ptype(PrimitiveType.BOOL)),
-        ])
+        pou = make_pou(
+            input_vars=[
+                Variable(name="flag", data_type=ptype(PrimitiveType.BOOL)),
+            ]
+        )
         ctx = SimulationContext(pou)
         assert ctx.flag is False
 
     def test_int_default(self):
-        pou = make_pou(input_vars=[
-            Variable(name="count", data_type=ptype(PrimitiveType.INT)),
-        ])
+        pou = make_pou(
+            input_vars=[
+                Variable(name="count", data_type=ptype(PrimitiveType.INT)),
+            ]
+        )
         ctx = SimulationContext(pou)
         assert ctx.count == 0
 
     def test_real_default(self):
-        pou = make_pou(output_vars=[
-            Variable(name="speed", data_type=ptype(PrimitiveType.REAL)),
-        ])
+        pou = make_pou(
+            output_vars=[
+                Variable(name="speed", data_type=ptype(PrimitiveType.REAL)),
+            ]
+        )
         ctx = SimulationContext(pou)
         assert ctx.speed == 0.0
 
     def test_initial_value(self):
-        pou = make_pou(static_vars=[
-            Variable(name="x", data_type=ptype(PrimitiveType.INT), initial_value="42"),
-        ])
+        pou = make_pou(
+            static_vars=[
+                Variable(name="x", data_type=ptype(PrimitiveType.INT), initial_value="42"),
+            ]
+        )
         ctx = SimulationContext(pou)
         assert ctx.x == 42
 
     def test_string_default(self):
-        pou = make_pou(input_vars=[
-            Variable(name="msg", data_type=StringTypeRef()),
-        ])
+        pou = make_pou(
+            input_vars=[
+                Variable(name="msg", data_type=StringTypeRef()),
+            ]
+        )
         ctx = SimulationContext(pou)
         assert ctx.msg == ""
 
     def test_array_allocation(self):
-        pou = make_pou(static_vars=[
-            Variable(
-                name="arr",
-                data_type=ArrayTypeRef(
-                    element_type=ptype(PrimitiveType.INT),
-                    dimensions=[DimensionRange(lower=0, upper=4)],
+        pou = make_pou(
+            static_vars=[
+                Variable(
+                    name="arr",
+                    data_type=ArrayTypeRef(
+                        element_type=ptype(PrimitiveType.INT),
+                        dimensions=[DimensionRange(lower=0, upper=4)],
+                    ),
                 ),
-            ),
-        ])
+            ]
+        )
         ctx = SimulationContext(pou)
         assert ctx.arr == [0, 0, 0, 0, 0]
 
     def test_builtin_fb_allocation(self):
-        pou = make_pou(static_vars=[
-            Variable(name="timer", data_type=NamedTypeRef(name="TON")),
-        ])
+        pou = make_pou(
+            static_vars=[
+                Variable(name="timer", data_type=NamedTypeRef(name="TON")),
+            ]
+        )
         ctx = SimulationContext(pou)
         assert isinstance(ctx.timer, dict)
         assert "Q" in ctx.timer
@@ -97,9 +108,11 @@ class TestAllocation:
                 StructMember(name="running", data_type=ptype(PrimitiveType.BOOL)),
             ],
         )
-        pou = make_pou(static_vars=[
-            Variable(name="data", data_type=NamedTypeRef(name="MotorData")),
-        ])
+        pou = make_pou(
+            static_vars=[
+                Variable(name="data", data_type=NamedTypeRef(name="MotorData")),
+            ]
+        )
         ctx = SimulationContext(pou, data_type_registry={"MotorData": struct_def})
         assert ctx.data == {"speed": 0.0, "running": False}
 
@@ -113,9 +126,11 @@ class TestAllocation:
             ),
             networks=[],
         )
-        pou = make_pou(static_vars=[
-            Variable(name="inner", data_type=NamedTypeRef(name="Inner")),
-        ])
+        pou = make_pou(
+            static_vars=[
+                Variable(name="inner", data_type=NamedTypeRef(name="Inner")),
+            ]
+        )
         ctx = SimulationContext(pou, pou_registry={"Inner": inner_pou})
         assert isinstance(ctx.inner, dict)
         assert ctx.inner["x"] == 0
@@ -126,26 +141,33 @@ class TestAllocation:
 # Attribute access
 # ---------------------------------------------------------------------------
 
+
 class TestAttributeAccess:
     def test_read_input(self):
-        pou = make_pou(input_vars=[
-            Variable(name="cmd", data_type=ptype(PrimitiveType.BOOL)),
-        ])
+        pou = make_pou(
+            input_vars=[
+                Variable(name="cmd", data_type=ptype(PrimitiveType.BOOL)),
+            ]
+        )
         ctx = SimulationContext(pou)
         assert ctx.cmd is False
 
     def test_write_input(self):
-        pou = make_pou(input_vars=[
-            Variable(name="cmd", data_type=ptype(PrimitiveType.BOOL)),
-        ])
+        pou = make_pou(
+            input_vars=[
+                Variable(name="cmd", data_type=ptype(PrimitiveType.BOOL)),
+            ]
+        )
         ctx = SimulationContext(pou)
         ctx.cmd = True
         assert ctx.cmd is True
 
     def test_unknown_var_raises(self):
-        pou = make_pou(input_vars=[
-            Variable(name="x", data_type=ptype(PrimitiveType.INT)),
-        ])
+        pou = make_pou(
+            input_vars=[
+                Variable(name="x", data_type=ptype(PrimitiveType.INT)),
+            ]
+        )
         ctx = SimulationContext(pou)
         with pytest.raises(AttributeError, match="no variable 'nonexistent'"):
             _ = ctx.nonexistent
@@ -154,6 +176,7 @@ class TestAttributeAccess:
 # ---------------------------------------------------------------------------
 # Scan / tick
 # ---------------------------------------------------------------------------
+
 
 class TestScan:
     def test_scan_advances_clock(self):
@@ -264,38 +287,50 @@ class TestScan:
 # Timedelta coercion
 # ---------------------------------------------------------------------------
 
+
 class TestTimedeltaCoercion:
     def test_setattr_coerces_timedelta(self):
         """Setting a TIME variable via timedelta stores int milliseconds."""
         from datetime import timedelta
-        pou = make_pou(input_vars=[
-            Variable(name="delay", data_type=ptype(PrimitiveType.TIME)),
-        ])
+
+        pou = make_pou(
+            input_vars=[
+                Variable(name="delay", data_type=ptype(PrimitiveType.TIME)),
+            ]
+        )
         ctx = SimulationContext(pou)
         ctx.delay = timedelta(seconds=10)
         assert ctx.delay == 10000
 
     def test_set_method_coerces_timedelta(self):
         from datetime import timedelta
-        pou = make_pou(input_vars=[
-            Variable(name="timeout", data_type=ptype(PrimitiveType.TIME)),
-        ])
+
+        pou = make_pou(
+            input_vars=[
+                Variable(name="timeout", data_type=ptype(PrimitiveType.TIME)),
+            ]
+        )
         ctx = SimulationContext(pou)
         ctx.set(timeout=timedelta(milliseconds=500))
         assert ctx.timeout == 500
 
     def test_set_external_coerces_timedelta(self):
         from datetime import timedelta
-        pou = make_pou(static_vars=[
-            Variable(name="ext_time", data_type=ptype(PrimitiveType.TIME)),
-        ])
+
+        pou = make_pou(
+            static_vars=[
+                Variable(name="ext_time", data_type=ptype(PrimitiveType.TIME)),
+            ]
+        )
         ctx = SimulationContext(pou)
         ctx.set_external("ext_time", timedelta(seconds=2))
         assert ctx.ext_time == 2000
 
     def test_struct_proxy_setattr_coerces_timedelta(self):
         from datetime import timedelta
+
         from plx.simulate._proxy import StructProxy
+
         d = {"pt": 0}
         proxy = StructProxy(d)
         proxy.pt = timedelta(seconds=5)
@@ -303,7 +338,9 @@ class TestTimedeltaCoercion:
 
     def test_struct_proxy_setitem_coerces_timedelta(self):
         from datetime import timedelta
+
         from plx.simulate._proxy import StructProxy
+
         d = {"pt": 0}
         proxy = StructProxy(d)
         proxy["pt"] = timedelta(seconds=3)

@@ -3,8 +3,6 @@
 import pytest
 
 from plx.model.expressions import (
-    BinaryExpr,
-    BinaryOp,
     CallArg,
     DerefExpr,
     FunctionCallExpr,
@@ -12,8 +10,8 @@ from plx.model.expressions import (
     MemberAccessExpr,
     VariableRef,
 )
-from plx.model.pou import POU, POUType, POUInterface, Network
-from plx.model.statements import Assignment, FunctionCallStatement, IfStatement, IfBranch
+from plx.model.pou import POU, Network, POUInterface, POUType
+from plx.model.statements import Assignment, FunctionCallStatement
 from plx.model.types import (
     NamedTypeRef,
     PointerTypeRef,
@@ -23,27 +21,30 @@ from plx.model.types import (
     StructType,
 )
 from plx.model.variables import Variable
-from plx.simulate._context import SimulationContext
 from plx.simulate._executor import ExecutionEngine
 from plx.simulate._pointers import NULL_PTR, PointerTable, _RefBinding
 from plx.simulate._values import SimulationError
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _dint() -> PrimitiveTypeRef:
     return PrimitiveTypeRef(type=PrimitiveType.DINT)
+
 
 def _bool() -> PrimitiveTypeRef:
     return PrimitiveTypeRef(type=PrimitiveType.BOOL)
 
+
 def _ptr(target: str) -> PointerTypeRef:
     return PointerTypeRef(target_type=NamedTypeRef(name=target))
 
+
 def _ptr_dint() -> PointerTypeRef:
     return PointerTypeRef(target_type=_dint())
+
 
 def _make_engine(state, pointer_table=None, pou=None):
     if pou is None:
@@ -64,6 +65,7 @@ def _make_engine(state, pointer_table=None, pou=None):
 # ---------------------------------------------------------------------------
 # PointerTable unit tests
 # ---------------------------------------------------------------------------
+
 
 class TestPointerTable:
     def test_get_or_assign_returns_stable_address(self):
@@ -142,6 +144,7 @@ class TestPointerTable:
 # ADR and basic dereference
 # ---------------------------------------------------------------------------
 
+
 class TestAdrAndDeref:
     def test_adr_returns_address(self):
         pt = PointerTable()
@@ -155,16 +158,20 @@ class TestAdrAndDeref:
                     Variable(name="ptr", data_type=_ptr_dint()),
                 ],
             ),
-            networks=[Network(statements=[
-                # ptr := ADR(x)
-                Assignment(
-                    target=VariableRef(name="ptr"),
-                    value=FunctionCallExpr(
-                        function_name="ADR",
-                        args=[CallArg(value=VariableRef(name="x"))],
-                    ),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        # ptr := ADR(x)
+                        Assignment(
+                            target=VariableRef(name="ptr"),
+                            value=FunctionCallExpr(
+                                function_name="ADR",
+                                args=[CallArg(value=VariableRef(name="x"))],
+                            ),
+                        ),
+                    ]
+                )
+            ],
         )
         engine = _make_engine(state, pt, pou)
         engine.execute()
@@ -185,19 +192,23 @@ class TestAdrAndDeref:
                     Variable(name="result", data_type=_dint()),
                 ],
             ),
-            networks=[Network(statements=[
-                Assignment(
-                    target=VariableRef(name="ptr"),
-                    value=FunctionCallExpr(
-                        function_name="ADR",
-                        args=[CallArg(value=VariableRef(name="x"))],
-                    ),
-                ),
-                Assignment(
-                    target=VariableRef(name="result"),
-                    value=DerefExpr(pointer=VariableRef(name="ptr")),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="ptr"),
+                            value=FunctionCallExpr(
+                                function_name="ADR",
+                                args=[CallArg(value=VariableRef(name="x"))],
+                            ),
+                        ),
+                        Assignment(
+                            target=VariableRef(name="result"),
+                            value=DerefExpr(pointer=VariableRef(name="ptr")),
+                        ),
+                    ]
+                )
+            ],
         )
         engine = _make_engine(state, pt, pou)
         engine.execute()
@@ -216,19 +227,23 @@ class TestAdrAndDeref:
                     Variable(name="ptr", data_type=_ptr_dint()),
                 ],
             ),
-            networks=[Network(statements=[
-                Assignment(
-                    target=VariableRef(name="ptr"),
-                    value=FunctionCallExpr(
-                        function_name="ADR",
-                        args=[CallArg(value=VariableRef(name="x"))],
-                    ),
-                ),
-                Assignment(
-                    target=DerefExpr(pointer=VariableRef(name="ptr")),
-                    value=LiteralExpr(value="99"),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="ptr"),
+                            value=FunctionCallExpr(
+                                function_name="ADR",
+                                args=[CallArg(value=VariableRef(name="x"))],
+                            ),
+                        ),
+                        Assignment(
+                            target=DerefExpr(pointer=VariableRef(name="ptr")),
+                            value=LiteralExpr(value="99"),
+                        ),
+                    ]
+                )
+            ],
         )
         engine = _make_engine(state, pt, pou)
         engine.execute()
@@ -248,22 +263,26 @@ class TestAdrAndDeref:
                     Variable(name="result", data_type=_dint()),
                 ],
             ),
-            networks=[Network(statements=[
-                Assignment(
-                    target=VariableRef(name="ptr"),
-                    value=FunctionCallExpr(
-                        function_name="ADR",
-                        args=[CallArg(value=VariableRef(name="s"))],
-                    ),
-                ),
-                Assignment(
-                    target=VariableRef(name="result"),
-                    value=MemberAccessExpr(
-                        struct=DerefExpr(pointer=VariableRef(name="ptr")),
-                        member="field",
-                    ),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="ptr"),
+                            value=FunctionCallExpr(
+                                function_name="ADR",
+                                args=[CallArg(value=VariableRef(name="s"))],
+                            ),
+                        ),
+                        Assignment(
+                            target=VariableRef(name="result"),
+                            value=MemberAccessExpr(
+                                struct=DerefExpr(pointer=VariableRef(name="ptr")),
+                                member="field",
+                            ),
+                        ),
+                    ]
+                )
+            ],
         )
         engine = _make_engine(state, pt, pou)
         engine.execute()
@@ -281,6 +300,7 @@ class TestAdrAndDeref:
 # Pointer arithmetic rejection
 # ---------------------------------------------------------------------------
 
+
 class TestPointerArithmeticRejection:
     def test_arithmetic_deref_raises(self):
         """ptr := ADR(x) + 1; ptr^  → raises"""
@@ -297,6 +317,7 @@ class TestPointerArithmeticRejection:
 # __NEW and __DELETE
 # ---------------------------------------------------------------------------
 
+
 class TestNewDelete:
     def test_new_allocates(self):
         pt = PointerTable()
@@ -307,15 +328,19 @@ class TestNewDelete:
             interface=POUInterface(
                 static_vars=[Variable(name="ptr", data_type=_ptr_dint())],
             ),
-            networks=[Network(statements=[
-                Assignment(
-                    target=VariableRef(name="ptr"),
-                    value=FunctionCallExpr(
-                        function_name="__NEW",
-                        args=[CallArg(value=LiteralExpr(value="DINT"))],
-                    ),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="ptr"),
+                            value=FunctionCallExpr(
+                                function_name="__NEW",
+                                args=[CallArg(value=LiteralExpr(value="DINT"))],
+                            ),
+                        ),
+                    ]
+                )
+            ],
         )
         engine = _make_engine(state, pt, pou)
         engine.execute()
@@ -339,15 +364,19 @@ class TestNewDelete:
             interface=POUInterface(
                 static_vars=[Variable(name="ptr", data_type=_ptr("MyNode"))],
             ),
-            networks=[Network(statements=[
-                Assignment(
-                    target=VariableRef(name="ptr"),
-                    value=FunctionCallExpr(
-                        function_name="__NEW",
-                        args=[CallArg(value=LiteralExpr(value="MyNode"))],
-                    ),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="ptr"),
+                            value=FunctionCallExpr(
+                                function_name="__NEW",
+                                args=[CallArg(value=LiteralExpr(value="MyNode"))],
+                            ),
+                        ),
+                    ]
+                )
+            ],
         )
         engine = _make_engine(state, pt, pou)
         engine.data_type_registry = {"MyNode": my_struct}
@@ -367,12 +396,16 @@ class TestNewDelete:
             interface=POUInterface(
                 static_vars=[Variable(name="ptr", data_type=_ptr_dint())],
             ),
-            networks=[Network(statements=[
-                FunctionCallStatement(
-                    function_name="__DELETE",
-                    args=[CallArg(value=VariableRef(name="ptr"))],
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        FunctionCallStatement(
+                            function_name="__DELETE",
+                            args=[CallArg(value=VariableRef(name="ptr"))],
+                        ),
+                    ]
+                )
+            ],
         )
         engine = _make_engine(state, pt, pou)
         engine.execute()
@@ -387,15 +420,18 @@ class TestNewDelete:
         state = {"ptr": 0}
         engine = _make_engine(state, pt)
         with pytest.raises(SimulationError, match="null pointer"):
-            engine._exec_function_call_stmt(FunctionCallStatement(
-                function_name="__DELETE",
-                args=[CallArg(value=VariableRef(name="ptr"))],
-            ))
+            engine._exec_function_call_stmt(
+                FunctionCallStatement(
+                    function_name="__DELETE",
+                    args=[CallArg(value=VariableRef(name="ptr"))],
+                )
+            )
 
 
 # ---------------------------------------------------------------------------
 # REF= and __ISVALIDREF
 # ---------------------------------------------------------------------------
+
 
 class TestRefAssign:
     def test_ref_assign_read_through(self):
@@ -412,17 +448,21 @@ class TestRefAssign:
                     Variable(name="result", data_type=_dint()),
                 ],
             ),
-            networks=[Network(statements=[
-                Assignment(
-                    target=VariableRef(name="ref"),
-                    value=VariableRef(name="x"),
-                    ref_assign=True,
-                ),
-                Assignment(
-                    target=VariableRef(name="result"),
-                    value=VariableRef(name="ref"),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="ref"),
+                            value=VariableRef(name="x"),
+                            ref_assign=True,
+                        ),
+                        Assignment(
+                            target=VariableRef(name="result"),
+                            value=VariableRef(name="ref"),
+                        ),
+                    ]
+                )
+            ],
         )
         engine = _make_engine(state, pt, pou)
         engine.execute()
@@ -441,17 +481,21 @@ class TestRefAssign:
                     Variable(name="ref", data_type=_dint()),
                 ],
             ),
-            networks=[Network(statements=[
-                Assignment(
-                    target=VariableRef(name="ref"),
-                    value=VariableRef(name="x"),
-                    ref_assign=True,
-                ),
-                Assignment(
-                    target=VariableRef(name="ref"),
-                    value=LiteralExpr(value="99"),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="ref"),
+                            value=VariableRef(name="x"),
+                            ref_assign=True,
+                        ),
+                        Assignment(
+                            target=VariableRef(name="ref"),
+                            value=LiteralExpr(value="99"),
+                        ),
+                    ]
+                )
+            ],
         )
         engine = _make_engine(state, pt, pou)
         engine.execute()
@@ -478,6 +522,7 @@ class TestRefAssign:
 # ---------------------------------------------------------------------------
 # SIZEOF
 # ---------------------------------------------------------------------------
+
 
 class TestSizeof:
     def test_sizeof_dint(self):
@@ -515,6 +560,7 @@ class TestSizeof:
 # Integration: linked list
 # ---------------------------------------------------------------------------
 
+
 class TestLinkedListIntegration:
     def test_linked_list_create_and_traverse(self):
         """Simulate creating two linked-list nodes and reading through pointers."""
@@ -537,64 +583,68 @@ class TestLinkedListIntegration:
                     Variable(name="result", data_type=_dint()),
                 ],
             ),
-            networks=[Network(statements=[
-                # head := __NEW(Node)
-                Assignment(
-                    target=VariableRef(name="head"),
-                    value=FunctionCallExpr(
-                        function_name="__NEW",
-                        args=[CallArg(value=LiteralExpr(value="Node"))],
-                    ),
-                ),
-                # head^.data := 10
-                Assignment(
-                    target=MemberAccessExpr(
-                        struct=DerefExpr(pointer=VariableRef(name="head")),
-                        member="data",
-                    ),
-                    value=LiteralExpr(value="10"),
-                ),
-                # tmp := __NEW(Node)
-                Assignment(
-                    target=VariableRef(name="tmp"),
-                    value=FunctionCallExpr(
-                        function_name="__NEW",
-                        args=[CallArg(value=LiteralExpr(value="Node"))],
-                    ),
-                ),
-                # tmp^.data := 20
-                Assignment(
-                    target=MemberAccessExpr(
-                        struct=DerefExpr(pointer=VariableRef(name="tmp")),
-                        member="data",
-                    ),
-                    value=LiteralExpr(value="20"),
-                ),
-                # head^.next := tmp
-                Assignment(
-                    target=MemberAccessExpr(
-                        struct=DerefExpr(pointer=VariableRef(name="head")),
-                        member="next",
-                    ),
-                    value=VariableRef(name="tmp"),
-                ),
-                # result := head^.next^.data  (should be 20)
-                # First: tmp2 = head^.next
-                # Then: result = tmp2^.data
-                # As a single expr: MemberAccess(DerefExpr(MemberAccess(DerefExpr(head), "next")), "data")
-                Assignment(
-                    target=VariableRef(name="result"),
-                    value=MemberAccessExpr(
-                        struct=DerefExpr(
-                            pointer=MemberAccessExpr(
+            networks=[
+                Network(
+                    statements=[
+                        # head := __NEW(Node)
+                        Assignment(
+                            target=VariableRef(name="head"),
+                            value=FunctionCallExpr(
+                                function_name="__NEW",
+                                args=[CallArg(value=LiteralExpr(value="Node"))],
+                            ),
+                        ),
+                        # head^.data := 10
+                        Assignment(
+                            target=MemberAccessExpr(
+                                struct=DerefExpr(pointer=VariableRef(name="head")),
+                                member="data",
+                            ),
+                            value=LiteralExpr(value="10"),
+                        ),
+                        # tmp := __NEW(Node)
+                        Assignment(
+                            target=VariableRef(name="tmp"),
+                            value=FunctionCallExpr(
+                                function_name="__NEW",
+                                args=[CallArg(value=LiteralExpr(value="Node"))],
+                            ),
+                        ),
+                        # tmp^.data := 20
+                        Assignment(
+                            target=MemberAccessExpr(
+                                struct=DerefExpr(pointer=VariableRef(name="tmp")),
+                                member="data",
+                            ),
+                            value=LiteralExpr(value="20"),
+                        ),
+                        # head^.next := tmp
+                        Assignment(
+                            target=MemberAccessExpr(
                                 struct=DerefExpr(pointer=VariableRef(name="head")),
                                 member="next",
                             ),
+                            value=VariableRef(name="tmp"),
                         ),
-                        member="data",
-                    ),
-                ),
-            ])],
+                        # result := head^.next^.data  (should be 20)
+                        # First: tmp2 = head^.next
+                        # Then: result = tmp2^.data
+                        # As a single expr: MemberAccess(DerefExpr(MemberAccess(DerefExpr(head), "next")), "data")
+                        Assignment(
+                            target=VariableRef(name="result"),
+                            value=MemberAccessExpr(
+                                struct=DerefExpr(
+                                    pointer=MemberAccessExpr(
+                                        struct=DerefExpr(pointer=VariableRef(name="head")),
+                                        member="next",
+                                    ),
+                                ),
+                                member="data",
+                            ),
+                        ),
+                    ]
+                )
+            ],
         )
         engine = _make_engine(state, pt, pou)
         engine.data_type_registry = {"Node": node_type}
@@ -619,32 +669,36 @@ class TestSwapViaPointers:
                     Variable(name="tmp", data_type=_dint()),
                 ],
             ),
-            networks=[Network(statements=[
-                # pa := ADR(a); pb := ADR(b)
-                Assignment(
-                    target=VariableRef(name="pa"),
-                    value=FunctionCallExpr(function_name="ADR", args=[CallArg(value=VariableRef(name="a"))]),
-                ),
-                Assignment(
-                    target=VariableRef(name="pb"),
-                    value=FunctionCallExpr(function_name="ADR", args=[CallArg(value=VariableRef(name="b"))]),
-                ),
-                # tmp := pa^
-                Assignment(
-                    target=VariableRef(name="tmp"),
-                    value=DerefExpr(pointer=VariableRef(name="pa")),
-                ),
-                # pa^ := pb^
-                Assignment(
-                    target=DerefExpr(pointer=VariableRef(name="pa")),
-                    value=DerefExpr(pointer=VariableRef(name="pb")),
-                ),
-                # pb^ := tmp
-                Assignment(
-                    target=DerefExpr(pointer=VariableRef(name="pb")),
-                    value=VariableRef(name="tmp"),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        # pa := ADR(a); pb := ADR(b)
+                        Assignment(
+                            target=VariableRef(name="pa"),
+                            value=FunctionCallExpr(function_name="ADR", args=[CallArg(value=VariableRef(name="a"))]),
+                        ),
+                        Assignment(
+                            target=VariableRef(name="pb"),
+                            value=FunctionCallExpr(function_name="ADR", args=[CallArg(value=VariableRef(name="b"))]),
+                        ),
+                        # tmp := pa^
+                        Assignment(
+                            target=VariableRef(name="tmp"),
+                            value=DerefExpr(pointer=VariableRef(name="pa")),
+                        ),
+                        # pa^ := pb^
+                        Assignment(
+                            target=DerefExpr(pointer=VariableRef(name="pa")),
+                            value=DerefExpr(pointer=VariableRef(name="pb")),
+                        ),
+                        # pb^ := tmp
+                        Assignment(
+                            target=DerefExpr(pointer=VariableRef(name="pb")),
+                            value=VariableRef(name="tmp"),
+                        ),
+                    ]
+                )
+            ],
         )
         engine = _make_engine(state, pt, pou)
         engine.execute()

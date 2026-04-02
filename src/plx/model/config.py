@@ -9,13 +9,13 @@ subclasses define topology structure and mapping mechanisms.
 from __future__ import annotations
 
 from abc import abstractmethod
-from enum import Enum
+from enum import StrEnum
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
 
-class ChannelDirection(str, Enum):
+class ChannelDirection(StrEnum):
     """Whether an IO channel is a physical input or output."""
 
     INPUT = "input"

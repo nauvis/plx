@@ -4,8 +4,6 @@ Covers: precedence table fix, FOR loop var type, method-call receiver,
 walker BitAccessExpr traversal.
 """
 
-import pytest
-
 from plx.export.py._helpers import _BINOP_PRECEDENCE
 from plx.export.py._writer import PyWriter
 from plx.model.expressions import (
@@ -13,28 +11,23 @@ from plx.model.expressions import (
     BinaryOp,
     BitAccessExpr,
     Expression,
-    LiteralExpr,
     VariableRef,
 )
-from plx.model.pou import Network, POU, POUInterface, POUType
-from plx.model.project import Project
 from plx.model.statements import FunctionCallStatement
 from plx.model.types import PrimitiveType, PrimitiveTypeRef
-from plx.model.variables import Variable
 from plx.model.walk import walk_expressions
-
 
 # ---------------------------------------------------------------------------
 # Fix 1: Precedence table — bitwise must bind tighter than comparisons
 # ---------------------------------------------------------------------------
+
 
 class TestPrecedenceTable:
     """Verify Python precedence: comparisons < bitwise < arithmetic."""
 
     def test_bitwise_tighter_than_comparisons(self):
         """BAND/BOR/XOR must have higher precedence than EQ/NE/LT/GT/LE/GE."""
-        for cmp_op in (BinaryOp.EQ, BinaryOp.NE, BinaryOp.LT, BinaryOp.GT,
-                        BinaryOp.LE, BinaryOp.GE):
+        for cmp_op in (BinaryOp.EQ, BinaryOp.NE, BinaryOp.LT, BinaryOp.GT, BinaryOp.LE, BinaryOp.GE):
             for bit_op in (BinaryOp.BAND, BinaryOp.BOR, BinaryOp.XOR):
                 assert _BINOP_PRECEDENCE[bit_op] > _BINOP_PRECEDENCE[cmp_op], (
                     f"{bit_op.value} (prec={_BINOP_PRECEDENCE[bit_op]}) should "
@@ -103,11 +96,12 @@ class TestPrecedenceTable:
 # Fix 7a: FOR loop auto-generated var is DINT (not INT)
 # ---------------------------------------------------------------------------
 
+
 class TestForLoopVarType:
     """Verify auto-generated FOR loop variable is DINT."""
 
     def test_for_loop_var_is_dint(self):
-        from plx.framework import fb, Input, Output, DINT
+        from plx.framework import DINT, Output, fb
 
         @fb
         class ForLoopTest:
@@ -130,11 +124,12 @@ class TestForLoopVarType:
 # Fix 7b: Method call receiver preserved in IR
 # ---------------------------------------------------------------------------
 
+
 class TestMethodCallReceiver:
     """Verify self.fb.Method() compiles with dotted function_name."""
 
     def test_method_call_has_dotted_name(self):
-        from plx.framework import fb, Input, Output, Static, BOOL
+        from plx.framework import BOOL, Output, Static, fb
 
         @fb
         class InnerFB:
@@ -165,6 +160,7 @@ class TestMethodCallReceiver:
 # ---------------------------------------------------------------------------
 # Fix 7c: walk_expressions visits BitAccessExpr.bit_index
 # ---------------------------------------------------------------------------
+
 
 class TestWalkerBitAccessExpr:
     """Verify walk_expressions descends into BitAccessExpr.bit_index."""

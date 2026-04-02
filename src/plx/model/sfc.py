@@ -2,30 +2,29 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import Field, field_validator, model_validator
 
 from ._base import IRModel, validate_iec_identifier
-
 from .expressions import Expression
 from .statements import Statement
 
 
-class ActionQualifier(str, Enum):
+class ActionQualifier(StrEnum):
     """IEC 61131-3 action qualifiers."""
 
-    N = "N"       # Non-stored (active while step is active)
-    R = "R"       # Reset
-    S = "S"       # Set (stored)
-    P = "P"       # Pulse (single execution on step entry)
-    L = "L"       # Time-limited
-    D = "D"       # Time-delayed
-    P0 = "P0"     # Pulse on deactivation
-    P1 = "P1"     # Pulse on activation
-    SD = "SD"     # Stored and time-delayed
-    DS = "DS"     # Delayed and stored
-    SL = "SL"     # Stored and time-limited
+    N = "N"  # Non-stored (active while step is active)
+    R = "R"  # Reset
+    S = "S"  # Set (stored)
+    P = "P"  # Pulse (single execution on step entry)
+    L = "L"  # Time-limited
+    D = "D"  # Time-delayed
+    P0 = "P0"  # Pulse on deactivation
+    P1 = "P1"  # Pulse on activation
+    SD = "SD"  # Stored and time-delayed
+    DS = "DS"  # Delayed and stored
+    SL = "SL"  # Stored and time-limited
 
 
 class Action(IRModel):
@@ -63,9 +62,7 @@ class Action(IRModel):
         has_body = bool(self.body)
         has_ref = self.action_name is not None
         if has_body and has_ref:
-            raise ValueError(
-                "Action must have either inline 'body' or 'action_name' reference, not both"
-            )
+            raise ValueError("Action must have either inline 'body' or 'action_name' reference, not both")
         return self
 
 
@@ -143,10 +140,7 @@ class SFCBody(IRModel):
         if self.steps:
             initial_count = sum(1 for s in self.steps if s.is_initial)
             if initial_count != 1:
-                raise ValueError(
-                    f"SFCBody must have exactly one initial step when steps exist, "
-                    f"found {initial_count}"
-                )
+                raise ValueError(f"SFCBody must have exactly one initial step when steps exist, found {initial_count}")
         return self
 
     @model_validator(mode="after")
@@ -166,12 +160,8 @@ class SFCBody(IRModel):
         for t in self.transitions:
             for name in t.source_steps:
                 if name not in step_names:
-                    raise ValueError(
-                        f"Transition references unknown source step '{name}'"
-                    )
+                    raise ValueError(f"Transition references unknown source step '{name}'")
             for name in t.target_steps:
                 if name not in step_names:
-                    raise ValueError(
-                        f"Transition references unknown target step '{name}'"
-                    )
+                    raise ValueError(f"Transition references unknown target step '{name}'")
         return self

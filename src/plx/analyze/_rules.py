@@ -43,12 +43,10 @@ from ._context import AnalysisContext
 from ._results import AnalysisResult, Finding, Severity
 from ._types import (
     _INTEGER_RANGE,
-    _UNSIGNED_INTEGERS,
     is_narrowing,
     parse_integer_literal,
 )
 from ._visitor import AnalysisVisitor
-
 
 # ---------------------------------------------------------------------------
 # Safety rules
@@ -67,14 +65,16 @@ class UnguardedOutputRule(AnalysisVisitor):
                 continue
             for w in writes:
                 if not w.guarded:
-                    ctx.findings.append(Finding(
-                        rule_id="unguarded-output",
-                        severity=Severity.WARNING,
-                        pou_name=ctx.pou_name,
-                        message=f"Output '{var_name}' is written unconditionally",
-                        location=w.location,
-                        details={"variable": var_name},
-                    ))
+                    ctx.findings.append(
+                        Finding(
+                            rule_id="unguarded-output",
+                            severity=Severity.WARNING,
+                            pou_name=ctx.pou_name,
+                            message=f"Output '{var_name}' is written unconditionally",
+                            location=w.location,
+                            details={"variable": var_name},
+                        )
+                    )
 
 
 class MultipleOutputWriteRule(AnalysisVisitor):
@@ -89,21 +89,20 @@ class MultipleOutputWriteRule(AnalysisVisitor):
                 continue
             if len(writes) > 1:
                 locations = [w.location for w in writes]
-                ctx.findings.append(Finding(
-                    rule_id="multiple-output-write",
-                    severity=Severity.ERROR,
-                    pou_name=ctx.pou_name,
-                    message=(
-                        f"Output '{var_name}' is written in "
-                        f"{len(writes)} locations — last write wins"
-                    ),
-                    location=locations[0],
-                    details={
-                        "variable": var_name,
-                        "write_count": len(writes),
-                        "locations": locations,
-                    },
-                ))
+                ctx.findings.append(
+                    Finding(
+                        rule_id="multiple-output-write",
+                        severity=Severity.ERROR,
+                        pou_name=ctx.pou_name,
+                        message=(f"Output '{var_name}' is written in {len(writes)} locations — last write wins"),
+                        location=locations[0],
+                        details={
+                            "variable": var_name,
+                            "write_count": len(writes),
+                            "locations": locations,
+                        },
+                    )
+                )
 
 
 class WriteToInputRule(AnalysisVisitor):
@@ -116,14 +115,16 @@ class WriteToInputRule(AnalysisVisitor):
         for var_name, writes in ctx.writes.items():
             if var_name not in ctx.input_names:
                 continue
-            ctx.findings.append(Finding(
-                rule_id="write-to-input",
-                severity=Severity.ERROR,
-                pou_name=ctx.pou_name,
-                message=f"Input '{var_name}' is written inside the POU body",
-                location=writes[0].location,
-                details={"variable": var_name},
-            ))
+            ctx.findings.append(
+                Finding(
+                    rule_id="write-to-input",
+                    severity=Severity.ERROR,
+                    pou_name=ctx.pou_name,
+                    message=f"Input '{var_name}' is written inside the POU body",
+                    location=writes[0].location,
+                    details={"variable": var_name},
+                )
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -153,16 +154,15 @@ class RealEqualityRule(AnalysisVisitor):
         right_type = ctx.type_env.resolve_expr_type(expr.right)
         if self._is_float(left_type) or self._is_float(right_type):
             op_str = "==" if expr.op == BinaryOp.EQ else "!="
-            ctx.findings.append(Finding(
-                rule_id="real-equality",
-                severity=Severity.WARNING,
-                pou_name=ctx.pou_name,
-                message=(
-                    f"Floating-point comparison using '{op_str}' — "
-                    f"use range-based comparison instead"
-                ),
-                location=self._location(ctx),
-            ))
+            ctx.findings.append(
+                Finding(
+                    rule_id="real-equality",
+                    severity=Severity.WARNING,
+                    pou_name=ctx.pou_name,
+                    message=(f"Floating-point comparison using '{op_str}' — use range-based comparison instead"),
+                    location=self._location(ctx),
+                )
+            )
 
     @classmethod
     def _is_float(cls, t: object) -> bool:
@@ -177,13 +177,15 @@ class MissingCaseElseRule(AnalysisVisitor):
 
     def on_case(self, ctx: AnalysisContext, stmt: CaseStatement) -> None:
         if not stmt.else_body:
-            ctx.findings.append(Finding(
-                rule_id="missing-case-else",
-                severity=Severity.WARNING,
-                pou_name=ctx.pou_name,
-                message="CASE statement has no ELSE branch",
-                location=self._location(ctx),
-            ))
+            ctx.findings.append(
+                Finding(
+                    rule_id="missing-case-else",
+                    severity=Severity.WARNING,
+                    pou_name=ctx.pou_name,
+                    message="CASE statement has no ELSE branch",
+                    location=self._location(ctx),
+                )
+            )
 
 
 class ForCounterWriteRule(AnalysisVisitor):
@@ -207,17 +209,16 @@ class ForCounterWriteRule(AnalysisVisitor):
             return
         target_name = self._extract_target_name(stmt.target)
         if target_name is not None and target_name in self._loop_vars:
-            ctx.findings.append(Finding(
-                rule_id="for-counter-write",
-                severity=Severity.ERROR,
-                pou_name=ctx.pou_name,
-                message=(
-                    f"FOR loop counter '{target_name}' is modified "
-                    f"inside the loop body"
-                ),
-                location=self._location(ctx),
-                details={"variable": target_name},
-            ))
+            ctx.findings.append(
+                Finding(
+                    rule_id="for-counter-write",
+                    severity=Severity.ERROR,
+                    pou_name=ctx.pou_name,
+                    message=(f"FOR loop counter '{target_name}' is modified inside the loop body"),
+                    location=self._location(ctx),
+                    details={"variable": target_name},
+                )
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -250,13 +251,15 @@ class UnusedVariableRule(AnalysisVisitor):
 
         for var_name in sorted(all_vars):
             if var_name not in ctx.reads and var_name not in ctx.writes:
-                ctx.findings.append(Finding(
-                    rule_id="unused-variable",
-                    severity=Severity.WARNING,
-                    pou_name=ctx.pou_name,
-                    message=f"Variable '{var_name}' is declared but never used",
-                    details={"variable": var_name},
-                ))
+                ctx.findings.append(
+                    Finding(
+                        rule_id="unused-variable",
+                        severity=Severity.WARNING,
+                        pou_name=ctx.pou_name,
+                        message=f"Variable '{var_name}' is declared but never used",
+                        details={"variable": var_name},
+                    )
+                )
 
 
 class UnusedInputRule(AnalysisVisitor):
@@ -268,13 +271,15 @@ class UnusedInputRule(AnalysisVisitor):
     def on_pou_exit(self, ctx: AnalysisContext) -> None:
         for var_name in sorted(ctx.input_names):
             if var_name not in ctx.reads:
-                ctx.findings.append(Finding(
-                    rule_id="unused-input",
-                    severity=Severity.WARNING,
-                    pou_name=ctx.pou_name,
-                    message=f"Input '{var_name}' is declared but never read",
-                    details={"variable": var_name},
-                ))
+                ctx.findings.append(
+                    Finding(
+                        rule_id="unused-input",
+                        severity=Severity.WARNING,
+                        pou_name=ctx.pou_name,
+                        message=f"Input '{var_name}' is declared but never read",
+                        details={"variable": var_name},
+                    )
+                )
 
 
 class UnusedOutputRule(AnalysisVisitor):
@@ -286,13 +291,15 @@ class UnusedOutputRule(AnalysisVisitor):
     def on_pou_exit(self, ctx: AnalysisContext) -> None:
         for var_name in sorted(ctx.output_names):
             if var_name not in ctx.writes:
-                ctx.findings.append(Finding(
-                    rule_id="unused-output",
-                    severity=Severity.WARNING,
-                    pou_name=ctx.pou_name,
-                    message=f"Output '{var_name}' is declared but never written",
-                    details={"variable": var_name},
-                ))
+                ctx.findings.append(
+                    Finding(
+                        rule_id="unused-output",
+                        severity=Severity.WARNING,
+                        pou_name=ctx.pou_name,
+                        message=f"Output '{var_name}' is declared but never written",
+                        details={"variable": var_name},
+                    )
+                )
 
 
 class TempFBInstanceRule(AnalysisVisitor):
@@ -308,7 +315,7 @@ class TempFBInstanceRule(AnalysisVisitor):
         super().__init__()
         self._data_type_names: set[str] = set()
 
-    def analyze_project(self, project: "Project") -> "AnalysisResult":
+    def analyze_project(self, project: Project) -> AnalysisResult:
         self._data_type_names = {dt.name for dt in project.data_types}
         return super().analyze_project(project)
 
@@ -320,16 +327,18 @@ class TempFBInstanceRule(AnalysisVisitor):
                 # Skip structs, enums, and other non-FB named types
                 if var.data_type.name in self._data_type_names:
                     continue
-                ctx.findings.append(Finding(
-                    rule_id="temp-fb-instance",
-                    severity=Severity.WARNING,
-                    pou_name=ctx.pou_name,
-                    message=(
-                        f"'{var.name}' of type '{var.data_type.name}' is "
-                        f"declared as VAR_TEMP — FB state will be lost each scan"
-                    ),
-                    details={"variable": var.name, "fb_type": var.data_type.name},
-                ))
+                ctx.findings.append(
+                    Finding(
+                        rule_id="temp-fb-instance",
+                        severity=Severity.WARNING,
+                        pou_name=ctx.pou_name,
+                        message=(
+                            f"'{var.name}' of type '{var.data_type.name}' is "
+                            f"declared as VAR_TEMP — FB state will be lost each scan"
+                        ),
+                        details={"variable": var.name, "fb_type": var.data_type.name},
+                    )
+                )
 
 
 class EmptyBodyRule(AnalysisVisitor):
@@ -351,12 +360,14 @@ class EmptyBodyRule(AnalysisVisitor):
                     has_body = True
                     break
         if not has_body and pou.pou_type != POUType.INTERFACE:
-            ctx.findings.append(Finding(
-                rule_id="empty-body",
-                severity=Severity.INFO,
-                pou_name=ctx.pou_name,
-                message=f"POU '{pou.name}' has an empty body",
-            ))
+            ctx.findings.append(
+                Finding(
+                    rule_id="empty-body",
+                    severity=Severity.INFO,
+                    pou_name=ctx.pou_name,
+                    message=f"POU '{pou.name}' has an empty body",
+                )
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -378,16 +389,18 @@ class DeadSfcStepRule(AnalysisVisitor):
             if step.is_initial:
                 continue
             if step.name not in targeted:
-                ctx.findings.append(Finding(
-                    rule_id="sfc-dead-step",
-                    severity=Severity.WARNING,
-                    pou_name=ctx.pou_name,
-                    message=(
-                        f"Step '{step.name}' is unreachable — "
-                        f"no transition targets it and it is not the initial step"
-                    ),
-                    details={"step": step.name},
-                ))
+                ctx.findings.append(
+                    Finding(
+                        rule_id="sfc-dead-step",
+                        severity=Severity.WARNING,
+                        pou_name=ctx.pou_name,
+                        message=(
+                            f"Step '{step.name}' is unreachable — "
+                            f"no transition targets it and it is not the initial step"
+                        ),
+                        details={"step": step.name},
+                    )
+                )
 
 
 class SfcNoInitialStepRule(AnalysisVisitor):
@@ -400,12 +413,14 @@ class SfcNoInitialStepRule(AnalysisVisitor):
         if not sfc.steps:
             return
         if not any(s.is_initial for s in sfc.steps):
-            ctx.findings.append(Finding(
-                rule_id="sfc-no-initial",
-                severity=Severity.ERROR,
-                pou_name=ctx.pou_name,
-                message="SFC has no initial step",
-            ))
+            ctx.findings.append(
+                Finding(
+                    rule_id="sfc-no-initial",
+                    severity=Severity.ERROR,
+                    pou_name=ctx.pou_name,
+                    message="SFC has no initial step",
+                )
+            )
 
 
 class SfcMultipleInitialStepsRule(AnalysisVisitor):
@@ -417,16 +432,15 @@ class SfcMultipleInitialStepsRule(AnalysisVisitor):
     def on_sfc_exit(self, ctx: AnalysisContext, sfc: SFCBody) -> None:
         initial_steps = [s.name for s in sfc.steps if s.is_initial]
         if len(initial_steps) > 1:
-            ctx.findings.append(Finding(
-                rule_id="sfc-multiple-initial",
-                severity=Severity.ERROR,
-                pou_name=ctx.pou_name,
-                message=(
-                    f"SFC has {len(initial_steps)} initial steps: "
-                    f"{', '.join(initial_steps)}"
-                ),
-                details={"steps": initial_steps},
-            ))
+            ctx.findings.append(
+                Finding(
+                    rule_id="sfc-multiple-initial",
+                    severity=Severity.ERROR,
+                    pou_name=ctx.pou_name,
+                    message=(f"SFC has {len(initial_steps)} initial steps: {', '.join(initial_steps)}"),
+                    details={"steps": initial_steps},
+                )
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -452,16 +466,15 @@ class NarrowingConversionRule(AnalysisVisitor):
             and isinstance(value_type, PrimitiveTypeRef)
             and is_narrowing(value_type.type, target_type.type)
         ):
-            ctx.findings.append(Finding(
-                rule_id="narrowing-conversion",
-                severity=Severity.WARNING,
-                pou_name=ctx.pou_name,
-                message=(
-                    f"Implicit narrowing conversion from "
-                    f"{value_type.type.value} to {target_type.type.value}"
-                ),
-                location=self._location(ctx),
-            ))
+            ctx.findings.append(
+                Finding(
+                    rule_id="narrowing-conversion",
+                    severity=Severity.WARNING,
+                    pou_name=ctx.pou_name,
+                    message=(f"Implicit narrowing conversion from {value_type.type.value} to {target_type.type.value}"),
+                    location=self._location(ctx),
+                )
+            )
 
 
 class ConstantOutOfRangeRule(AnalysisVisitor):
@@ -474,6 +487,7 @@ class ConstantOutOfRangeRule(AnalysisVisitor):
         if ctx.type_env is None:
             return
         from plx.model.expressions import LiteralExpr
+
         if not isinstance(stmt.value, LiteralExpr):
             return
         target_type = ctx.type_env.resolve_expr_type(stmt.target)
@@ -487,16 +501,15 @@ class ConstantOutOfRangeRule(AnalysisVisitor):
             return
         lo, hi = bounds
         if val < lo or val > hi:
-            ctx.findings.append(Finding(
-                rule_id="constant-out-of-range",
-                severity=Severity.ERROR,
-                pou_name=ctx.pou_name,
-                message=(
-                    f"Constant {val} exceeds {target_type.type.value} "
-                    f"range [{lo}..{hi}]"
-                ),
-                location=self._location(ctx),
-            ))
+            ctx.findings.append(
+                Finding(
+                    rule_id="constant-out-of-range",
+                    severity=Severity.ERROR,
+                    pou_name=ctx.pou_name,
+                    message=(f"Constant {val} exceeds {target_type.type.value} range [{lo}..{hi}]"),
+                    location=self._location(ctx),
+                )
+            )
 
 
 class EnumCastRule(AnalysisVisitor):
@@ -513,6 +526,7 @@ class EnumCastRule(AnalysisVisitor):
         if not isinstance(expr, TypeConversionExpr):
             return
         from plx.model.expressions import LiteralExpr
+
         if not isinstance(expr.source, LiteralExpr):
             return
         if not isinstance(expr.source.data_type, NamedTypeRef):
@@ -520,17 +534,19 @@ class EnumCastRule(AnalysisVisitor):
         # Enum literals use the "EnumName#MEMBER" format
         if "#" not in expr.source.value:
             return
-        ctx.findings.append(Finding(
-            rule_id="enum-cast-to-int",
-            severity=Severity.ERROR,
-            pou_name=ctx.pou_name,
-            message=(
-                f"Type cast of enum literal {expr.source.value!r} generates invalid "
-                f"structured-text syntax. Declare the variable as the enum type and "
-                f"compare directly, or use a raw integer value."
-            ),
-            location=self._location(ctx),
-        ))
+        ctx.findings.append(
+            Finding(
+                rule_id="enum-cast-to-int",
+                severity=Severity.ERROR,
+                pou_name=ctx.pou_name,
+                message=(
+                    f"Type cast of enum literal {expr.source.value!r} generates invalid "
+                    f"structured-text syntax. Declare the variable as the enum type and "
+                    f"compare directly, or use a raw integer value."
+                ),
+                location=self._location(ctx),
+            )
+        )
 
 
 class DivisionByZeroRule(AnalysisVisitor):
@@ -545,6 +561,7 @@ class DivisionByZeroRule(AnalysisVisitor):
         if expr.op not in (BinaryOp.DIV, BinaryOp.MOD):
             return
         from plx.model.expressions import LiteralExpr
+
         if isinstance(expr.right, LiteralExpr):
             is_zero = False
             val = parse_integer_literal(expr.right.value)
@@ -562,13 +579,15 @@ class DivisionByZeroRule(AnalysisVisitor):
                     pass
             if is_zero:
                 op_name = "Division" if expr.op == BinaryOp.DIV else "Modulo"
-                ctx.findings.append(Finding(
-                    rule_id="division-by-zero",
-                    severity=Severity.ERROR,
-                    pou_name=ctx.pou_name,
-                    message=f"{op_name} by zero",
-                    location=self._location(ctx),
-                ))
+                ctx.findings.append(
+                    Finding(
+                        rule_id="division-by-zero",
+                        severity=Severity.ERROR,
+                        pou_name=ctx.pou_name,
+                        message=f"{op_name} by zero",
+                        location=self._location(ctx),
+                    )
+                )
 
 
 class IncompleteCaseEnumRule(AnalysisVisitor):
@@ -584,11 +603,7 @@ class IncompleteCaseEnumRule(AnalysisVisitor):
         self._enum_defs: dict[str, EnumType] = {}
 
     def analyze_project(self, project: Project) -> AnalysisResult:
-        self._enum_defs = {
-            td.name: td
-            for td in project.data_types
-            if isinstance(td, EnumType)
-        }
+        self._enum_defs = {td.name: td for td in project.data_types if isinstance(td, EnumType)}
         return super().analyze_project(project)
 
     def on_case(self, ctx: AnalysisContext, stmt: CaseStatement) -> None:
@@ -614,17 +629,16 @@ class IncompleteCaseEnumRule(AnalysisVisitor):
                 missing.append(member.name)
 
         if missing and not stmt.else_body:
-            ctx.findings.append(Finding(
-                rule_id="incomplete-enum-case",
-                severity=Severity.WARNING,
-                pou_name=ctx.pou_name,
-                message=(
-                    f"CASE on '{selector_type.name}' is missing members: "
-                    f"{', '.join(missing)}"
-                ),
-                location=self._location(ctx),
-                details={"enum": selector_type.name, "missing": missing},
-            ))
+            ctx.findings.append(
+                Finding(
+                    rule_id="incomplete-enum-case",
+                    severity=Severity.WARNING,
+                    pou_name=ctx.pou_name,
+                    message=(f"CASE on '{selector_type.name}' is missing members: {', '.join(missing)}"),
+                    location=self._location(ctx),
+                    details={"enum": selector_type.name, "missing": missing},
+                )
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -666,22 +680,22 @@ class CyclomaticComplexityRule(AnalysisVisitor):
 
     def on_expression(self, ctx: AnalysisContext, expr: Expression) -> None:
         if isinstance(expr, BinaryExpr) and expr.op in (
-            BinaryOp.AND_THEN, BinaryOp.OR_ELSE,
+            BinaryOp.AND_THEN,
+            BinaryOp.OR_ELSE,
         ):
             self._cc += 1
 
     def on_pou_exit(self, ctx: AnalysisContext) -> None:
         if self._cc > self._max:
-            ctx.findings.append(Finding(
-                rule_id="cyclomatic-complexity",
-                severity=Severity.WARNING,
-                pou_name=ctx.pou_name,
-                message=(
-                    f"Cyclomatic complexity is {self._cc} "
-                    f"(threshold: {self._max})"
-                ),
-                details={"complexity": self._cc, "threshold": self._max},
-            ))
+            ctx.findings.append(
+                Finding(
+                    rule_id="cyclomatic-complexity",
+                    severity=Severity.WARNING,
+                    pou_name=ctx.pou_name,
+                    message=(f"Cyclomatic complexity is {self._cc} (threshold: {self._max})"),
+                    details={"complexity": self._cc, "threshold": self._max},
+                )
+            )
 
 
 class MaxNestingDepthRule(AnalysisVisitor):
@@ -709,16 +723,15 @@ class MaxNestingDepthRule(AnalysisVisitor):
 
     def on_pou_exit(self, ctx: AnalysisContext) -> None:
         if self._deepest > self._max:
-            ctx.findings.append(Finding(
-                rule_id="max-nesting-depth",
-                severity=Severity.WARNING,
-                pou_name=ctx.pou_name,
-                message=(
-                    f"Maximum nesting depth is {self._deepest} "
-                    f"(threshold: {self._max})"
-                ),
-                details={"depth": self._deepest, "threshold": self._max},
-            ))
+            ctx.findings.append(
+                Finding(
+                    rule_id="max-nesting-depth",
+                    severity=Severity.WARNING,
+                    pou_name=ctx.pou_name,
+                    message=(f"Maximum nesting depth is {self._deepest} (threshold: {self._max})"),
+                    details={"depth": self._deepest, "threshold": self._max},
+                )
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -752,24 +765,23 @@ class RecursiveCallRule(AnalysisVisitor):
         def _dfs(node: str, path: list[str]) -> None:
             if node in on_stack:
                 cycle_start = path.index(node)
-                cycle = path[cycle_start:] + [node]
-                findings.append(Finding(
-                    rule_id="recursive-call",
-                    severity=Severity.ERROR,
-                    pou_name=node,
-                    message=(
-                        f"Recursive call cycle: "
-                        f"{' → '.join(cycle)}"
-                    ),
-                    details={"cycle": cycle},
-                ))
+                cycle = [*path[cycle_start:], node]
+                findings.append(
+                    Finding(
+                        rule_id="recursive-call",
+                        severity=Severity.ERROR,
+                        pou_name=node,
+                        message=(f"Recursive call cycle: {' → '.join(cycle)}"),
+                        details={"cycle": cycle},
+                    )
+                )
                 return
             if node in visited:
                 return
             visited.add(node)
             on_stack.add(node)
             for callee in self._calls.get(node, ()):
-                _dfs(callee, path + [node])
+                _dfs(callee, [*path, node])
             on_stack.discard(node)
 
         for name in sorted(self._pou_names):
@@ -882,15 +894,15 @@ class VariableShadowRule(AnalysisVisitor):
         ):
             for v in var_list:
                 if v.name in self._global_names:
-                    ctx.findings.append(Finding(
-                        rule_id="variable-shadow",
-                        severity=Severity.WARNING,
-                        pou_name=ctx.pou_name,
-                        message=(
-                            f"Variable '{v.name}' shadows a global variable"
-                        ),
-                        details={"variable": v.name},
-                    ))
+                    ctx.findings.append(
+                        Finding(
+                            rule_id="variable-shadow",
+                            severity=Severity.WARNING,
+                            pou_name=ctx.pou_name,
+                            message=(f"Variable '{v.name}' shadows a global variable"),
+                            details={"variable": v.name},
+                        )
+                    )
 
 
 # ---------------------------------------------------------------------------
@@ -945,19 +957,20 @@ class CrossTaskWriteRule(AnalysisVisitor):
         for var_name in sorted(var_tasks):
             tasks = var_tasks[var_name]
             if len(tasks) > 1:
-                findings.append(Finding(
-                    rule_id="cross-task-write",
-                    severity=Severity.ERROR,
-                    pou_name="(project)",
-                    message=(
-                        f"Variable '{var_name}' is written by POUs in "
-                        f"multiple tasks: {', '.join(sorted(tasks))}"
-                    ),
-                    details={
-                        "variable": var_name,
-                        "tasks": sorted(tasks),
-                    },
-                ))
+                findings.append(
+                    Finding(
+                        rule_id="cross-task-write",
+                        severity=Severity.ERROR,
+                        pou_name="(project)",
+                        message=(
+                            f"Variable '{var_name}' is written by POUs in multiple tasks: {', '.join(sorted(tasks))}"
+                        ),
+                        details={
+                            "variable": var_name,
+                            "tasks": sorted(tasks),
+                        },
+                    )
+                )
 
         return AnalysisResult(
             findings=findings,
@@ -990,12 +1003,14 @@ class UnusedPOURule(AnalysisVisitor):
         findings: list[Finding] = []
         for pou in project.pous:
             if pou.name not in used:
-                findings.append(Finding(
-                    rule_id="unused-pou",
-                    severity=Severity.INFO,
-                    pou_name=pou.name,
-                    message=f"POU '{pou.name}' is never called or assigned to a task",
-                ))
+                findings.append(
+                    Finding(
+                        rule_id="unused-pou",
+                        severity=Severity.INFO,
+                        pou_name=pou.name,
+                        message=f"POU '{pou.name}' is never called or assigned to a task",
+                    )
+                )
 
         return AnalysisResult(
             findings=findings,
@@ -1004,7 +1019,10 @@ class UnusedPOURule(AnalysisVisitor):
         )
 
     def _collect_callees(
-        self, pou: POU, pou_names: set[str], out: set[str],
+        self,
+        pou: POU,
+        pou_names: set[str],
+        out: set[str],
     ) -> None:
         for network in pou.networks:
             for stmt in network.statements:
@@ -1084,18 +1102,20 @@ class UnreachableCodeRule(AnalysisVisitor):
     def _check_stmts(self, ctx: AnalysisContext, stmts: list[Statement]) -> None:
         for i, stmt in enumerate(stmts):
             if isinstance(stmt, (ReturnStatement, ExitStatement)):
-                remaining = stmts[i + 1:]
+                remaining = stmts[i + 1 :]
                 if remaining:
-                    ctx.findings.append(Finding(
-                        rule_id="unreachable-code",
-                        severity=Severity.WARNING,
-                        pou_name=ctx.pou_name,
-                        message=(
-                            f"{len(remaining)} statement(s) after "
-                            f"unconditional {'RETURN' if isinstance(stmt, ReturnStatement) else 'EXIT'}"
-                        ),
-                        location=self._location(ctx),
-                    ))
+                    ctx.findings.append(
+                        Finding(
+                            rule_id="unreachable-code",
+                            severity=Severity.WARNING,
+                            pou_name=ctx.pou_name,
+                            message=(
+                                f"{len(remaining)} statement(s) after "
+                                f"unconditional {'RETURN' if isinstance(stmt, ReturnStatement) else 'EXIT'}"
+                            ),
+                            location=self._location(ctx),
+                        )
+                    )
                     break
             # Recurse into compound statement bodies
             if isinstance(stmt, IfStatement):
@@ -1164,16 +1184,15 @@ class IgnoredFBOutputRule(AnalysisVisitor):
                 read_instances.add(var_name)
 
         for name in sorted(invoked - read_instances):
-            ctx.findings.append(Finding(
-                rule_id="ignored-fb-output",
-                severity=Severity.WARNING,
-                pou_name=ctx.pou_name,
-                message=(
-                    f"FB instance '{name}' is invoked but its outputs "
-                    f"are never read"
-                ),
-                details={"instance": name},
-            ))
+            ctx.findings.append(
+                Finding(
+                    rule_id="ignored-fb-output",
+                    severity=Severity.WARNING,
+                    pou_name=ctx.pou_name,
+                    message=(f"FB instance '{name}' is invoked but its outputs are never read"),
+                    details={"instance": name},
+                )
+            )
 
     def _collect_invocations(self, stmt: object, out: set[str]) -> None:
         if isinstance(stmt, FBInvocation) and isinstance(stmt.instance_name, str):
@@ -1237,16 +1256,15 @@ class UseBeforeDefRule(AnalysisVisitor):
                 self._scan_stmt(ctx, stmt, temp_names, written, flagged)
 
         for var_name in sorted(flagged):
-            ctx.findings.append(Finding(
-                rule_id="use-before-def",
-                severity=Severity.WARNING,
-                pou_name=ctx.pou_name,
-                message=(
-                    f"Temp variable '{var_name}' may be read "
-                    f"before being written"
-                ),
-                details={"variable": var_name},
-            ))
+            ctx.findings.append(
+                Finding(
+                    rule_id="use-before-def",
+                    severity=Severity.WARNING,
+                    pou_name=ctx.pou_name,
+                    message=(f"Temp variable '{var_name}' may be read before being written"),
+                    details={"variable": var_name},
+                )
+            )
 
     def _scan_stmt(
         self,
@@ -1275,25 +1293,30 @@ class UseBeforeDefRule(AnalysisVisitor):
             saved = set(written)
             for s in stmt.if_branch.body:
                 self._scan_stmt(ctx, s, temps, written, flagged)
-            written.clear(); written.update(saved)
+            written.clear()
+            written.update(saved)
             for branch in stmt.elsif_branches:
                 self._scan_reads(branch.condition, temps, written, flagged)
                 for s in branch.body:
                     self._scan_stmt(ctx, s, temps, written, flagged)
-                written.clear(); written.update(saved)
+                written.clear()
+                written.update(saved)
             for s in stmt.else_body:
                 self._scan_stmt(ctx, s, temps, written, flagged)
-            written.clear(); written.update(saved)
+            written.clear()
+            written.update(saved)
         elif isinstance(stmt, CaseStatement):
             self._scan_reads(stmt.selector, temps, written, flagged)
             saved = set(written)
             for branch in stmt.branches:
                 for s in branch.body:
                     self._scan_stmt(ctx, s, temps, written, flagged)
-                written.clear(); written.update(saved)
+                written.clear()
+                written.update(saved)
             for s in stmt.else_body:
                 self._scan_stmt(ctx, s, temps, written, flagged)
-            written.clear(); written.update(saved)
+            written.clear()
+            written.update(saved)
         elif isinstance(stmt, ForStatement):
             self._scan_reads(stmt.from_expr, temps, written, flagged)
             self._scan_reads(stmt.to_expr, temps, written, flagged)
@@ -1302,13 +1325,15 @@ class UseBeforeDefRule(AnalysisVisitor):
             saved = set(written)
             for s in stmt.body:
                 self._scan_stmt(ctx, s, temps, written, flagged)
-            written.clear(); written.update(saved)
+            written.clear()
+            written.update(saved)
         elif isinstance(stmt, WhileStatement):
             self._scan_reads(stmt.condition, temps, written, flagged)
             saved = set(written)
             for s in stmt.body:
                 self._scan_stmt(ctx, s, temps, written, flagged)
-            written.clear(); written.update(saved)
+            written.clear()
+            written.update(saved)
         elif isinstance(stmt, RepeatStatement):
             for s in stmt.body:
                 self._scan_stmt(ctx, s, temps, written, flagged)

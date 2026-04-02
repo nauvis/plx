@@ -6,7 +6,7 @@ and ``Field()`` for metadata::
     class MyFB:
         sensor: Input[bool]
         speed: Output[float] = Field(initial=60.0, retain=True)
-        accumulator: float = 0.0      # bare annotation = static
+        accumulator: float = 0.0  # bare annotation = static
         scratch: Temp[int]
         PI: float = Field(initial=3.14, constant=True)
         timer: TON
@@ -14,55 +14,45 @@ and ``Field()`` for metadata::
 
 from __future__ import annotations
 
-from enum import Enum
 import sys
-from typing import Annotated, ForwardRef, Generic, TypeVar, get_origin, get_args
+from datetime import timedelta
+from enum import StrEnum
+from typing import Annotated, ForwardRef, Generic, TypeVar, get_args, get_origin
 
-from plx.model.types import PrimitiveType, TypeRef
+from plx.model.types import NamedTypeRef, TypeRef
 from plx.model.variables import Variable
 
-from plx.model.types import NamedTypeRef
-
-from datetime import timedelta
-
 from ._errors import DeclarationError
-from ._types import timedelta_to_iec, _resolve_type_ref
-
+from ._types import _resolve_type_ref, timedelta_to_iec
 
 _T = TypeVar("_T")
 
 
 class Input(Generic[_T]):
     """Annotation marker for input variables: ``speed: Input[float]``"""
-    pass
 
 
 class Output(Generic[_T]):
     """Annotation marker for output variables: ``running: Output[bool]``"""
-    pass
 
 
 class InOut(Generic[_T]):
     """Annotation marker for in-out variables: ``ref: InOut[float]``"""
-    pass
 
 
 class Static(Generic[_T]):
     """Annotation marker for explicit static variables: ``state: Static[int]``"""
-    pass
 
 
 class Temp(Generic[_T]):
     """Annotation marker for temp variables: ``scratch: Temp[int]``"""
-    pass
 
 
 class External(Generic[_T]):
     """Annotation marker for external variables: ``ext: External[int]``"""
-    pass
 
 
-class VarDirection(str, Enum):
+class VarDirection(StrEnum):
     """Direction of a POU variable."""
 
     INPUT = "input"
@@ -91,8 +81,17 @@ class VarDescriptor:
     ``_collect_descriptors()``.
     """
 
-    __slots__ = ("direction", "data_type", "initial_value", "description",
-                 "retain", "persistent", "constant", "hardware", "external")
+    __slots__ = (
+        "direction",
+        "data_type",
+        "initial_value",
+        "description",
+        "retain",
+        "persistent",
+        "constant",
+        "hardware",
+        "external",
+    )
 
     def __init__(
         self,
@@ -120,6 +119,7 @@ class VarDescriptor:
 # ---------------------------------------------------------------------------
 # FieldDescriptor + Field() function
 # ---------------------------------------------------------------------------
+
 
 class FieldDescriptor:
     """Stores metadata for a variable declared with ``Field()``.
@@ -167,9 +167,7 @@ def _validate_hardware(value: str | None) -> str | None:
         return None
     if value in _VALID_HARDWARE:
         return value
-    raise DeclarationError(
-        f"Invalid hardware value {value!r} — expected 'input', 'output', or 'memory'"
-    )
+    raise DeclarationError(f"Invalid hardware value {value!r} — expected 'input', 'output', or 'memory'")
 
 
 def _normalize_external(value: bool | str | None) -> str | None:
@@ -180,9 +178,7 @@ def _normalize_external(value: bool | str | None) -> str | None:
         return None
     if value in _VALID_EXTERNAL:
         return value
-    raise DeclarationError(
-        f"Invalid external value {value!r} — expected True, False, 'read', or 'readwrite'"
-    )
+    raise DeclarationError(f"Invalid external value {value!r} — expected True, False, 'read', or 'readwrite'")
 
 
 def Field(
@@ -272,9 +268,7 @@ def _format_initial(value: object) -> str | None:
         return value
     if isinstance(value, dict):
         return _dict_to_iec_init(value)
-    raise DeclarationError(
-        f"Cannot convert {type(value).__name__} to IEC literal"
-    )
+    raise DeclarationError(f"Cannot convert {type(value).__name__} to IEC literal")
 
 
 def _dict_to_iec_init(d: dict) -> str:
@@ -294,14 +288,10 @@ def _format_init_param(value: object) -> str:
     Raises ``DeclarationError`` if the value cannot be represented.
     """
     if value is None:
-        raise DeclarationError(
-            "Cannot use None as an FB/struct init parameter value"
-        )
+        raise DeclarationError("Cannot use None as an FB/struct init parameter value")
     if isinstance(value, str):
         # Already an IEC literal (time, hex, etc.) — pass through
-        if (value.startswith("T#") or value.startswith("16#") or
-                value.startswith("8#") or value.startswith("2#") or
-                value.startswith("(") or value == "TRUE" or value == "FALSE"):
+        if value.startswith(("T#", "16#", "8#", "2#", "(")) or value == "TRUE" or value == "FALSE":
             return value
         # Wrap plain strings in IEC single quotes
         return f"'{value}'"
@@ -312,6 +302,7 @@ def _format_init_param(value: object) -> str:
 # Field validation per direction
 # ---------------------------------------------------------------------------
 
+
 def _validate_field_for_direction(
     field: FieldDescriptor,
     direction: VarDirection,
@@ -319,6 +310,7 @@ def _validate_field_for_direction(
     class_name: str | None = None,
 ) -> None:
     """Validate that Field() kwargs are legal for the given direction."""
+
     def _err(msg: str) -> DeclarationError:
         return DeclarationError(msg, class_name=class_name)
 
@@ -365,6 +357,7 @@ def _validate_field_for_direction(
 # Annotated / FieldDescriptor helpers
 # ---------------------------------------------------------------------------
 
+
 def _unwrap_annotated(
     type_hint: object,
     attr_name: str,
@@ -380,9 +373,7 @@ def _unwrap_annotated(
     inner = ann_args[0]
     fields_found = [a for a in ann_args[1:] if isinstance(a, FieldDescriptor)]
     if len(fields_found) > 1:
-        raise DeclarationError(
-            f"Variable '{attr_name}' has multiple Field() in Annotated — only one allowed"
-        )
+        raise DeclarationError(f"Variable '{attr_name}' has multiple Field() in Annotated — only one allowed")
     return inner, (fields_found[0] if fields_found else None)
 
 
@@ -431,6 +422,7 @@ def _field_to_variable(
 # MRO override helper
 # ---------------------------------------------------------------------------
 
+
 def _mro_upsert(
     collected: list[tuple],
     seen: set[str],
@@ -452,12 +444,13 @@ def _mro_upsert(
 # Per-attribute resolution helpers
 # ---------------------------------------------------------------------------
 
+
 def _unwrap_forward_ref(inner_type: object, declaring_cls: type) -> object:
     """Resolve a ForwardRef using the declaring class's module globals."""
     if not isinstance(inner_type, ForwardRef):
         return inner_type
     mod = sys.modules.get(declaring_cls.__module__)
-    globalns = getattr(mod, '__dict__', {}) if mod else {}
+    globalns = getattr(mod, "__dict__", {}) if mod else {}
     try:
         return eval(inner_type.__forward_arg__, globalns)
     except (NameError, AttributeError):
@@ -498,9 +491,9 @@ def _resolve_declaration(
         data_type = _resolve_type_ref(inner_type)
     except TypeError:
         import warnings
+
         warnings.warn(
-            f"plx: variable '{attr_name}' on {declaring_cls.__name__} has "
-            f"unrecognizable type {inner_type!r} — skipped",
+            f"plx: variable '{attr_name}' on {declaring_cls.__name__} has unrecognizable type {inner_type!r} — skipped",
             stacklevel=4,
         )
         return None
@@ -556,6 +549,7 @@ def _resolve_declaration(
 # Collection helper
 # ---------------------------------------------------------------------------
 
+
 def _collect_descriptors(cls: type, *, own_only: bool = False) -> dict[str, list[Variable]]:
     """Find variable declarations on *cls* and return
     IR ``Variable`` nodes grouped by direction.
@@ -585,19 +579,14 @@ def _collect_descriptors(cls: type, *, own_only: bool = False) -> dict[str, list
     else:
         # Walk MRO in reverse so parent attrs come first and child
         # overrides replace them via the ``seen`` set.
-        sources = [
-            base.__dict__
-            for base in reversed(cls.__mro__)
-            if base is not object
-        ]
+        sources = [base.__dict__ for base in reversed(cls.__mro__) if base is not object]
 
     seen: set[str] = set()
     collected: list[tuple[str, VarDescriptor]] = []
 
-    from ._protocols import CompiledPOU
-
     # First pass: bare FB class assignments (valve_a = ValveCtrl)
     from ._library import LibraryType
+    from ._protocols import CompiledPOU
 
     for ns in sources:
         for attr_name, value in ns.items():
@@ -608,11 +597,7 @@ def _collect_descriptors(cls: type, *, own_only: bool = False) -> dict[str, list
                     data_type=NamedTypeRef(name=value.__name__),
                 )
                 _mro_upsert(collected, seen, attr_name, (attr_name, desc))
-            elif (
-                isinstance(value, type)
-                and issubclass(value, LibraryType)
-                and "_abstract" not in value.__dict__
-            ):
+            elif isinstance(value, type) and issubclass(value, LibraryType) and "_abstract" not in value.__dict__:
                 # Bare library type assignment: power = MC_Power
                 desc = VarDescriptor(
                     direction=VarDirection.STATIC,

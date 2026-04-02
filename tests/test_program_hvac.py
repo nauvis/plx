@@ -4,31 +4,28 @@ sustained() for fan coast-down, and first_scan() for initialization.
 ~45 I/O: 9 DI, 3 DO, 18 AI, 9 AO across 3 zones + central plant.
 """
 
-import pytest
-
 from datetime import timedelta
+
+import pytest
 
 from plx.framework import (
     BOOL,
-    DINT,
     INT,
     REAL,
+    Input,
+    Output,
     delayed,
     fb,
-    first_scan,
-    Input,
     fb_method,
-    Output,
+    first_scan,
     program,
     project,
     struct,
     sustained,
     task,
-    Field,
 )
 from plx.model.pou import AccessSpecifier
 from plx.simulate import simulate
-
 
 # ==========================================================================
 # Data Types

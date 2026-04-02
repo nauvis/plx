@@ -21,10 +21,10 @@ from plx.model.types import (
     StringTypeRef,
 )
 
-
 # ---------------------------------------------------------------------------
 # _resolve_type_ref
 # ---------------------------------------------------------------------------
+
 
 class TestResolveTypeRef:
     def test_primitive_type_enum(self):
@@ -73,6 +73,7 @@ class TestResolveTypeRef:
     def test_python_float_rejected(self):
         """float is ambiguous — must use real or lreal."""
         from plx.framework._errors import DeclarationError
+
         with pytest.raises(DeclarationError, match="float is ambiguous"):
             _resolve_type_ref(float)
 
@@ -88,6 +89,7 @@ class TestResolveTypeRef:
     def test_python_float_in_pointer_rejected(self):
         """float is ambiguous — must use real or lreal."""
         from plx.framework._errors import DeclarationError
+
         with pytest.raises(DeclarationError, match="float is ambiguous"):
             POINTER_TO(float)
 
@@ -103,6 +105,7 @@ class TestResolveTypeRef:
 # ---------------------------------------------------------------------------
 # ARRAY
 # ---------------------------------------------------------------------------
+
 
 class TestARRAY:
     def test_single_int_dim(self):
@@ -159,9 +162,11 @@ class TestARRAY:
 # DimensionRange with expression bounds
 # ---------------------------------------------------------------------------
 
+
 class TestDimensionRangeExpressionBounds:
     def test_expression_upper_bound(self):
         from plx.model.expressions import MemberAccessExpr, VariableRef
+
         dr = DimensionRange(
             lower=1,
             upper=MemberAccessExpr(
@@ -175,6 +180,7 @@ class TestDimensionRangeExpressionBounds:
 
     def test_expression_both_bounds(self):
         from plx.model.expressions import VariableRef
+
         dr = DimensionRange(
             lower=VariableRef(name="MIN_IDX"),
             upper=VariableRef(name="MAX_IDX"),
@@ -185,6 +191,7 @@ class TestDimensionRangeExpressionBounds:
     def test_expression_bound_skips_validation(self):
         """Expression bounds should not trigger numeric validation."""
         from plx.model.expressions import VariableRef
+
         # This would fail with int bounds (lower=10 > upper=1) but
         # expression bounds skip numeric validation
         dr = DimensionRange(
@@ -195,35 +202,41 @@ class TestDimensionRangeExpressionBounds:
 
     def test_int_bounds_still_validated(self):
         """Pure integer bounds should still be validated."""
-        with pytest.raises(ValueError, match="lower.*must be <= upper"):
+        with pytest.raises(ValueError, match=r"lower.*must be <= upper"):
             DimensionRange(lower=10, upper=5)
 
     def test_array_type_ref_with_expression_bounds(self):
         from plx.model.expressions import MemberAccessExpr, VariableRef
+
         arr = ArrayTypeRef(
             element_type=NamedTypeRef(name="I_PackML_BaseModule"),
-            dimensions=[DimensionRange(
-                lower=1,
-                upper=MemberAccessExpr(
-                    struct=VariableRef(name="Parameters_PackML_Base"),
-                    member="MAX_NO_OF_SUBMODULES",
-                ),
-            )],
+            dimensions=[
+                DimensionRange(
+                    lower=1,
+                    upper=MemberAccessExpr(
+                        struct=VariableRef(name="Parameters_PackML_Base"),
+                        member="MAX_NO_OF_SUBMODULES",
+                    ),
+                )
+            ],
         )
         assert len(arr.dimensions) == 1
         assert isinstance(arr.dimensions[0].upper, MemberAccessExpr)
 
     def test_json_round_trip(self):
         from plx.model.expressions import MemberAccessExpr, VariableRef
+
         arr = ArrayTypeRef(
             element_type=NamedTypeRef(name="MyType"),
-            dimensions=[DimensionRange(
-                lower=1,
-                upper=MemberAccessExpr(
-                    struct=VariableRef(name="GVL"),
-                    member="MAX",
-                ),
-            )],
+            dimensions=[
+                DimensionRange(
+                    lower=1,
+                    upper=MemberAccessExpr(
+                        struct=VariableRef(name="GVL"),
+                        member="MAX",
+                    ),
+                )
+            ],
         )
         json_str = arr.model_dump_json()
         arr2 = ArrayTypeRef.model_validate_json(json_str)
@@ -235,6 +248,7 @@ class TestDimensionRangeExpressionBounds:
 # ---------------------------------------------------------------------------
 # STRING / WSTRING
 # ---------------------------------------------------------------------------
+
 
 class TestSTRING:
     def test_default_length(self):
@@ -262,6 +276,7 @@ class TestSTRING:
 # POINTER_TO / REFERENCE_TO
 # ---------------------------------------------------------------------------
 
+
 class TestPOINTER_TO:
     def test_primitive(self):
         result = POINTER_TO(PrimitiveType.INT)
@@ -288,6 +303,7 @@ class TestREFERENCE_TO:
 # Python annotation resolution (resolve_annotation)
 # ---------------------------------------------------------------------------
 
+
 class TestPythonAnnotationResolution:
     """Test that Python builtin types in annotations resolve correctly."""
 
@@ -297,6 +313,7 @@ class TestPythonAnnotationResolution:
         from plx.framework._decorators import function
 
         with pytest.raises(CompileError, match="float is ambiguous"):
+
             @function
             class FloatFunc:
                 def logic(self) -> float:
@@ -316,7 +333,6 @@ class TestPythonAnnotationResolution:
 
     def test_function_return_int(self):
         from plx.framework._decorators import function
-        from plx.framework._types import DINT
 
         @function
         class IntFunc:
@@ -359,6 +375,7 @@ class TestPythonAnnotationResolution:
         from plx.framework._decorators import fb, fb_method
 
         with pytest.raises(CompileError, match="float is ambiguous"):
+
             @fb
             class ParamFB2:
                 def logic(self):
@@ -390,6 +407,7 @@ class TestPythonAnnotationResolution:
 # Python type conversions: int(), bool()
 # ---------------------------------------------------------------------------
 
+
 class TestPythonTypeConversions:
     """Test that int(x), bool(x) compile to TypeConversionExpr, float(x) is rejected."""
 
@@ -400,7 +418,8 @@ class TestPythonTypeConversions:
         from plx.framework._descriptors import Input, Output
         from plx.framework._types import DINT, REAL
 
-        with pytest.raises(CompileError, match="float.*ambiguous"):
+        with pytest.raises(CompileError, match=r"float.*ambiguous"):
+
             @fb
             class FloatConv:
                 x: Input[DINT]
@@ -458,7 +477,8 @@ class TestPythonTypeConversions:
         from plx.framework._descriptors import Input, Output
         from plx.framework._types import DINT, REAL
 
-        with pytest.raises(CompileError, match="float.*ambiguous"):
+        with pytest.raises(CompileError, match=r"float.*ambiguous"):
+
             @fb
             class BadConv:
                 x: Input[DINT]
@@ -473,7 +493,8 @@ class TestPythonTypeConversions:
         from plx.framework._descriptors import Input, Output
         from plx.framework._types import DINT
 
-        with pytest.raises(CompileError, match="str.*not supported"):
+        with pytest.raises(CompileError, match=r"str.*not supported"):
+
             @fb
             class StrConv:
                 x: Input[DINT]
@@ -486,6 +507,7 @@ class TestPythonTypeConversions:
 # ---------------------------------------------------------------------------
 # R1: int() applied to an enum literal must raise CompileError
 # ---------------------------------------------------------------------------
+
 
 class TestIntEnumCast:
     """int(EnumClass.MEMBER) must be rejected at compile time (R1).
@@ -508,6 +530,7 @@ class TestIntEnumCast:
             OTHER = 3
 
         with pytest.raises(CompileError, match="invalid structured-text syntax"):
+
             @fb
             class Sorter:
                 inp_type: Input[INT]
@@ -530,6 +553,7 @@ class TestIntEnumCast:
             GREEN = 1
 
         with pytest.raises(CompileError) as exc_info:
+
             @fb
             class UseColor:
                 x: Input[INT]

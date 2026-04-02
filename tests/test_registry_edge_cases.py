@@ -7,43 +7,40 @@ edge cases (diamond dependencies, deep chains).
 
 import warnings
 
-import pytest
-
 from plx.framework import (
-    fb,
-    program,
-    function,
-    struct,
-    enumeration,
-    project,
     BOOL,
     DINT,
     REAL,
     Input,
     Output,
-    Static,
+    enumeration,
+    fb,
+    program,
+    project,
+    struct,
 )
 from plx.framework._registry import (
-    register_pou,
-    register_type,
+    _clear_registries,
+    _restore_registries,
+    _snapshot_registries,
     lookup_pou,
     lookup_type,
-    _clear_registries,
-    _snapshot_registries,
-    _restore_registries,
+    register_pou,
 )
-
 
 # ---------------------------------------------------------------------------
 # TestRegistryDuplicates — warning behavior on re-registration
 # ---------------------------------------------------------------------------
 
+
 class TestRegistryDuplicates:
     def test_duplicate_pou_same_class_no_warning(self):
         """Registering the same class object twice should NOT warn."""
+
         @fb
         class DupSameFB:
             x: Input[BOOL]
+
             def logic(self):
                 pass
 
@@ -57,9 +54,11 @@ class TestRegistryDuplicates:
 
     def test_duplicate_pou_different_class_warns(self):
         """Registering a different class with the same name should warn."""
+
         @fb
         class DupDiffFB:
             x: Input[BOOL]
+
             def logic(self):
                 pass
 
@@ -67,8 +66,9 @@ class TestRegistryDuplicates:
 
         # Create a second, different class with the same __name__
         @fb
-        class DupDiffFB:  # noqa: F811 — intentional redefinition
+        class DupDiffFB:
             y: Output[BOOL]
+
             def logic(self):
                 pass
 
@@ -82,6 +82,7 @@ class TestRegistryDuplicates:
 
     def test_duplicate_type_different_class_warns(self):
         """Registering a different type class with the same name should warn."""
+
         @struct
         class DupStruct:
             x: REAL = 0.0
@@ -92,7 +93,7 @@ class TestRegistryDuplicates:
             warnings.simplefilter("always")
 
             @struct
-            class DupStruct:  # noqa: F811
+            class DupStruct:
                 y: DINT = 0
 
             second = DupStruct
@@ -108,6 +109,7 @@ class TestRegistryDuplicates:
 # TestRegistryLookup — miss and clear behavior
 # ---------------------------------------------------------------------------
 
+
 class TestRegistryLookup:
     def test_lookup_nonexistent_pou_returns_none(self):
         assert lookup_pou("NoSuchPOU_EdgeCase_XYZ") is None
@@ -117,9 +119,11 @@ class TestRegistryLookup:
 
     def test_lookup_after_clear_returns_none(self):
         """After clearing registries, previously registered items vanish."""
+
         @fb
         class ClearedFB:
             x: Input[BOOL]
+
             def logic(self):
                 pass
 
@@ -136,12 +140,15 @@ class TestRegistryLookup:
 # TestRegistrySnapshot — isolation semantics
 # ---------------------------------------------------------------------------
 
+
 class TestRegistrySnapshot:
     def test_snapshot_and_restore(self):
         """Register, snapshot, clear, restore — lookup should work again."""
+
         @fb
         class SnapFB:
             x: Input[BOOL]
+
             def logic(self):
                 pass
 
@@ -156,9 +163,11 @@ class TestRegistrySnapshot:
 
     def test_snapshot_is_deep_copy(self):
         """Registrations after snapshot should not appear when restored."""
+
         @fb
         class PreSnapFB:
             x: Input[BOOL]
+
             def logic(self):
                 pass
 
@@ -167,6 +176,7 @@ class TestRegistrySnapshot:
         @fb
         class PostSnapFB:
             y: Output[BOOL]
+
             def logic(self):
                 pass
 
@@ -180,6 +190,7 @@ class TestRegistrySnapshot:
 
     def test_snapshot_captures_types_too(self):
         """Snapshot/restore covers both POU and type registries."""
+
         @struct
         class SnapStruct:
             val: REAL = 0.0
@@ -196,24 +207,29 @@ class TestRegistrySnapshot:
 # TestTransitiveDepsEdgeCases — dependency resolution edge cases
 # ---------------------------------------------------------------------------
 
+
 class TestTransitiveDepsEdgeCases:
     def test_diamond_dependency(self):
         """A uses B and C, both B and C use D -> D only included once."""
+
         @fb
         class DiamondD:
             x: Input[BOOL]
+
             def logic(self):
                 pass
 
         @fb
         class DiamondB:
             d: DiamondD
+
             def logic(self):
                 self.d(x=True)
 
         @fb
         class DiamondC:
             d: DiamondD
+
             def logic(self):
                 self.d(x=False)
 
@@ -221,6 +237,7 @@ class TestTransitiveDepsEdgeCases:
         class DiamondA:
             b: DiamondB
             c: DiamondC
+
             def logic(self):
                 self.b()
                 self.c()
@@ -234,33 +251,39 @@ class TestTransitiveDepsEdgeCases:
 
     def test_deep_chain(self):
         """A -> B -> C -> D -> E — all resolved transitively."""
+
         @fb
         class ChainE:
             x: Input[BOOL]
+
             def logic(self):
                 pass
 
         @fb
         class ChainD:
             e: ChainE
+
             def logic(self):
                 self.e(x=True)
 
         @fb
         class ChainC:
             d: ChainD
+
             def logic(self):
                 self.d()
 
         @fb
         class ChainB:
             c: ChainC
+
             def logic(self):
                 self.c()
 
         @program
         class ChainA:
             b: ChainB
+
             def logic(self):
                 self.b()
 
@@ -270,6 +293,7 @@ class TestTransitiveDepsEdgeCases:
 
     def test_struct_diamond_dependency(self):
         """Two FBs reference the same struct — it appears once in data_types."""
+
         @struct
         class SharedConfig:
             value: REAL = 0.0
@@ -277,12 +301,14 @@ class TestTransitiveDepsEdgeCases:
         @fb
         class UserA:
             cfg: SharedConfig
+
             def logic(self):
                 pass
 
         @fb
         class UserB:
             cfg: SharedConfig
+
             def logic(self):
                 pass
 
@@ -290,6 +316,7 @@ class TestTransitiveDepsEdgeCases:
         class StructDiamondProg:
             a: UserA
             b: UserB
+
             def logic(self):
                 self.a()
                 self.b()
@@ -300,6 +327,7 @@ class TestTransitiveDepsEdgeCases:
 
     def test_enum_dep_auto_included(self):
         """Enum used as a variable type is auto-included in data_types."""
+
         @enumeration
         class MachineMode:
             OFF = 0
@@ -309,6 +337,7 @@ class TestTransitiveDepsEdgeCases:
         @program
         class EnumDepProg:
             mode: MachineMode
+
             def logic(self):
                 pass
 
@@ -318,10 +347,12 @@ class TestTransitiveDepsEdgeCases:
 
     def test_no_deps_produces_single_pou(self):
         """A standalone program with no FB dependencies produces just itself."""
+
         @program
         class StandaloneProg:
             x: Input[BOOL]
             y: Output[BOOL]
+
             def logic(self):
                 self.y = self.x
 

@@ -24,8 +24,6 @@ Examples
 
 from __future__ import annotations
 
-import ast
-import inspect
 from dataclasses import dataclass
 from typing import Any
 
@@ -38,24 +36,24 @@ from plx.model.pou import (
     PropertyAccessor,
 )
 from plx.model.types import TypeRef
-from plx.model.variables import Variable
 
-from ._compiler import ASTCompiler
-from ._compiler_core import CompileError, resolve_annotation
 from ._compilation_helpers import (
     _build_compile_context,
     _parse_function_source,
 )
+from ._compiler import ASTCompiler
+from ._compiler_core import CompileError
 from ._descriptors import VarDirection, _mro_upsert
-
 
 # ---------------------------------------------------------------------------
 # Property descriptor (class-level marker)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class _PropertyMarker:
     """Stored on getter functions decorated with @fb_property."""
+
     data_type: TypeRef
     access: AccessSpecifier
     abstract: bool
@@ -85,6 +83,7 @@ class PropDescriptor:
 # ---------------------------------------------------------------------------
 # @fb_property decorator
 # ---------------------------------------------------------------------------
+
 
 def fb_property(
     data_type_arg: Any = None,
@@ -129,9 +128,11 @@ def fb_property(
         def speed(self):
             return self._speed
 
+
         @speed.setter
         def speed(self, value: REAL):
             self._speed = value
+
 
         @fb_property(BOOL, access=AccessSpecifier.PROTECTED)
         def is_running(self):
@@ -165,6 +166,7 @@ def fb_property(
 # Collection + compilation
 # ---------------------------------------------------------------------------
 
+
 def _collect_properties(cls: type) -> list[tuple[str, _PropertyMarker]]:
     """Collect PropDescriptor instances from *cls* MRO."""
     seen: set[str] = set()
@@ -195,14 +197,24 @@ def _compile_property(
 
     if marker.getter_func is not None and not marker.abstract:
         getter_accessor = _compile_accessor(
-            marker.getter_func, "getter", prop_name, cls,
-            declared_vars, static_var_types, source_file,
+            marker.getter_func,
+            "getter",
+            prop_name,
+            cls,
+            declared_vars,
+            static_var_types,
+            source_file,
         )
 
     if marker.setter_func is not None and not marker.abstract:
         setter_accessor = _compile_accessor(
-            marker.setter_func, "setter", prop_name, cls,
-            declared_vars, static_var_types, source_file,
+            marker.setter_func,
+            "setter",
+            prop_name,
+            cls,
+            declared_vars,
+            static_var_types,
+            source_file,
         )
 
     return Property(
@@ -230,18 +242,25 @@ def _compile_accessor(
 
     if role == "getter":
         func_def, _, start_lineno = _parse_function_source(
-            func, context_name, validate_self_only=True,
+            func,
+            context_name,
+            validate_self_only=True,
         )
     else:
         # setter has (self, value)
         func_def, _, start_lineno = _parse_function_source(
-            func, context_name, validate_self_only=False,
+            func,
+            context_name,
+            validate_self_only=False,
         )
 
     ctx = _build_compile_context(
-        func, cls,
-        dict(declared_vars), dict(static_var_types),
-        start_lineno, source_file,
+        func,
+        cls,
+        dict(declared_vars),
+        dict(static_var_types),
+        start_lineno,
+        source_file,
     )
 
     compiler = ASTCompiler(ctx)
@@ -263,6 +282,7 @@ def _compile_accessor(
 # Variable rename helper (setter parameter → property name)
 # ---------------------------------------------------------------------------
 
+
 def _rename_in_node(node: IRModel, old: str, new: str) -> IRModel:
     """Return a copy of *node* with VariableRef *old* renamed to *new*.
 
@@ -280,7 +300,7 @@ def _rename_in_node(node: IRModel, old: str, new: str) -> IRModel:
                 updates[field_name] = renamed
         elif isinstance(val, list) and val and isinstance(val[0], IRModel):
             new_list = [_rename_in_node(v, old, new) for v in val]
-            if any(a is not b for a, b in zip(new_list, val)):
+            if any(a is not b for a, b in zip(new_list, val, strict=True)):
                 updates[field_name] = new_list
         elif isinstance(val, dict):
             new_dict = {}

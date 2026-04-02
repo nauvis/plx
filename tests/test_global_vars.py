@@ -1,24 +1,25 @@
 """Tests for @global_vars decorator and Field() metadata."""
 
+from datetime import timedelta
+
 import pytest
 
-from plx.framework._data_types import struct, enumeration
+from plx.framework._data_types import enumeration, struct
 from plx.framework._decorators import fb
+from plx.framework._descriptors import Field
 from plx.framework._errors import DefinitionError, ProjectAssemblyError
 from plx.framework._global_vars import global_vars
-from plx.framework._descriptors import Field
 from plx.framework._project import project
 from plx.framework._protocols import CompiledGlobalVarList
-from datetime import timedelta
 from plx.framework._types import (
     ARRAY,
     BOOL,
     DINT,
     INT,
+    POINTER_TO,
     REAL,
     STRING,
     TIME,
-    POINTER_TO,
 )
 from plx.model.project import GlobalVariableList
 from plx.model.types import (
@@ -29,10 +30,10 @@ from plx.model.types import (
     StringTypeRef,
 )
 
-
 # ---------------------------------------------------------------------------
 # Bare annotation style
 # ---------------------------------------------------------------------------
+
 
 class TestBareAnnotations:
     def test_type_only(self):
@@ -77,6 +78,7 @@ class TestBareAnnotations:
 # ---------------------------------------------------------------------------
 # Field() style
 # ---------------------------------------------------------------------------
+
 
 class TestFieldStyle:
     def test_basic(self):
@@ -151,6 +153,7 @@ class TestFieldStyle:
 
     def test_bare_annotation_defaults_no_extra_fields(self):
         """Bare annotations produce variables with default constant/retain/persistent."""
+
         @global_vars
         class BareOnly:
             flag: BOOL = True
@@ -217,6 +220,7 @@ class TestFieldStyle:
 # Hybrid: mix bare annotations and Field() descriptors
 # ---------------------------------------------------------------------------
 
+
 class TestHybridStyle:
     def test_mixed_bare_and_field(self):
         @global_vars
@@ -236,6 +240,7 @@ class TestHybridStyle:
 # ---------------------------------------------------------------------------
 # @global_vars(description=...) form
 # ---------------------------------------------------------------------------
+
 
 class TestGlobalVarsWithDescription:
     def test_description(self):
@@ -267,6 +272,7 @@ class TestGlobalVarsWithDescription:
 # ---------------------------------------------------------------------------
 # Type constructors
 # ---------------------------------------------------------------------------
+
 
 class TestTypeConstructors:
     def test_array_type(self):
@@ -339,15 +345,18 @@ class TestTypeConstructors:
 # Error cases
 # ---------------------------------------------------------------------------
 
+
 class TestErrors:
     def test_empty_class(self):
         with pytest.raises(DefinitionError, match="has no variables"):
+
             @global_vars
             class Empty:
                 pass
 
     def test_empty_class_with_description(self):
         with pytest.raises(DefinitionError, match="has no variables"):
+
             @global_vars(description="nothing here")
             class AlsoEmpty:
                 pass
@@ -355,6 +364,7 @@ class TestErrors:
     def test_only_dunder_attrs(self):
         """A class with only dunder attributes should be treated as empty."""
         with pytest.raises(DefinitionError, match="has no variables"):
+
             @global_vars
             class DunderOnly:
                 __doc__ = "some doc"
@@ -363,6 +373,7 @@ class TestErrors:
 # ---------------------------------------------------------------------------
 # Protocol check
 # ---------------------------------------------------------------------------
+
 
 class TestProtocol:
     def test_isinstance_check(self):
@@ -389,6 +400,7 @@ class TestProtocol:
 # ---------------------------------------------------------------------------
 # compile() returns correct IR
 # ---------------------------------------------------------------------------
+
 
 class TestCompile:
     def test_returns_global_variable_list(self):
@@ -432,6 +444,7 @@ class TestCompile:
 # ---------------------------------------------------------------------------
 # Project integration
 # ---------------------------------------------------------------------------
+
 
 class TestProjectIntegration:
     def test_single_gvl(self):
@@ -512,23 +525,28 @@ class TestProjectIntegration:
 # Public API exports
 # ---------------------------------------------------------------------------
 
+
 class TestExports:
     def test_global_vars_importable(self):
         from plx.framework import global_vars as gv
+
         assert gv is global_vars
 
     def test_field_importable(self):
         from plx.framework import Field as f
+
         assert f is Field
 
     def test_compiled_global_var_list_importable(self):
         from plx.framework import CompiledGlobalVarList as proto
+
         assert proto is CompiledGlobalVarList
 
 
 # ---------------------------------------------------------------------------
 # folder= kwarg
 # ---------------------------------------------------------------------------
+
 
 class TestGlobalVarsFolderKwarg:
     def test_global_vars_folder(self):
@@ -558,6 +576,7 @@ class TestGlobalVarsFolderKwarg:
 # ---------------------------------------------------------------------------
 # scope= kwarg
 # ---------------------------------------------------------------------------
+
 
 class TestGlobalVarsScopeKwarg:
     def test_scope_controller(self):

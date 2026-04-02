@@ -1,32 +1,30 @@
 """Tests for task scheduling configuration."""
 
-import pytest
-
 from datetime import timedelta
+
+import pytest
 
 from plx.framework import (
     BOOL,
     REAL,
-    fb,
-    program,
     Input,
     Output,
     ProjectAssemblyError,
+    fb,
+    program,
     project,
     task,
-    Field,
 )
 from plx.framework._task import PlxTask
+from plx.model.project import Project
 from plx.model.task import (
-    ContinuousTask,
     EventTask,
     PeriodicTask,
     StartupTask,
 )
-from plx.model.project import Project
-
 
 # -- Fixtures ---------------------------------------------------------------
+
 
 @program
 class _FastLoop:
@@ -54,6 +52,7 @@ class _StartupProg:
 # ---------------------------------------------------------------------------
 # task() constructor
 # ---------------------------------------------------------------------------
+
 
 class TestTaskConstructor:
     def test_periodic_with_time_literal(self):
@@ -109,6 +108,7 @@ class TestTaskConstructor:
 # task.compile()
 # ---------------------------------------------------------------------------
 
+
 class TestTaskCompile:
     def test_compiles_to_ir(self):
         t = task("Main", periodic=timedelta(milliseconds=10), pous=[_FastLoop])
@@ -140,6 +140,7 @@ class TestTaskCompile:
         @fb
         class SomeFB:
             x: Input[BOOL]
+
             def logic(self):
                 pass
 
@@ -153,6 +154,7 @@ class TestTaskCompile:
         @function
         class SomeFunc:
             x: Input[REAL]
+
             def logic(self) -> REAL:
                 return self.x + 1.0
 
@@ -177,13 +179,15 @@ class TestTaskCompile:
 # project() with tasks
 # ---------------------------------------------------------------------------
 
+
 class TestProjectWithTasks:
     def test_project_with_tasks(self):
-        proj = project("MyProject",
+        proj = project(
+            "MyProject",
             tasks=[
                 task("MainTask", periodic=timedelta(milliseconds=10), pous=[_FastLoop], priority=1),
                 task("SlowTask", periodic=timedelta(milliseconds=100), pous=[_SlowLoop], priority=5),
-            ]
+            ],
         )
         ir = proj.compile()
         assert isinstance(ir, Project)
@@ -196,10 +200,11 @@ class TestProjectWithTasks:
 
     def test_task_pous_included_in_project(self):
         """POUs referenced in tasks are auto-included in project.pous."""
-        proj = project("AutoInclude",
+        proj = project(
+            "AutoInclude",
             tasks=[
                 task("Main", periodic=timedelta(milliseconds=10), pous=[_FastLoop]),
-            ]
+            ],
         )
         ir = proj.compile()
         pou_names = [p.name for p in ir.pous]
@@ -207,11 +212,12 @@ class TestProjectWithTasks:
 
     def test_no_duplicate_pous(self):
         """POUs in both pous= and tasks= aren't duplicated."""
-        proj = project("NoDup",
+        proj = project(
+            "NoDup",
             pous=[_FastLoop],
             tasks=[
                 task("Main", periodic=timedelta(milliseconds=10), pous=[_FastLoop]),
-            ]
+            ],
         )
         ir = proj.compile()
         pou_names = [p.name for p in ir.pous]
@@ -219,12 +225,13 @@ class TestProjectWithTasks:
 
     def test_mixed_pous_and_tasks(self):
         """Project with explicit pous and tasks collects all POUs."""
-        proj = project("Mixed",
+        proj = project(
+            "Mixed",
             pous=[_StartupProg],
             tasks=[
                 task("Main", periodic=timedelta(milliseconds=10), pous=[_FastLoop]),
                 task("Slow", periodic=timedelta(milliseconds=100), pous=[_SlowLoop]),
-            ]
+            ],
         )
         ir = proj.compile()
         pou_names = {p.name for p in ir.pous}
@@ -236,10 +243,11 @@ class TestProjectWithTasks:
         assert len(ir.tasks) == 0
 
     def test_serializes_with_tasks(self):
-        proj = project("SerProject",
+        proj = project(
+            "SerProject",
             tasks=[
                 task("Main", periodic=timedelta(milliseconds=10), pous=[_FastLoop], priority=1),
-            ]
+            ],
         )
         ir = proj.compile()
         data = ir.model_dump()
@@ -251,11 +259,12 @@ class TestProjectWithTasks:
         assert data["tasks"][0]["assigned_pous"] == ["_FastLoop"]
 
     def test_roundtrips_with_tasks(self):
-        proj = project("RoundTrip",
+        proj = project(
+            "RoundTrip",
             tasks=[
                 task("Main", periodic=timedelta(milliseconds=10), pous=[_FastLoop]),
                 task("Init", startup=True, pous=[_StartupProg]),
-            ]
+            ],
         )
         ir = proj.compile()
         json_str = ir.model_dump_json()

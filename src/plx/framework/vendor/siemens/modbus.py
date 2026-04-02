@@ -21,12 +21,12 @@ annotations must be live objects for interface parsing.
 
 from plx.framework._descriptors import InOut, Input, Output
 from plx.framework._library import LibraryFB
-from plx.framework._types import BOOL, DINT, INT, UDINT, UINT, USINT, WORD
-
+from plx.framework._types import BOOL, DINT, INT, UDINT, UINT, WORD
 
 # ===================================================================
 # Modbus TCP
 # ===================================================================
+
 
 class MB_CLIENT(LibraryFB, vendor="siemens", library="siemens_modbus"):
     """Modbus TCP client (master).
@@ -59,9 +59,7 @@ class MB_CLIENT(LibraryFB, vendor="siemens", library="siemens_modbus"):
             comm_error: Output[BOOL]
 
             def logic(self):
-                self.modbus(REQ=self.read_trigger, DISCONNECT=False,
-                            MB_MODE=0, MB_DATA_ADDR=40001,
-                            MB_DATA_LEN=10)
+                self.modbus(REQ=self.read_trigger, DISCONNECT=False, MB_MODE=0, MB_DATA_ADDR=40001, MB_DATA_LEN=10)
                 self.comm_done = self.modbus.DONE
                 self.comm_error = self.modbus.ERROR
     """
@@ -129,6 +127,7 @@ class MB_SERVER(LibraryFB, vendor="siemens", library="siemens_modbus"):
 # Modbus RTU (serial)
 # ===================================================================
 
+
 class MB_COMM_LOAD(LibraryFB, vendor="siemens", library="siemens_modbus"):
     """Configure Modbus RTU serial port parameters.
 
@@ -151,8 +150,7 @@ class MB_COMM_LOAD(LibraryFB, vendor="siemens", library="siemens_modbus"):
             init_done: Output[BOOL]
 
             def logic(self):
-                self.comm_load(REQ=self.init_req, PORT=1,
-                               BAUD=9600, PARITY=2, RESP_TO=1000)
+                self.comm_load(REQ=self.init_req, PORT=1, BAUD=9600, PARITY=2, RESP_TO=1000)
                 self.init_done = self.comm_load.DONE
     """
 
@@ -196,8 +194,7 @@ class MB_MASTER(LibraryFB, vendor="siemens", library="siemens_modbus"):
             poll_done: Output[BOOL]
 
             def logic(self):
-                self.master(REQ=self.poll_trigger, MB_ADDR=1,
-                            MODE=0, DATA_ADDR=40001, DATA_LEN=10)
+                self.master(REQ=self.poll_trigger, MB_ADDR=1, MODE=0, DATA_ADDR=40001, DATA_LEN=10)
                 self.poll_done = self.master.DONE
     """
 

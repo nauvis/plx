@@ -1,31 +1,29 @@
 """Tests for @fb_method decorator on function blocks."""
 
-import pytest
-
 from datetime import timedelta
+
+import pytest
 
 from plx.framework import (
     BOOL,
     DINT,
     REAL,
-    TIME,
-    fb,
-    fb_method,
+    CompileError,
     Input,
     Output,
     delayed,
-    CompileError,
-    Field,
+    fb,
+    fb_method,
 )
-from plx.model.pou import AccessSpecifier, Method, POU, POUType
-from plx.model.expressions import BinaryExpr, FunctionCallExpr, LiteralExpr, VariableRef
+from plx.model.expressions import FunctionCallExpr, VariableRef
+from plx.model.pou import POU, AccessSpecifier
 from plx.model.statements import Assignment, FunctionCallStatement, ReturnStatement
 from plx.model.types import NamedTypeRef, PrimitiveType, PrimitiveTypeRef
-
 
 # ---------------------------------------------------------------------------
 # Basic method compilation
 # ---------------------------------------------------------------------------
+
 
 class TestMethodBasic:
     def test_method_appears_on_pou(self):
@@ -102,7 +100,6 @@ class TestMethodBasic:
 
             def _python_helper(self):
                 """This should NOT be compiled."""
-                pass
 
         pou = MyFB.compile()
         assert len(pou.methods) == 1
@@ -112,6 +109,7 @@ class TestMethodBasic:
 # ---------------------------------------------------------------------------
 # Method parameters → input_vars
 # ---------------------------------------------------------------------------
+
 
 class TestMethodParameters:
     def test_typed_parameter(self):
@@ -183,6 +181,7 @@ class TestMethodParameters:
 
     def test_untyped_parameter_raises(self):
         with pytest.raises(CompileError, match="type annotation"):
+
             @fb
             class BadFB:
                 x: REAL
@@ -198,6 +197,7 @@ class TestMethodParameters:
 # ---------------------------------------------------------------------------
 # Return type
 # ---------------------------------------------------------------------------
+
 
 class TestMethodReturnType:
     def test_return_type(self):
@@ -252,6 +252,7 @@ class TestMethodReturnType:
 # Access specifiers
 # ---------------------------------------------------------------------------
 
+
 class TestMethodAccess:
     def test_default_public(self):
         @fb
@@ -305,6 +306,7 @@ class TestMethodAccess:
 # ---------------------------------------------------------------------------
 # Methods access FB instance vars
 # ---------------------------------------------------------------------------
+
 
 class TestMethodAccessFBVars:
     def test_reads_input(self):
@@ -364,9 +366,11 @@ class TestMethodAccessFBVars:
 # Methods called from logic()
 # ---------------------------------------------------------------------------
 
+
 class TestMethodCalledFromLogic:
     def test_method_call_as_expression(self):
         """self.method() in expression context should not prepend self as arg."""
+
         @fb
         class Valve:
             pressure: REAL
@@ -389,6 +393,7 @@ class TestMethodCalledFromLogic:
 
     def test_method_call_with_args_as_expression(self):
         """self.method(arg) in expression context compiles args correctly."""
+
         @fb
         class Limiter:
             val: REAL
@@ -411,6 +416,7 @@ class TestMethodCalledFromLogic:
 
     def test_method_call_as_statement(self):
         """self.method() as a statement should also work correctly."""
+
         @fb
         class Motor:
             speed: REAL
@@ -432,6 +438,7 @@ class TestMethodCalledFromLogic:
 # ---------------------------------------------------------------------------
 # Methods with sentinels
 # ---------------------------------------------------------------------------
+
 
 class TestMethodWithSentinels:
     def test_method_with_delayed(self):
@@ -456,6 +463,7 @@ class TestMethodWithSentinels:
 # ---------------------------------------------------------------------------
 # Method inheritance
 # ---------------------------------------------------------------------------
+
 
 class TestMethodInheritance:
     def test_child_inherits_methods(self):
@@ -541,6 +549,7 @@ class TestMethodInheritance:
 # ---------------------------------------------------------------------------
 # Serialization
 # ---------------------------------------------------------------------------
+
 
 class TestMethodSerialization:
     def test_pou_with_methods_serializes(self):

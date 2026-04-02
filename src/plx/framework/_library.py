@@ -21,6 +21,7 @@ Examples
         Q: Output[BOOL]
         ET: Output[TIME]
 
+
     # Vendor-specific
     class MC_Power(LibraryFB, vendor="beckhoff", library="Tc2_MC2"):
         Enable: Input[BOOL]
@@ -43,10 +44,10 @@ from plx.model.types import (
     TypeRef,
 )
 
-
 # ---------------------------------------------------------------------------
 # FBParam — parameter metadata
 # ---------------------------------------------------------------------------
+
 
 @dataclasses.dataclass(frozen=True)
 class FBParam:
@@ -108,6 +109,7 @@ def _clear_library_registry() -> None:
 # Base class
 # ---------------------------------------------------------------------------
 
+
 class LibraryType:
     """Base class for all library type stubs.
 
@@ -145,6 +147,7 @@ class LibraryType:
 # ---------------------------------------------------------------------------
 # LibraryFB
 # ---------------------------------------------------------------------------
+
 
 class LibraryFB(LibraryType):
     """Base class for library function block stubs.
@@ -197,6 +200,7 @@ class LibraryFB(LibraryType):
 # LibraryStruct
 # ---------------------------------------------------------------------------
 
+
 class LibraryStruct(LibraryType):
     """Base class for library struct stubs.
 
@@ -229,6 +233,7 @@ class LibraryStruct(LibraryType):
 # LibraryEnum
 # ---------------------------------------------------------------------------
 
+
 class LibraryEnum(LibraryType):
     """Base class for library enum stubs.
 
@@ -259,6 +264,7 @@ class LibraryEnum(LibraryType):
 # Interface parsers
 # ---------------------------------------------------------------------------
 
+
 def _parse_fb_interface(cls: type) -> dict[str, FBParam]:
     """Parse Input[T]/Output[T]/InOut[T] annotations into FBParam metadata."""
     from ._descriptors import _determine_direction, _unwrap_forward_ref
@@ -278,7 +284,9 @@ def _parse_fb_interface(cls: type) -> dict[str, FBParam]:
                 name=inner.__name__ if isinstance(inner, type) else str(inner),
             )
         result[name] = FBParam(
-            name=name, direction=direction.value, type_ref=type_ref,
+            name=name,
+            direction=direction.value,
+            type_ref=type_ref,
         )
     return result
 
@@ -305,12 +313,8 @@ def _parse_struct_fields(cls: type) -> dict[str, TypeRef]:
 
 def _parse_enum_values(cls: type) -> dict[str, int]:
     """Collect integer class attributes as enum values."""
-    result: dict[str, int] = {}
-    for name, value in cls.__dict__.items():
-        if (
-            not name.startswith("_")
-            and isinstance(value, int)
-            and not isinstance(value, bool)
-        ):
-            result[name] = value
-    return result
+    return {
+        name: value
+        for name, value in cls.__dict__.items()
+        if not name.startswith("_") and isinstance(value, int) and not isinstance(value, bool)
+    }

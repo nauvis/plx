@@ -9,9 +9,8 @@ from plx.export.ld import (
     LDNetwork,
     Parallel,
     Pin,
-    Rung,
-    STBox,
     Series,
+    STBox,
     ir_to_ld,
 )
 from plx.model.expressions import (
@@ -39,26 +38,26 @@ from plx.model.pou import (
 )
 from plx.model.statements import (
     Assignment,
-    CaseStatement,
     CaseBranch,
+    CaseStatement,
+    ContinueStatement,
     ExitStatement,
     FBInvocation,
     ForStatement,
     FunctionCallStatement,
-    IfStatement,
     IfBranch,
+    IfStatement,
     RepeatStatement,
     ReturnStatement,
     WhileStatement,
-    ContinueStatement,
 )
 from plx.model.types import PrimitiveType, PrimitiveTypeRef
 from plx.model.variables import Variable
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _ref(name: str) -> VariableRef:
     return VariableRef(name=name)
@@ -83,6 +82,7 @@ def _net(*stmts) -> Network:
 # ---------------------------------------------------------------------------
 # 1. Boolean assignments → contacts → coil
 # ---------------------------------------------------------------------------
+
 
 class TestBooleanAssignments:
     def test_simple_variable_assignment(self):
@@ -214,6 +214,7 @@ class TestBooleanAssignments:
 # 2. Flattening — chained AND/OR produce flat Series/Parallel
 # ---------------------------------------------------------------------------
 
+
 class TestFlattening:
     def test_chained_and(self):
         """a AND b AND c  →  Series([a, b, c])  (not nested)"""
@@ -298,6 +299,7 @@ class TestFlattening:
 # 3. FBInvocation → Box
 # ---------------------------------------------------------------------------
 
+
 class TestFBInvocation:
     def test_simple_fb_invocation(self):
         stmt = FBInvocation(
@@ -334,6 +336,7 @@ class TestFBInvocation:
 # ---------------------------------------------------------------------------
 # 4. IfStatement → LD patterns
 # ---------------------------------------------------------------------------
+
 
 class TestIfStatement:
     def test_simple_if_bool_assign_true(self):
@@ -383,11 +386,13 @@ class TestIfStatement:
         stmt = IfStatement(
             if_branch=IfBranch(
                 condition=_ref("enable"),
-                body=[FBInvocation(
-                    instance_name="timer1",
-                    fb_type="TON",
-                    inputs={"IN": _ref("start")},
-                )],
+                body=[
+                    FBInvocation(
+                        instance_name="timer1",
+                        fb_type="TON",
+                        inputs={"IN": _ref("start")},
+                    )
+                ],
             ),
         )
         ld = ir_to_ld([_net(stmt)])
@@ -443,6 +448,7 @@ class TestIfStatement:
 # ---------------------------------------------------------------------------
 # 5. Comparisons → Box elements
 # ---------------------------------------------------------------------------
+
 
 class TestComparisons:
     def test_eq_comparison(self):
@@ -515,6 +521,7 @@ class TestComparisons:
 # ---------------------------------------------------------------------------
 # 6. ST fallback — non-LD constructs
 # ---------------------------------------------------------------------------
+
 
 class TestSTFallback:
     def test_for_statement(self):
@@ -615,6 +622,7 @@ class TestSTFallback:
 # 7. Function call statement → Box
 # ---------------------------------------------------------------------------
 
+
 class TestFunctionCallStatement:
     def test_function_call(self):
         stmt = FunctionCallStatement(
@@ -651,6 +659,7 @@ class TestFunctionCallStatement:
 # 8. Integration — full POU
 # ---------------------------------------------------------------------------
 
+
 class TestIntegration:
     def test_pou_with_multiple_networks(self):
         pou = POU(
@@ -671,10 +680,12 @@ class TestIntegration:
                 ),
                 Network(
                     comment="Rung 2",
-                    statements=[Assignment(
-                        target=_ref("y"),
-                        value=BinaryExpr(op=BinaryOp.AND, left=_ref("a"), right=_ref("b")),
-                    )],
+                    statements=[
+                        Assignment(
+                            target=_ref("y"),
+                            value=BinaryExpr(op=BinaryOp.AND, left=_ref("a"), right=_ref("b")),
+                        )
+                    ],
                 ),
             ],
         )
@@ -693,15 +704,17 @@ class TestIntegration:
             pou_type=POUType.FUNCTION_BLOCK,
             name="MixedFB",
             networks=[
-                Network(statements=[
-                    Assignment(target=_ref("y"), value=_ref("a")),  # LD
-                    ForStatement(  # ST fallback
-                        loop_var="i",
-                        from_expr=_lit("0"),
-                        to_expr=_lit("9"),
-                        body=[Assignment(target=_ref("x"), value=_ref("i"))],
-                    ),
-                ]),
+                Network(
+                    statements=[
+                        Assignment(target=_ref("y"), value=_ref("a")),  # LD
+                        ForStatement(  # ST fallback
+                            loop_var="i",
+                            from_expr=_lit("0"),
+                            to_expr=_lit("9"),
+                            body=[Assignment(target=_ref("x"), value=_ref("i"))],
+                        ),
+                    ]
+                ),
             ],
         )
         ld = ir_to_ld(pou)
@@ -721,6 +734,7 @@ class TestIntegration:
 
     def test_type_error_for_invalid_input(self):
         import pytest
+
         with pytest.raises(TypeError, match="expects POU or list"):
             ir_to_ld("not a POU")  # type: ignore
 
@@ -728,6 +742,7 @@ class TestIntegration:
 # ---------------------------------------------------------------------------
 # 9. Edge cases
 # ---------------------------------------------------------------------------
+
 
 class TestEdgeCases:
     def test_empty_network(self):
@@ -793,6 +808,7 @@ class TestEdgeCases:
 # 10. JSON serialization roundtrip
 # ---------------------------------------------------------------------------
 
+
 class TestSerialization:
     def test_model_dump_roundtrip(self):
         """LDNetwork.model_dump() → LDNetwork.model_validate() roundtrips."""
@@ -827,11 +843,13 @@ class TestSerialization:
         stmt = IfStatement(
             if_branch=IfBranch(
                 condition=_ref("enable"),
-                body=[FBInvocation(
-                    instance_name="timer1",
-                    fb_type="TON",
-                    inputs={"IN": _ref("start")},
-                )],
+                body=[
+                    FBInvocation(
+                        instance_name="timer1",
+                        fb_type="TON",
+                        inputs={"IN": _ref("start")},
+                    )
+                ],
             ),
         )
         ld = ir_to_ld([_net(stmt)])
@@ -848,6 +866,7 @@ class TestSerialization:
 # ---------------------------------------------------------------------------
 # 11. NOT of non-VariableRef operands
 # ---------------------------------------------------------------------------
+
 
 class TestNOTExpressions:
     """NOT should produce NC contacts for member access, bit access, etc.,
@@ -923,6 +942,7 @@ class TestNOTExpressions:
 # 12. IF with boolean variable assignment (not literal TRUE/FALSE)
 # ---------------------------------------------------------------------------
 
+
 class TestIfBooleanAssignment:
     """IF cond THEN y := x  should produce contact network → coil,
     not fall back to ST."""
@@ -954,10 +974,12 @@ class TestIfBooleanAssignment:
         stmt = IfStatement(
             if_branch=IfBranch(
                 condition=_ref("enable"),
-                body=[Assignment(
-                    target=_ref("output"),
-                    value=UnaryExpr(op=UnaryOp.NOT, operand=_ref("sensor")),
-                )],
+                body=[
+                    Assignment(
+                        target=_ref("output"),
+                        value=UnaryExpr(op=UnaryOp.NOT, operand=_ref("sensor")),
+                    )
+                ],
             ),
         )
         ld = ir_to_ld([_net(stmt)])
@@ -972,10 +994,12 @@ class TestIfBooleanAssignment:
         stmt = IfStatement(
             if_branch=IfBranch(
                 condition=_ref("enable"),
-                body=[Assignment(
-                    target=_ref("y"),
-                    value=BinaryExpr(op=BinaryOp.AND, left=_ref("a"), right=_ref("b")),
-                )],
+                body=[
+                    Assignment(
+                        target=_ref("y"),
+                        value=BinaryExpr(op=BinaryOp.AND, left=_ref("a"), right=_ref("b")),
+                    )
+                ],
             ),
         )
         ld = ir_to_ld([_net(stmt)])
@@ -990,7 +1014,9 @@ class TestIfBooleanAssignment:
         stmt = IfStatement(
             if_branch=IfBranch(
                 condition=BinaryExpr(
-                    op=BinaryOp.GT, left=_ref("temp"), right=_lit("100"),
+                    op=BinaryOp.GT,
+                    left=_ref("temp"),
+                    right=_lit("100"),
                 ),
                 body=[Assignment(target=_ref("alarm"), value=_lit("TRUE"))],
             ),
@@ -1006,6 +1032,7 @@ class TestIfBooleanAssignment:
 # ---------------------------------------------------------------------------
 # 13. IF with multiple body statements → multiple coils
 # ---------------------------------------------------------------------------
+
 
 class TestIfMultipleOutputs:
     """IF cond THEN x := TRUE; y := TRUE  should produce a single rung
@@ -1070,6 +1097,7 @@ class TestIfMultipleOutputs:
 # 14. IF with FunctionCallStatement (not FBInvocation)
 # ---------------------------------------------------------------------------
 
+
 class TestIfFunctionCall:
     """IF cond THEN RESET(counter) should produce a Box with EN,
     not fall back to ST."""
@@ -1079,10 +1107,12 @@ class TestIfFunctionCall:
         stmt = IfStatement(
             if_branch=IfBranch(
                 condition=_ref("cond"),
-                body=[FunctionCallStatement(
-                    function_name="RESET",
-                    args=[CallArg(value=_ref("counter"))],
-                )],
+                body=[
+                    FunctionCallStatement(
+                        function_name="RESET",
+                        args=[CallArg(value=_ref("counter"))],
+                    )
+                ],
             ),
         )
         ld = ir_to_ld([_net(stmt)])
@@ -1098,6 +1128,7 @@ class TestIfFunctionCall:
 # ---------------------------------------------------------------------------
 # 15. Arithmetic assignments → boxes (ADD, SUB, MUL, DIV, MOD)
 # ---------------------------------------------------------------------------
+
 
 class TestArithmeticBoxes:
     """Arithmetic assignments like x := a + b should produce
@@ -1206,6 +1237,7 @@ class TestArithmeticBoxes:
 # 16. Function call as expression assigned to variable → Box
 # ---------------------------------------------------------------------------
 
+
 class TestFunctionCallAssignment:
     """y := ABS(x) should produce Box(ABS) with output pin, not ST."""
 
@@ -1251,6 +1283,7 @@ class TestFunctionCallAssignment:
 # ---------------------------------------------------------------------------
 # 17. Bit access and array access in contact position
 # ---------------------------------------------------------------------------
+
 
 class TestAccessExpressions:
     """BitAccessExpr and ArrayAccessExpr should produce contacts, not STBox."""
@@ -1304,6 +1337,7 @@ class TestAccessExpressions:
 # 18. Type conversion → Box
 # ---------------------------------------------------------------------------
 
+
 class TestTypeConversion:
     """Type conversions should map to boxes."""
 
@@ -1328,6 +1362,7 @@ class TestTypeConversion:
 # ---------------------------------------------------------------------------
 # 19. Negated coil from NOT expression
 # ---------------------------------------------------------------------------
+
 
 class TestNegatedCoil:
     """y := NOT x  already works (NC contact → normal coil).
@@ -1354,6 +1389,7 @@ class TestNegatedCoil:
 # 20. Realistic composite patterns (framework-emitted IR)
 # ---------------------------------------------------------------------------
 
+
 class TestRealisticPatterns:
     """Patterns commonly emitted by the plx framework compiler."""
 
@@ -1365,7 +1401,8 @@ class TestRealisticPatterns:
         """
         stmts = [
             FBInvocation(
-                instance_name="timer1", fb_type="TON",
+                instance_name="timer1",
+                fb_type="TON",
                 inputs={"IN": _ref("start"), "PT": _lit("T#5s")},
             ),
             Assignment(

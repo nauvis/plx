@@ -12,38 +12,42 @@ should not be reused for vendor code generation.
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, Field
-
 
 # ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------
 
-class ContactType(str, Enum):
+
+class ContactType(StrEnum):
     """Contact variants in ladder logic."""
-    NO = "NO"          # Normally Open
-    NC = "NC"          # Normally Closed
-    P = "P"            # Positive-edge detect
-    N = "N"            # Negative-edge detect
+
+    NO = "NO"  # Normally Open
+    NC = "NC"  # Normally Closed
+    P = "P"  # Positive-edge detect
+    N = "N"  # Negative-edge detect
 
 
-class CoilType(str, Enum):
+class CoilType(StrEnum):
     """Coil variants in ladder logic."""
+
     NORMAL = "NORMAL"
     NEGATED = "NEGATED"
-    SET = "SET"        # Latch
-    RESET = "RESET"    # Unlatch
+    SET = "SET"  # Latch
+    RESET = "RESET"  # Unlatch
 
 
 # ---------------------------------------------------------------------------
 # Pin model (for Box inputs/outputs)
 # ---------------------------------------------------------------------------
 
+
 class Pin(BaseModel):
     """A labeled input or output pin on a box element."""
+
     name: str
     expression: str  # ST text for the connected expression
 
@@ -52,8 +56,10 @@ class Pin(BaseModel):
 # Leaf elements
 # ---------------------------------------------------------------------------
 
+
 class Contact(BaseModel):
     """Reads a boolean variable (NO, NC, P, or N contact)."""
+
     kind: Literal["contact"] = "contact"
     variable: str
     contact_type: ContactType = ContactType.NO
@@ -61,6 +67,7 @@ class Contact(BaseModel):
 
 class Coil(BaseModel):
     """Writes a boolean variable."""
+
     kind: Literal["coil"] = "coil"
     variable: str
     coil_type: CoilType = CoilType.NORMAL
@@ -68,6 +75,7 @@ class Coil(BaseModel):
 
 class Box(BaseModel):
     """Function block instance or function call box."""
+
     kind: Literal["box"] = "box"
     name: str
     type_name: str
@@ -78,6 +86,7 @@ class Box(BaseModel):
 
 class STBox(BaseModel):
     """Inline Structured Text for constructs that don't map to LD."""
+
     kind: Literal["st_box"] = "st_box"
     st_text: str
 
@@ -86,14 +95,17 @@ class STBox(BaseModel):
 # Structural combinators
 # ---------------------------------------------------------------------------
 
+
 class Series(BaseModel):
     """AND — elements in sequence (left power rail → right)."""
+
     kind: Literal["series"] = "series"
     elements: list[LDElement]
 
 
 class Parallel(BaseModel):
     """OR — elements in parallel branches."""
+
     kind: Literal["parallel"] = "parallel"
     branches: list[LDElement]
 
@@ -117,8 +129,10 @@ Parallel.model_rebuild()
 # Top-level containers
 # ---------------------------------------------------------------------------
 
+
 class Rung(BaseModel):
     """A single ladder rung: optional input circuit driving output elements."""
+
     comment: str | None = None
     input_circuit: LDElement | None = None
     outputs: list[LDElement] = []
@@ -126,4 +140,5 @@ class Rung(BaseModel):
 
 class LDNetwork(BaseModel):
     """A complete ladder diagram — an ordered collection of rungs."""
+
     rungs: list[Rung] = []

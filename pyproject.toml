@@ -27,7 +27,7 @@ Homepage = "https://github.com/macleapatrick/plx"
 Repository = "https://github.com/macleapatrick/plx"
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0", "hypothesis>=6.0", "pytest-asyncio>=0.21"]
+dev = ["pytest>=7.0", "hypothesis>=6.0", "pytest-asyncio>=0.21", "ruff>=0.11"]
 runtime = ["asyncua>=1.0", "watchfiles>=0.20"]
 
 [project.scripts]
@@ -48,3 +48,67 @@ asyncio_mode = "strict"
 markers = [
     "fuzz: property-based fuzz tests (may be slow)",
 ]
+
+# --------------------------------------------------------------------------- #
+# ruff — linting + formatting
+# --------------------------------------------------------------------------- #
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "F",      # pyflakes — core correctness
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "I",      # isort — import ordering
+    "B",      # flake8-bugbear — likely bugs
+    "UP",     # pyupgrade — modern Python idioms
+    "RUF",    # ruff-specific rules
+    "SIM",    # flake8-simplify
+    "PIE",    # flake8-pie — misc lint
+    "PERF",   # perflint — performance anti-patterns
+    "PLC",    # pylint conventions
+    "PLE",    # pylint errors
+    "FLY",    # flynt — string join to f-string
+    "FURB",   # refurb — modernize
+    "FA",     # flake8-future-annotations
+]
+ignore = [
+    "E501",    # line-too-long — formatter handles what it can, the rest is fine
+    "E402",    # module-import-not-at-top — needed for circular import avoidance
+    "E741",    # ambiguous variable name (l, O, I) — PLC domain uses I/O
+    "UP007",   # non-pep604-annotation-union — some Pydantic contexts need Union[]
+    "SIM102",  # collapsible-if — sometimes nested ifs are clearer
+    "SIM105",  # suppressible-exception — contextlib.suppress not always clearer
+    "SIM108",  # if-else-block-instead-of-if-exp — readability preference
+    "SIM114",  # if-with-same-arms — deliberate parallel structure in dispatch
+    "PERF401", # manual-list-comprehension — sometimes a loop is clearer
+    "RUF012",  # mutable-class-default — Pydantic models handle this
+    "RUF022",  # unsorted-dunder-all — __all__ is organized by semantic groups
+    "RUF023",  # unsorted-dunder-slots — same as above
+    "PLC0415", # import-outside-top-level — needed for circular import avoidance
+    "B023",    # function-uses-loop-variable — false positives in test factories
+]
+
+[tool.ruff.lint.per-file-ignores]
+"src/plx/framework/__init__.py" = ["F401"]  # re-exports
+"src/plx/model/__init__.py" = ["F401"]
+"src/plx/simulate/__init__.py" = ["F401"]
+"src/plx/export/__init__.py" = ["F401"]
+"src/plx/analyze/__init__.py" = ["F401"]
+"src/plx/runtime/__init__.py" = ["F401"]
+"src/plx/stdlib/__init__.py" = ["F401"]
+"src/plx/framework/_plc_types.py" = ["F401"]  # re-exports lowercase aliases
+"src/plx/model/types.py" = ["F821"]           # forward refs for Expression
+"src/plx/model/walk.py" = ["F821"]            # deferred imports for POU, Project, SFCBody
+"tests/*" = ["B023"]                           # loop variable binding in test factories is fine
+
+[tool.ruff.lint.isort]
+known-first-party = ["plx"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true

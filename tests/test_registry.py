@@ -2,41 +2,35 @@
 
 from datetime import timedelta
 
-import pytest
-
 from plx.framework import (
     BOOL,
-    DINT,
     INT,
     REAL,
-    fb,
-    function,
     Input,
     Output,
+    enumeration,
+    fb,
+    function,
     program,
     project,
     struct,
-    enumeration,
-    Field,
 )
 from plx.framework._registry import (
-    _clear_registries,
-    _pou_registry,
-    _type_registry,
     lookup_pou,
     lookup_type,
 )
 
-
 # ---------------------------------------------------------------------------
 # Registry basics
 # ---------------------------------------------------------------------------
+
 
 class TestRegistry:
     def test_fb_registered(self):
         @fb
         class RegFB1:
             x: Input[BOOL]
+
             def logic(self):
                 pass
 
@@ -54,6 +48,7 @@ class TestRegistry:
         @function
         class RegFunc1:
             x: Input[REAL]
+
             def logic(self) -> REAL:
                 return self.x + 1.0
 
@@ -84,13 +79,16 @@ class TestRegistry:
 # Transitive dependency resolution
 # ---------------------------------------------------------------------------
 
+
 class TestTransitiveDeps:
     def test_fb_dep_auto_included(self):
         """If Program uses FB as a static var, FB is auto-included."""
+
         @fb
         class InnerFB:
             val: Input[BOOL]
             out: Output[BOOL]
+
             def logic(self):
                 self.out = self.val
 
@@ -98,6 +96,7 @@ class TestTransitiveDeps:
         class OuterProg:
             inst: InnerFB
             cmd: Input[BOOL]
+
             def logic(self):
                 self.inst(val=self.cmd)
 
@@ -109,21 +108,25 @@ class TestTransitiveDeps:
 
     def test_nested_transitive_deps(self):
         """A -> B -> C: passing only A should include B and C."""
+
         @fb
         class DepC:
             x: Input[BOOL]
+
             def logic(self):
                 pass
 
         @fb
         class DepB:
             c: DepC
+
             def logic(self):
                 self.c(x=True)
 
         @program
         class DepA:
             b: DepB
+
             def logic(self):
                 self.b()
 
@@ -135,6 +138,7 @@ class TestTransitiveDeps:
 
     def test_struct_dep_auto_included(self):
         """If a POU uses a struct as a static var, the struct is auto-included."""
+
         @struct
         class TransMotorData:
             speed: REAL = 0.0
@@ -143,6 +147,7 @@ class TestTransitiveDeps:
         @program
         class TransStructProg:
             data: TransMotorData
+
             def logic(self):
                 pass
 
@@ -152,15 +157,18 @@ class TestTransitiveDeps:
 
     def test_explicit_deps_not_duplicated(self):
         """If a dep is already explicit, it shouldn't appear twice."""
+
         @fb
         class ExplicitFB:
             x: Input[BOOL]
+
             def logic(self):
                 pass
 
         @program
         class ExplicitProg:
             inst: ExplicitFB
+
             def logic(self):
                 self.inst(x=True)
 
@@ -177,6 +185,7 @@ class TestTransitiveDeps:
         class TimerProg:
             cmd: Input[BOOL]
             out: Output[BOOL]
+
             def logic(self):
                 self.out = delayed(self.cmd, timedelta(seconds=5))
 
@@ -189,15 +198,18 @@ class TestTransitiveDeps:
 
     def test_fb_inheritance_parent_included(self):
         """If DerivedFB extends BaseFB, BaseFB should be auto-included."""
+
         @fb
         class TransBaseFB:
             x: Input[BOOL]
+
             def logic(self):
                 pass
 
         @fb
         class TransDerivedFB(TransBaseFB):
             y: Output[BOOL]
+
             def logic(self):
                 super().logic()
                 self.y = self.x

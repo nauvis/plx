@@ -1,25 +1,24 @@
 """Tests for project assembly: data types, GVLs, transitive deps, auto-compilation."""
 
+from datetime import timedelta
 from enum import IntEnum
 
 import pytest
 
 from plx.framework._data_types import enumeration, struct
 from plx.framework._decorators import fb, function, program
-from plx.framework._descriptors import Input, Output, Static, Field
+from plx.framework._descriptors import Input, Output
 from plx.framework._errors import DeclarationError, ProjectAssemblyError
 from plx.framework._global_vars import global_vars
-from plx.framework._project import PlxProject, project, _resolve_transitive_deps
+from plx.framework._project import project
 from plx.framework._task import _format_interval
-from datetime import timedelta
-from plx.framework._types import ARRAY, BOOL, DINT, INT, REAL, STRING, WSTRING
-from plx.model.pou import POUType
+from plx.framework._types import ARRAY, BOOL, INT, REAL, STRING, WSTRING
 from plx.model.project import Project
-
 
 # ---------------------------------------------------------------------------
 # Fixture POUs and types
 # ---------------------------------------------------------------------------
+
 
 @struct
 class _MotorData:
@@ -83,6 +82,7 @@ class _AddOne:
 # Project with data types
 # ---------------------------------------------------------------------------
 
+
 class TestProjectDataTypes:
     def test_compile_with_struct(self):
         ir = project("P", pous=[_MainProg], data_types=[_MotorData]).compile()
@@ -123,6 +123,7 @@ class TestProjectDataTypes:
 # Project with global variable lists
 # ---------------------------------------------------------------------------
 
+
 class TestProjectGVLs:
     def test_compile_with_gvl(self):
         ir = project("P", global_var_lists=[_SystemIO]).compile()
@@ -130,9 +131,7 @@ class TestProjectGVLs:
         assert ir.global_variable_lists[0].name == "_SystemIO"
 
     def test_compile_with_multiple_gvls(self):
-        ir = project(
-            "P", global_var_lists=[_SystemIO, _Constants]
-        ).compile()
+        ir = project("P", global_var_lists=[_SystemIO, _Constants]).compile()
         assert len(ir.global_variable_lists) == 2
         gvl_names = {g.name for g in ir.global_variable_lists}
         assert gvl_names == {"_SystemIO", "_Constants"}
@@ -163,6 +162,7 @@ class TestProjectGVLs:
 # ---------------------------------------------------------------------------
 # Full project with all sections
 # ---------------------------------------------------------------------------
+
 
 class TestFullProject:
     def test_all_sections(self):
@@ -214,6 +214,7 @@ class TestFullProject:
 # Transitive dependency resolution
 # ---------------------------------------------------------------------------
 
+
 class TestTransitiveDeps:
     def test_fb_referencing_fb_auto_included(self):
         """OuterFB uses InnerFB — InnerFB should be auto-included."""
@@ -230,6 +231,7 @@ class TestTransitiveDeps:
 
     def test_struct_type_auto_included(self):
         """FB referencing a struct type should auto-include it."""
+
         @fb
         class _FBWithStruct:
             data: _MotorData
@@ -246,9 +248,11 @@ class TestTransitiveDeps:
 # Auto-compilation of IntEnum and dataclass
 # ---------------------------------------------------------------------------
 
+
 class TestAutoCompilation:
     def test_intenum_auto_compiled(self):
         """IntEnum without @enumeration should be auto-compiled."""
+
         class Color(IntEnum):
             RED = 0
             GREEN = 1
@@ -268,6 +272,7 @@ class TestAutoCompilation:
 # ---------------------------------------------------------------------------
 # _format_interval
 # ---------------------------------------------------------------------------
+
 
 class TestFormatInterval:
     def test_time_literal(self):
@@ -305,6 +310,7 @@ class TestFormatInterval:
 # Duplicate name checks
 # ---------------------------------------------------------------------------
 
+
 class TestDuplicateNames:
     def test_duplicate_pou_names(self):
         with pytest.raises(ProjectAssemblyError, match="Duplicate POU name '_MainProg'"):
@@ -312,6 +318,7 @@ class TestDuplicateNames:
 
     def test_duplicate_task_names(self):
         from plx.framework._task import task
+
         t1 = task("Main", periodic=timedelta(milliseconds=10), pous=[_MainProg])
         t2 = task("Main", periodic=timedelta(milliseconds=100), pous=[_MainProg])
         with pytest.raises(ProjectAssemblyError, match="Duplicate task name 'Main'"):
@@ -330,6 +337,7 @@ class TestDuplicateNames:
 # Type constructor validation
 # ---------------------------------------------------------------------------
 
+
 class TestTypeConstructorValidation:
     def test_string_zero_raises(self):
         with pytest.raises(DeclarationError, match="STRING max_length must be >= 1"):
@@ -344,7 +352,7 @@ class TestTypeConstructorValidation:
             WSTRING(0)
 
     def test_array_tuple_lower_gt_upper_raises(self):
-        with pytest.raises(DeclarationError, match="lower bound.*must be <= upper bound"):
+        with pytest.raises(DeclarationError, match=r"lower bound.*must be <= upper bound"):
             ARRAY(INT, (10, 5))
 
     def test_array_tuple_valid_bounds(self):

@@ -12,7 +12,6 @@ from typing import Any, Literal
 from pydantic import Field, field_validator
 
 from ._base import IRModel, validate_iec_identifier
-
 from .types import TypeRef
 
 

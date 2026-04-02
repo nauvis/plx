@@ -3,10 +3,10 @@
 import pytest
 
 from plx.framework._decorators import fb, function, program
-from plx.framework._descriptors import Input, Field, Output
+from plx.framework._descriptors import Input, Output
 from plx.framework._errors import ProjectAssemblyError
 from plx.framework._project import PlxProject, project
-from plx.framework._types import BOOL, DINT, REAL
+from plx.framework._types import BOOL, REAL
 from plx.model.pou import POUType
 from plx.model.project import Project
 

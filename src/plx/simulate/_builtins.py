@@ -10,10 +10,10 @@ from __future__ import annotations
 
 import math
 
-
 # ---------------------------------------------------------------------------
 # Standard library functions
 # ---------------------------------------------------------------------------
+
 
 def _limit(mn: object, val: object, mx: object) -> object:
     """LIMIT(MN, IN, MX) — clamp val between mn and mx."""
@@ -59,24 +59,25 @@ def _ror(value: int, n: int) -> int:
 # String functions (IEC 61131-3, 1-based indexing)
 # ---------------------------------------------------------------------------
 
+
 def _len(s: str) -> int:
     return len(s)
 
 
 def _left(s: str, n: int) -> str:
-    return s[:int(n)]
+    return s[: int(n)]
 
 
 def _right(s: str, n: int) -> str:
     n = int(n)
     if n >= len(s):
         return s
-    return s[len(s) - n:]
+    return s[len(s) - n :]
 
 
 def _mid(s: str, pos: int, n: int) -> str:
     pos, n = int(pos), int(n)
-    return s[pos - 1:pos - 1 + n]
+    return s[pos - 1 : pos - 1 + n]
 
 
 def _concat(*args: object) -> str:
@@ -89,22 +90,23 @@ def _find(s1: str, s2: str) -> int:
 
 def _replace(s: str, s2: str, n: int, pos: int) -> str:
     pos, n = int(pos), int(n)
-    return s[:pos - 1] + s2 + s[pos - 1 + n:]
+    return s[: pos - 1] + s2 + s[pos - 1 + n :]
 
 
 def _insert(s: str, s2: str, pos: int) -> str:
     pos = int(pos)
-    return s[:pos - 1] + s2 + s[pos - 1:]
+    return s[: pos - 1] + s2 + s[pos - 1 :]
 
 
 def _delete(s: str, n: int, pos: int) -> str:
     pos, n = int(pos), int(n)
-    return s[:pos - 1] + s[pos - 1 + n:]
+    return s[: pos - 1] + s[pos - 1 + n :]
 
 
 # ---------------------------------------------------------------------------
 # Bitwise function-call forms
 # ---------------------------------------------------------------------------
+
 
 def _and_func(a: object, b: object) -> object:
     """AND — logical for bools, bitwise for integers."""

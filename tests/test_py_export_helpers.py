@@ -1,7 +1,5 @@
 """Tests for plx.export.py._helpers — standalone helper functions."""
 
-import pytest
-
 from plx.export.py._helpers import (
     _build_self_vars,
     _case_branch_condition,
@@ -19,11 +17,9 @@ from plx.export.py._helpers import (
     _topo_sort_data_types,
     _topo_sort_fbs,
 )
-from plx.model.expressions import LiteralExpr, VariableRef
 from plx.model.pou import (
-    Method,
-    Network,
     POU,
+    Method,
     POUInterface,
     POUType,
     Property,
@@ -47,10 +43,10 @@ from plx.model.types import (
 )
 from plx.model.variables import Variable
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _bool_type():
     return PrimitiveTypeRef(type=PrimitiveType.BOOL)
@@ -72,8 +68,7 @@ def _var(name: str, data_type=None):
     return Variable(name=name, data_type=data_type or _bool_type())
 
 
-def _fb(name: str, *, extends=None, interface=None, folder="", methods=None,
-        properties=None, implements=None):
+def _fb(name: str, *, extends=None, interface=None, folder="", methods=None, properties=None, implements=None):
     return POU(
         pou_type=POUType.FUNCTION_BLOCK,
         name=name,
@@ -89,6 +84,7 @@ def _fb(name: str, *, extends=None, interface=None, folder="", methods=None,
 # ===========================================================================
 # _safe_name
 # ===========================================================================
+
 
 class TestSafeName:
     def test_normal_name_unchanged(self):
@@ -191,6 +187,7 @@ class TestSafeName:
 # _sanitize_identifier
 # ===========================================================================
 
+
 class TestSanitizeIdentifier:
     def test_clean_name_unchanged(self):
         assert _sanitize_identifier("speed") == "speed"
@@ -244,6 +241,7 @@ class TestSanitizeIdentifier:
 # _sanitize_folder
 # ===========================================================================
 
+
 class TestSanitizeFolder:
     def test_empty_string(self):
         assert _sanitize_folder("") == ""
@@ -285,6 +283,7 @@ class TestSanitizeFolder:
 # ===========================================================================
 # _topo_sort_fbs
 # ===========================================================================
+
 
 class TestTopoSortFbs:
     def test_no_inheritance(self):
@@ -354,49 +353,77 @@ class TestTopoSortFbs:
 # _topo_sort_data_types
 # ===========================================================================
 
+
 class TestTopoSortDataTypes:
     def test_independent_structs(self):
-        a = StructType(name="A", members=[
-            StructMember(name="x", data_type=_int_type()),
-        ])
-        b = StructType(name="B", members=[
-            StructMember(name="y", data_type=_bool_type()),
-        ])
+        a = StructType(
+            name="A",
+            members=[
+                StructMember(name="x", data_type=_int_type()),
+            ],
+        )
+        b = StructType(
+            name="B",
+            members=[
+                StructMember(name="y", data_type=_bool_type()),
+            ],
+        )
         result = _topo_sort_data_types([a, b])
         assert result == [a, b]
 
     def test_struct_depends_on_struct(self):
         """B uses A as member type -> A before B."""
-        a = StructType(name="A", members=[
-            StructMember(name="x", data_type=_int_type()),
-        ])
-        b = StructType(name="B", members=[
-            StructMember(name="inner", data_type=_named("A")),
-        ])
+        a = StructType(
+            name="A",
+            members=[
+                StructMember(name="x", data_type=_int_type()),
+            ],
+        )
+        b = StructType(
+            name="B",
+            members=[
+                StructMember(name="inner", data_type=_named("A")),
+            ],
+        )
         result = _topo_sort_data_types([b, a])
         assert result == [a, b]
 
     def test_chain_dependency(self):
-        a = StructType(name="A", members=[
-            StructMember(name="x", data_type=_int_type()),
-        ])
-        b = StructType(name="B", members=[
-            StructMember(name="inner", data_type=_named("A")),
-        ])
-        c = StructType(name="C", members=[
-            StructMember(name="inner", data_type=_named("B")),
-        ])
+        a = StructType(
+            name="A",
+            members=[
+                StructMember(name="x", data_type=_int_type()),
+            ],
+        )
+        b = StructType(
+            name="B",
+            members=[
+                StructMember(name="inner", data_type=_named("A")),
+            ],
+        )
+        c = StructType(
+            name="C",
+            members=[
+                StructMember(name="inner", data_type=_named("B")),
+            ],
+        )
         result = _topo_sort_data_types([c, b, a])
         assert result == [a, b, c]
 
     def test_enum_no_dependencies(self):
-        e = EnumType(name="MyEnum", members=[
-            EnumMember(name="A", value=0),
-            EnumMember(name="B", value=1),
-        ])
-        s = StructType(name="S", members=[
-            StructMember(name="mode", data_type=_named("MyEnum")),
-        ])
+        e = EnumType(
+            name="MyEnum",
+            members=[
+                EnumMember(name="A", value=0),
+                EnumMember(name="B", value=1),
+            ],
+        )
+        s = StructType(
+            name="S",
+            members=[
+                StructMember(name="mode", data_type=_named("MyEnum")),
+            ],
+        )
         result = _topo_sort_data_types([s, e])
         names = [dt.name for dt in result]
         assert names.index("MyEnum") < names.index("S")
@@ -406,34 +433,52 @@ class TestTopoSortDataTypes:
 
     def test_array_member_dependency(self):
         """Struct with ARRAY OF OtherStruct should sort correctly."""
-        inner = StructType(name="Inner", members=[
-            StructMember(name="val", data_type=_int_type()),
-        ])
-        outer = StructType(name="Outer", members=[
-            StructMember(name="items", data_type=ArrayTypeRef(
-                element_type=_named("Inner"),
-                dimensions=[DimensionRange(lower=0, upper=9)],
-            )),
-        ])
+        inner = StructType(
+            name="Inner",
+            members=[
+                StructMember(name="val", data_type=_int_type()),
+            ],
+        )
+        outer = StructType(
+            name="Outer",
+            members=[
+                StructMember(
+                    name="items",
+                    data_type=ArrayTypeRef(
+                        element_type=_named("Inner"),
+                        dimensions=[DimensionRange(lower=0, upper=9)],
+                    ),
+                ),
+            ],
+        )
         result = _topo_sort_data_types([outer, inner])
         assert result == [inner, outer]
 
     def test_external_ref_not_in_list(self):
         """Struct referencing a type not in the list -> still appears."""
-        s = StructType(name="S", members=[
-            StructMember(name="ext", data_type=_named("ExternalType")),
-        ])
+        s = StructType(
+            name="S",
+            members=[
+                StructMember(name="ext", data_type=_named("ExternalType")),
+            ],
+        )
         result = _topo_sort_data_types([s])
         assert result == [s]
 
     def test_no_named_refs(self):
         """All primitive members -> order preserved."""
-        a = StructType(name="A", members=[
-            StructMember(name="x", data_type=_int_type()),
-        ])
-        b = StructType(name="B", members=[
-            StructMember(name="y", data_type=_real_type()),
-        ])
+        a = StructType(
+            name="A",
+            members=[
+                StructMember(name="x", data_type=_int_type()),
+            ],
+        )
+        b = StructType(
+            name="B",
+            members=[
+                StructMember(name="y", data_type=_real_type()),
+            ],
+        )
         result = _topo_sort_data_types([a, b])
         assert result == [a, b]
 
@@ -441,6 +486,7 @@ class TestTopoSortDataTypes:
 # ===========================================================================
 # _collect_named_refs
 # ===========================================================================
+
 
 class TestCollectNamedRefs:
     def test_primitive_returns_empty(self):
@@ -500,6 +546,7 @@ class TestCollectNamedRefs:
 # _collect_pou_deps
 # ===========================================================================
 
+
 class TestCollectPouDeps:
     def _make_project(self, pous=None, data_types=None, gvls=None):
         return Project(
@@ -510,9 +557,12 @@ class TestCollectPouDeps:
         )
 
     def test_no_deps(self):
-        pou = _fb("MyFB", interface=POUInterface(
-            input_vars=[_var("x", _bool_type())],
-        ))
+        pou = _fb(
+            "MyFB",
+            interface=POUInterface(
+                input_vars=[_var("x", _bool_type())],
+            ),
+        )
         project = self._make_project(pous=[pou])
         deps = _collect_pou_deps(pou, project)
         assert deps == {}
@@ -520,9 +570,12 @@ class TestCollectPouDeps:
     def test_fb_instance_dependency(self):
         """POU with a static var of another FB type -> depends on that FB."""
         other_fb = _fb("OtherFB")
-        pou = _fb("MyFB", interface=POUInterface(
-            static_vars=[_var("inst", _named("OtherFB"))],
-        ))
+        pou = _fb(
+            "MyFB",
+            interface=POUInterface(
+                static_vars=[_var("inst", _named("OtherFB"))],
+            ),
+        )
         project = self._make_project(pous=[pou, other_fb])
         deps = _collect_pou_deps(pou, project)
         assert "OtherFB" in deps
@@ -530,12 +583,18 @@ class TestCollectPouDeps:
 
     def test_struct_dependency(self):
         """POU with input var of struct type -> depends on that struct."""
-        st = StructType(name="MyStruct", members=[
-            StructMember(name="x", data_type=_int_type()),
-        ])
-        pou = _fb("MyFB", interface=POUInterface(
-            input_vars=[_var("data", _named("MyStruct"))],
-        ))
+        st = StructType(
+            name="MyStruct",
+            members=[
+                StructMember(name="x", data_type=_int_type()),
+            ],
+        )
+        pou = _fb(
+            "MyFB",
+            interface=POUInterface(
+                input_vars=[_var("data", _named("MyStruct"))],
+            ),
+        )
         project = self._make_project(pous=[pou], data_types=[st])
         deps = _collect_pou_deps(pou, project)
         assert "MyStruct" in deps
@@ -543,12 +602,18 @@ class TestCollectPouDeps:
 
     def test_gvl_dependency(self):
         """POU with external var matching a GVL -> depends on that GVL."""
-        gvl = GlobalVariableList(name="GVL_Main", variables=[
-            _var("speed", _real_type()),
-        ])
-        pou = _fb("MyFB", interface=POUInterface(
-            external_vars=[_var("speed", _named("GVL_Main"))],
-        ))
+        gvl = GlobalVariableList(
+            name="GVL_Main",
+            variables=[
+                _var("speed", _real_type()),
+            ],
+        )
+        pou = _fb(
+            "MyFB",
+            interface=POUInterface(
+                external_vars=[_var("speed", _named("GVL_Main"))],
+            ),
+        )
         project = self._make_project(pous=[pou], gvls=[gvl])
         deps = _collect_pou_deps(pou, project)
         assert "GVL_Main" in deps
@@ -574,9 +639,12 @@ class TestCollectPouDeps:
 
     def test_method_interface_dependency(self):
         """POU with a method that uses a named type -> picks it up."""
-        st = StructType(name="Config", members=[
-            StructMember(name="val", data_type=_int_type()),
-        ])
+        st = StructType(
+            name="Config",
+            members=[
+                StructMember(name="val", data_type=_int_type()),
+            ],
+        )
         method = Method(
             name="Setup",
             interface=POUInterface(
@@ -589,9 +657,12 @@ class TestCollectPouDeps:
         assert "Config" in deps
 
     def test_method_return_type_dependency(self):
-        st = StructType(name="Result", members=[
-            StructMember(name="ok", data_type=_bool_type()),
-        ])
+        st = StructType(
+            name="Result",
+            members=[
+                StructMember(name="ok", data_type=_bool_type()),
+            ],
+        )
         method = Method(
             name="GetResult",
             return_type=_named("Result"),
@@ -602,9 +673,12 @@ class TestCollectPouDeps:
         assert "Result" in deps
 
     def test_property_dependency(self):
-        st = StructType(name="Status", members=[
-            StructMember(name="code", data_type=_int_type()),
-        ])
+        st = StructType(
+            name="Status",
+            members=[
+                StructMember(name="code", data_type=_int_type()),
+            ],
+        )
         prop = Property(
             name="CurrentStatus",
             data_type=_named("Status"),
@@ -615,9 +689,12 @@ class TestCollectPouDeps:
         assert "Status" in deps
 
     def test_property_getter_local_var_dependency(self):
-        st = StructType(name="Helper", members=[
-            StructMember(name="val", data_type=_int_type()),
-        ])
+        st = StructType(
+            name="Helper",
+            members=[
+                StructMember(name="val", data_type=_int_type()),
+            ],
+        )
         prop = Property(
             name="Prop",
             data_type=_int_type(),
@@ -631,9 +708,12 @@ class TestCollectPouDeps:
         assert "Helper" in deps
 
     def test_property_setter_local_var_dependency(self):
-        st = StructType(name="Converter", members=[
-            StructMember(name="factor", data_type=_real_type()),
-        ])
+        st = StructType(
+            name="Converter",
+            members=[
+                StructMember(name="factor", data_type=_real_type()),
+            ],
+        )
         prop = Property(
             name="Value",
             data_type=_int_type(),
@@ -655,21 +735,31 @@ class TestCollectPouDeps:
 
     def test_standard_fb_types_excluded(self):
         """Standard FB types like TON should not appear in deps."""
-        pou = _fb("MyFB", interface=POUInterface(
-            static_vars=[_var("timer", _named("TON"))],
-        ))
+        pou = _fb(
+            "MyFB",
+            interface=POUInterface(
+                static_vars=[_var("timer", _named("TON"))],
+            ),
+        )
         project = self._make_project(pous=[pou])
         deps = _collect_pou_deps(pou, project)
         assert "TON" not in deps
 
     def test_folder_in_module_path(self):
         """POU deps referencing types in folders should have dotted module paths."""
-        st = StructType(name="Config", folder="Utils/Types", members=[
-            StructMember(name="val", data_type=_int_type()),
-        ])
-        pou = _fb("MyFB", interface=POUInterface(
-            input_vars=[_var("cfg", _named("Config"))],
-        ))
+        st = StructType(
+            name="Config",
+            folder="Utils/Types",
+            members=[
+                StructMember(name="val", data_type=_int_type()),
+            ],
+        )
+        pou = _fb(
+            "MyFB",
+            interface=POUInterface(
+                input_vars=[_var("cfg", _named("Config"))],
+            ),
+        )
         project = self._make_project(pous=[pou], data_types=[st])
         deps = _collect_pou_deps(pou, project)
         assert "Utils.Types.Config" in deps
@@ -679,6 +769,7 @@ class TestCollectPouDeps:
 # ===========================================================================
 # _quote_string
 # ===========================================================================
+
 
 class TestQuoteString:
     def test_simple_string(self):
@@ -709,12 +800,13 @@ class TestQuoteString:
 
     def test_single_quotes_pass_through(self):
         """Single quotes in the string do not trigger repr -- simple double-quote wrap."""
-        assert _quote_string("it's") == "\"it's\""
+        assert _quote_string("it's") == '"it\'s"'
 
 
 # ===========================================================================
 # _iec_string_to_python
 # ===========================================================================
+
 
 class TestIecStringToPython:
     def test_simple_single_quoted(self):
@@ -796,6 +888,7 @@ class TestIecStringToPython:
 # ===========================================================================
 # _fix_embedded_iec
 # ===========================================================================
+
 
 class TestFixEmbeddedIec:
     def test_simple_name_no_parens(self):
@@ -891,6 +984,7 @@ class TestFixEmbeddedIec:
 # _step_group_expr
 # ===========================================================================
 
+
 class TestStepGroupExpr:
     def test_single_step(self):
         assert _step_group_expr(["Init"]) == "Init"
@@ -912,6 +1006,7 @@ class TestStepGroupExpr:
 # ===========================================================================
 # _case_branch_condition
 # ===========================================================================
+
 
 class TestCaseBranchCondition:
     def test_single_int_value(self):
@@ -983,6 +1078,7 @@ class TestCaseBranchCondition:
 # _build_self_vars
 # ===========================================================================
 
+
 class TestBuildSelfVars:
     def test_empty_interface(self):
         iface = POUInterface()
@@ -1048,6 +1144,7 @@ class TestBuildSelfVars:
 # _split_init_params
 # ===========================================================================
 
+
 class TestSplitInitParams:
     def test_simple_params(self):
         result = _split_init_params("A := 1, B := 2")
@@ -1091,6 +1188,7 @@ class TestSplitInitParams:
 # ===========================================================================
 # _is_dict_literal
 # ===========================================================================
+
 
 class TestIsDictLiteral:
     def test_dict_literal(self):

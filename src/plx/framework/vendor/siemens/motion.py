@@ -35,10 +35,10 @@ from plx.framework._descriptors import InOut, Input, Output
 from plx.framework._library import LibraryFB, LibraryStruct
 from plx.framework._types import BOOL, DINT, DWORD, INT, LREAL, WORD
 
-
 # ===================================================================
 # Structs (Technology Object references)
 # ===================================================================
+
 
 class TO_SpeedAxis(LibraryStruct, vendor="siemens", library="siemens_motion"):
     """Technology Object reference for a speed-controlled axis.
@@ -70,6 +70,7 @@ class TO_PositioningAxis(LibraryStruct, vendor="siemens", library="siemens_motio
 # Axis Administration
 # ===================================================================
 
+
 class MC_Power(LibraryFB, vendor="siemens", library="siemens_motion"):
     """Enable or disable the servo drive of an axis.
 
@@ -96,8 +97,7 @@ class MC_Power(LibraryFB, vendor="siemens", library="siemens_motion"):
             ready: Output[BOOL]
 
             def logic(self):
-                self.power(Axis=self.axis, Enable=self.enable,
-                           StartMode=0, StopMode=1)
+                self.power(Axis=self.axis, Enable=self.enable, StartMode=0, StopMode=1)
                 self.ready = self.power.Status
     """
 
@@ -180,8 +180,7 @@ class MC_Home(LibraryFB, vendor="siemens", library="siemens_motion"):
             home_done: Output[BOOL]
 
             def logic(self):
-                self.home(Axis=self.axis, Execute=self.home_req,
-                          Position=0.0, Mode=0)
+                self.home(Axis=self.axis, Execute=self.home_req, Position=0.0, Mode=0)
                 self.home_done = self.home.Done
     """
 
@@ -205,6 +204,7 @@ class MC_Home(LibraryFB, vendor="siemens", library="siemens_motion"):
 # ===================================================================
 # Motion Commands
 # ===================================================================
+
 
 class MC_Halt(LibraryFB, vendor="siemens", library="siemens_motion"):
     """Controlled halt — decelerates axis to standstill.
@@ -269,10 +269,16 @@ class MC_MoveAbsolute(LibraryFB, vendor="siemens", library="siemens_motion"):
             done: Output[BOOL]
 
             def logic(self):
-                self.move(Axis=self.axis, Execute=self.go,
-                          Position=self.target, Velocity=100.0,
-                          Acceleration=500.0, Deceleration=500.0,
-                          Jerk=0.0, Direction=0)
+                self.move(
+                    Axis=self.axis,
+                    Execute=self.go,
+                    Position=self.target,
+                    Velocity=100.0,
+                    Acceleration=500.0,
+                    Deceleration=500.0,
+                    Jerk=0.0,
+                    Direction=0,
+                )
                 self.done = self.move.Done
     """
 
@@ -314,10 +320,15 @@ class MC_MoveRelative(LibraryFB, vendor="siemens", library="siemens_motion"):
             done: Output[BOOL]
 
             def logic(self):
-                self.move(Axis=self.axis, Execute=self.go,
-                          Distance=self.distance, Velocity=50.0,
-                          Acceleration=200.0, Deceleration=200.0,
-                          Jerk=0.0)
+                self.move(
+                    Axis=self.axis,
+                    Execute=self.go,
+                    Distance=self.distance,
+                    Velocity=50.0,
+                    Acceleration=200.0,
+                    Deceleration=200.0,
+                    Jerk=0.0,
+                )
                 self.done = self.move.Done
     """
 
@@ -364,10 +375,15 @@ class MC_MoveVelocity(LibraryFB, vendor="siemens", library="siemens_motion"):
             at_speed: Output[BOOL]
 
             def logic(self):
-                self.move(Axis=self.axis, Execute=self.run,
-                          Velocity=self.speed,
-                          Acceleration=100.0, Deceleration=100.0,
-                          Jerk=0.0, Direction=0)
+                self.move(
+                    Axis=self.axis,
+                    Execute=self.run,
+                    Velocity=self.speed,
+                    Acceleration=100.0,
+                    Deceleration=100.0,
+                    Jerk=0.0,
+                    Direction=0,
+                )
                 self.at_speed = self.move.InVelocity
     """
 
@@ -408,11 +424,14 @@ class MC_MoveJog(LibraryFB, vendor="siemens", library="siemens_motion"):
             in_velocity: Output[BOOL]
 
             def logic(self):
-                self.jog(Axis=self.axis,
-                         JogForward=self.jog_fwd,
-                         JogBackward=self.jog_rev,
-                         Velocity=10.0,
-                         Acceleration=50.0, Deceleration=50.0)
+                self.jog(
+                    Axis=self.axis,
+                    JogForward=self.jog_fwd,
+                    JogBackward=self.jog_rev,
+                    Velocity=10.0,
+                    Acceleration=50.0,
+                    Deceleration=50.0,
+                )
                 self.in_velocity = self.jog.InVelocity
     """
 
@@ -479,6 +498,7 @@ class MC_Stop(LibraryFB, vendor="siemens", library="siemens_motion"):
 # Coupling
 # ===================================================================
 
+
 class MC_GearIn(LibraryFB, vendor="siemens", library="siemens_motion"):
     """Activate electronic gear coupling between master and slave axes.
 
@@ -500,10 +520,15 @@ class MC_GearIn(LibraryFB, vendor="siemens", library="siemens_motion"):
             in_gear: Output[BOOL]
 
             def logic(self):
-                self.gear(Master=self.master, Slave=self.slave,
-                          Execute=self.engage,
-                          RatioNumerator=2, RatioDenominator=1,
-                          Acceleration=500.0, Deceleration=500.0)
+                self.gear(
+                    Master=self.master,
+                    Slave=self.slave,
+                    Execute=self.engage,
+                    RatioNumerator=2,
+                    RatioDenominator=1,
+                    Acceleration=500.0,
+                    Deceleration=500.0,
+                )
                 self.in_gear = self.gear.InGear
     """
 

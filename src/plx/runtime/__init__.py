@@ -9,6 +9,7 @@ Start a runtime from the CLI::
 Or programmatically::
 
     from plx.runtime import run
+
     run("my_machine/", port=4840)
 """
 
@@ -17,7 +18,7 @@ from __future__ import annotations
 import asyncio
 
 from ._engine import RuntimeEngine, ScanStats
-from ._plant import PlantModel, PlantIO, plant
+from ._plant import PlantIO, PlantModel, plant
 
 
 def run(
@@ -53,15 +54,17 @@ def run(
     """
     from ._cli import _run
 
-    asyncio.run(_run(
-        project_path=project_path,
-        port=port,
-        enable_opcua=enable_opcua,
-        enable_watch=enable_watch,
-        plant_files=plant_files or [],
-        scan_period_ms=scan_period_ms,
-        quiet=quiet,
-    ))
+    asyncio.run(
+        _run(
+            project_path=project_path,
+            port=port,
+            enable_opcua=enable_opcua,
+            enable_watch=enable_watch,
+            plant_files=plant_files or [],
+            scan_period_ms=scan_period_ms,
+            quiet=quiet,
+        )
+    )
 
 
 __all__ = [

@@ -7,6 +7,7 @@ Extracted from ``_project.py`` to break the circular import between
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Any
 
 from plx.model.pou import POUType
@@ -16,8 +17,6 @@ from plx.model.task import (
     PeriodicTask,
     StartupTask,
 )
-
-from datetime import timedelta
 
 from ._errors import ProjectAssemblyError
 from ._protocols import CompiledPOU
@@ -50,8 +49,7 @@ class PlxTask:
         for cls in self._pou_classes:
             if not isinstance(cls, CompiledPOU):
                 raise ProjectAssemblyError(
-                    f"{cls.__name__} is not a compiled POU class "
-                    f"(missing @fb, @program, or @function decorator)"
+                    f"{cls.__name__} is not a compiled POU class (missing @fb, @program, or @function decorator)"
                 )
             pou = cls.compile()
             if pou.pou_type != POUType.PROGRAM:
@@ -81,15 +79,11 @@ def _format_interval(value: Any) -> str:
     """Convert a duration value to an IEC time literal string."""
     if isinstance(value, timedelta):
         if value.total_seconds() <= 0:
-            raise ProjectAssemblyError(
-                f"Periodic interval must be positive, got {value}"
-            )
+            raise ProjectAssemblyError(f"Periodic interval must be positive, got {value}")
         return timedelta_to_iec(value)
     if isinstance(value, str):
         return value
-    raise ProjectAssemblyError(
-        f"Expected a duration (timedelta or str), got {type(value).__name__}"
-    )
+    raise ProjectAssemblyError(f"Expected a duration (timedelta or str), got {type(value).__name__}")
 
 
 def task(
@@ -150,13 +144,11 @@ def task(
     modes = sum([periodic is not None, continuous, event is not None, startup])
     if modes == 0:
         raise ProjectAssemblyError(
-            "task() requires exactly one scheduling mode: "
-            "periodic=, continuous=, event=, or startup="
+            "task() requires exactly one scheduling mode: periodic=, continuous=, event=, or startup="
         )
     if modes > 1:
         raise ProjectAssemblyError(
-            "task() accepts only one scheduling mode, "
-            "got multiple of: periodic, continuous, event, startup"
+            "task() accepts only one scheduling mode, got multiple of: periodic, continuous, event, startup"
         )
 
     if periodic is not None:

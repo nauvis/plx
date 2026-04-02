@@ -30,10 +30,10 @@ from plx.framework._descriptors import Input, Output
 from plx.framework._library import LibraryFB, LibraryStruct
 from plx.framework._types import BOOL, INT, REAL, TIME, UDINT, WORD
 
-
 # ---------------------------------------------------------------------------
 # Types
 # ---------------------------------------------------------------------------
+
 
 class TIMESTRUCT(LibraryStruct, vendor="beckhoff", library="Tc2_Utilities"):
     """Windows SYSTEMTIME structure for date/time representation.
@@ -69,6 +69,7 @@ class T_Arg(LibraryStruct, vendor="beckhoff", library="Tc2_Utilities"):
 # Function blocks — String formatting
 # ---------------------------------------------------------------------------
 
+
 class FB_FormatString(LibraryFB, vendor="beckhoff", library="Tc2_Utilities"):
     """printf-style string formatting.
 
@@ -92,6 +93,7 @@ class FB_FormatString(LibraryFB, vendor="beckhoff", library="Tc2_Utilities"):
 # ---------------------------------------------------------------------------
 # Function blocks — PID control
 # ---------------------------------------------------------------------------
+
 
 class FB_BasicPID(LibraryFB, vendor="beckhoff", library="Tc2_Utilities"):
     """Simple discretized PID controller.
@@ -124,6 +126,7 @@ class FB_BasicPID(LibraryFB, vendor="beckhoff", library="Tc2_Utilities"):
 # Function blocks — Real-time clock
 # ---------------------------------------------------------------------------
 
+
 class RTC(LibraryFB, vendor="beckhoff", library="Tc2_Utilities"):
     """Real-time clock (IEC 61131-3 compatible).
 
@@ -155,6 +158,7 @@ class RTC_EX(LibraryFB, vendor="beckhoff", library="Tc2_Utilities"):
 # ---------------------------------------------------------------------------
 # Function blocks — Ring buffers
 # ---------------------------------------------------------------------------
+
 
 class FB_MemRingBuffer(LibraryFB, vendor="beckhoff", library="Tc2_Utilities"):
     """Memory ring buffer for FIFO/LIFO data storage.
@@ -201,6 +205,7 @@ class FB_StringRingBuffer(LibraryFB, vendor="beckhoff", library="Tc2_Utilities")
 # Function blocks — System time
 # ---------------------------------------------------------------------------
 
+
 class NT_GetTime(LibraryFB, vendor="beckhoff", library="Tc2_Utilities"):
     """Read the Windows system time from the TwinCAT runtime.
 
@@ -236,6 +241,7 @@ class FB_LocalSystemTime(LibraryFB, vendor="beckhoff", library="Tc2_Utilities"):
 # Function blocks — Profiling
 # ---------------------------------------------------------------------------
 
+
 class Profiler(LibraryFB, vendor="beckhoff", library="Tc2_Utilities"):
     """Execution time measurement for PLC cycle profiling.
 
@@ -250,6 +256,7 @@ class Profiler(LibraryFB, vendor="beckhoff", library="Tc2_Utilities"):
 # ---------------------------------------------------------------------------
 # Function blocks — CSV
 # ---------------------------------------------------------------------------
+
 
 class FB_CSVMemBufferWriter(LibraryFB, vendor="beckhoff", library="Tc2_Utilities"):
     """Write CSV-formatted data to a memory buffer.

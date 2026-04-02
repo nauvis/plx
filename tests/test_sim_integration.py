@@ -1,8 +1,8 @@
 """End-to-end integration tests: framework-compiled POUs + simulator."""
 
-import pytest
-
 from datetime import timedelta
+
+import pytest
 
 from plx.framework import (
     ARRAY,
@@ -10,34 +10,31 @@ from plx.framework import (
     DINT,
     INT,
     REAL,
+    Input,
+    Output,
+    Static,
     count_down,
     count_up,
     delayed,
     enumeration,
+    falling,
     fb,
     fb_property,
-    falling,
     first_scan,
-    function,
-    Input,
-    Output,
     program,
     pulse,
     reset_dominant,
     rising,
     set_dominant,
-    Static,
     struct,
     sustained,
-    Temp,
-    Field,
 )
 from plx.simulate import simulate
-
 
 # ---------------------------------------------------------------------------
 # Canonical example: motor starts after delay
 # ---------------------------------------------------------------------------
+
 
 class TestMotorStartsAfterDelay:
     def test_canonical(self):
@@ -77,6 +74,7 @@ class TestMotorStartsAfterDelay:
 # ---------------------------------------------------------------------------
 # Edge detection
 # ---------------------------------------------------------------------------
+
 
 class TestEdgeDetection:
     def test_rising_edge(self):
@@ -119,6 +117,7 @@ class TestEdgeDetection:
 # Counter: static var persistence
 # ---------------------------------------------------------------------------
 
+
 class TestCounter:
     def test_counter_increments(self):
         @fb
@@ -140,6 +139,7 @@ class TestCounter:
 # ---------------------------------------------------------------------------
 # Nested user-defined FB
 # ---------------------------------------------------------------------------
+
 
 class TestNestedUserFB:
     def test_nested_fb(self):
@@ -171,6 +171,7 @@ class TestNestedUserFB:
 # For loop
 # ---------------------------------------------------------------------------
 
+
 class TestForLoop:
     def test_for_loop_sum(self):
         @fb
@@ -192,6 +193,7 @@ class TestForLoop:
 # ---------------------------------------------------------------------------
 # Case (match) statement
 # ---------------------------------------------------------------------------
+
 
 class TestCaseStatement:
     def test_case_dispatch(self):
@@ -224,6 +226,7 @@ class TestCaseStatement:
 # ---------------------------------------------------------------------------
 # If/elsif/else
 # ---------------------------------------------------------------------------
+
 
 class TestIfElsifElse:
     def test_branches(self):
@@ -259,6 +262,7 @@ class TestIfElsifElse:
 # While loop
 # ---------------------------------------------------------------------------
 
+
 class TestWhileLoop:
     def test_while(self):
         @fb
@@ -278,6 +282,7 @@ class TestWhileLoop:
 # ---------------------------------------------------------------------------
 # Array access
 # ---------------------------------------------------------------------------
+
 
 class TestArrayAccess:
     def test_array_read_write(self):
@@ -300,6 +305,7 @@ class TestArrayAccess:
 # ---------------------------------------------------------------------------
 # Struct member access
 # ---------------------------------------------------------------------------
+
 
 class TestStructMemberAccess:
     def test_struct_read_write(self):
@@ -327,6 +333,7 @@ class TestStructMemberAccess:
 # Sustained timer (TOF)
 # ---------------------------------------------------------------------------
 
+
 class TestSustainedTimer:
     def test_sustained(self):
         @fb
@@ -352,6 +359,7 @@ class TestSustainedTimer:
 # Pulse timer (TP)
 # ---------------------------------------------------------------------------
 
+
 class TestPulseTimer:
     def test_pulse(self):
         @fb
@@ -373,6 +381,7 @@ class TestPulseTimer:
 # ---------------------------------------------------------------------------
 # Arithmetic expressions
 # ---------------------------------------------------------------------------
+
 
 class TestArithmeticExpressions:
     def test_arithmetic(self):
@@ -408,6 +417,7 @@ class TestArithmeticExpressions:
 # Type conversion
 # ---------------------------------------------------------------------------
 
+
 class TestTypeConversion:
     def test_int_to_real(self):
         @fb
@@ -416,7 +426,7 @@ class TestTypeConversion:
             y: Output[REAL]
 
             def logic(self):
-                self.y = INT_TO_REAL(self.x)
+                self.y = INT_TO_REAL(self.x)  # noqa: F821
 
         ctx = simulate(ConvertTest)
         ctx.x = 42
@@ -428,6 +438,7 @@ class TestTypeConversion:
 # ---------------------------------------------------------------------------
 # Function calls
 # ---------------------------------------------------------------------------
+
 
 class TestFunctionCalls:
     def test_abs_min_max(self):
@@ -457,6 +468,7 @@ class TestFunctionCalls:
 # Program POU
 # ---------------------------------------------------------------------------
 
+
 class TestProgramPOU:
     def test_program(self):
         @program
@@ -479,6 +491,7 @@ class TestProgramPOU:
 # ---------------------------------------------------------------------------
 # first_scan() system flag
 # ---------------------------------------------------------------------------
+
 
 class TestFirstScanIntegration:
     def test_first_scan_sets_init_flag(self):
@@ -526,6 +539,7 @@ class TestFirstScanIntegration:
 # Count up (CTU)
 # ---------------------------------------------------------------------------
 
+
 class TestCountUp:
     def test_count_up_basic(self):
         @fb
@@ -550,6 +564,7 @@ class TestCountUp:
 # Count down (CTD)
 # ---------------------------------------------------------------------------
 
+
 class TestCountDown:
     def test_count_down_basic(self):
         @fb
@@ -570,6 +585,7 @@ class TestCountDown:
 # ---------------------------------------------------------------------------
 # Set dominant (SR)
 # ---------------------------------------------------------------------------
+
 
 class TestSetDominant:
     def test_set_dominant_basic(self):
@@ -597,6 +613,7 @@ class TestSetDominant:
 # Reset dominant (RS)
 # ---------------------------------------------------------------------------
 
+
 class TestResetDominant:
     def test_reset_dominant_basic(self):
         @fb
@@ -622,6 +639,7 @@ class TestResetDominant:
 # ---------------------------------------------------------------------------
 # Property getter/setter (integration)
 # ---------------------------------------------------------------------------
+
 
 class TestPropertyIntegration:
     def test_property_getter_setter(self):
@@ -657,6 +675,7 @@ class TestPropertyIntegration:
 # ---------------------------------------------------------------------------
 # Enum values return IntEnum members
 # ---------------------------------------------------------------------------
+
 
 class TestEnumIntEnumReturns:
     def test_enum_literal_returns_intenum(self):
@@ -710,6 +729,7 @@ class TestEnumIntEnumReturns:
 # CTUD integration
 # ---------------------------------------------------------------------------
 
+
 class TestCTUDIntegration:
     def test_ctud_via_framework(self):
         """CTUD declared as a static var and invoked directly."""
@@ -740,15 +760,16 @@ class TestCTUDIntegration:
 # POUAction resolution in SFC
 # ---------------------------------------------------------------------------
 
+
 class TestPOUActionResolution:
     def test_sfc_action_name_resolves(self):
         """SFC step action with action_name references a named POUAction."""
-        from plx.model.pou import POU, POUType, POUInterface, POUAction, Network
-        from plx.model.sfc import SFCBody, Step, Transition, Action, ActionQualifier
+        from plx.model.expressions import LiteralExpr, VariableRef
+        from plx.model.pou import POU, Network, POUAction, POUInterface, POUType
+        from plx.model.sfc import Action, ActionQualifier, SFCBody, Step, Transition
         from plx.model.statements import Assignment
-        from plx.model.expressions import VariableRef, LiteralExpr
-        from plx.model.variables import Variable
         from plx.model.types import PrimitiveType, PrimitiveTypeRef
+        from plx.model.variables import Variable
 
         bool_ref = PrimitiveTypeRef(type=PrimitiveType.BOOL)
 
@@ -761,12 +782,16 @@ class TestPOUActionResolution:
             actions=[
                 POUAction(
                     name="SetDone",
-                    body=[Network(statements=[
-                        Assignment(
-                            target=VariableRef(name="done"),
-                            value=LiteralExpr(value="TRUE", data_type=bool_ref),
-                        ),
-                    ])],
+                    body=[
+                        Network(
+                            statements=[
+                                Assignment(
+                                    target=VariableRef(name="done"),
+                                    value=LiteralExpr(value="TRUE", data_type=bool_ref),
+                                ),
+                            ]
+                        )
+                    ],
                 ),
             ],
             sfc_body=SFCBody(
@@ -802,14 +827,15 @@ class TestPOUActionResolution:
 # GVL / External vars
 # ---------------------------------------------------------------------------
 
+
 class TestGlobalState:
     def test_shared_global_state(self):
         """Two POUs sharing a global variable via external vars."""
-        from plx.model.pou import POU, POUType, POUInterface, Network
+        from plx.model.expressions import BinaryExpr, BinaryOp, LiteralExpr, VariableRef
+        from plx.model.pou import POU, Network, POUInterface, POUType
         from plx.model.statements import Assignment
-        from plx.model.expressions import VariableRef, LiteralExpr, BinaryExpr, BinaryOp
-        from plx.model.variables import Variable
         from plx.model.types import PrimitiveType, PrimitiveTypeRef
+        from plx.model.variables import Variable
 
         int_ref = PrimitiveTypeRef(type=PrimitiveType.DINT)
 
@@ -818,22 +844,28 @@ class TestGlobalState:
             pou_type=POUType.PROGRAM,
             name="Writer",
             interface=POUInterface(
-                external_vars=[Variable(
-                    name="shared_counter",
-                    data_type=int_ref,
-                    description="Globals",
-                )],
+                external_vars=[
+                    Variable(
+                        name="shared_counter",
+                        data_type=int_ref,
+                        description="Globals",
+                    )
+                ],
             ),
-            networks=[Network(statements=[
-                Assignment(
-                    target=VariableRef(name="shared_counter"),
-                    value=BinaryExpr(
-                        op=BinaryOp.ADD,
-                        left=VariableRef(name="shared_counter"),
-                        right=LiteralExpr(value="1", data_type=int_ref),
-                    ),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="shared_counter"),
+                            value=BinaryExpr(
+                                op=BinaryOp.ADD,
+                                left=VariableRef(name="shared_counter"),
+                                right=LiteralExpr(value="1", data_type=int_ref),
+                            ),
+                        ),
+                    ]
+                )
+            ],
         )
 
         # Reader POU: copies shared_counter to local output
@@ -841,19 +873,25 @@ class TestGlobalState:
             pou_type=POUType.PROGRAM,
             name="Reader",
             interface=POUInterface(
-                external_vars=[Variable(
-                    name="shared_counter",
-                    data_type=int_ref,
-                    description="Globals",
-                )],
+                external_vars=[
+                    Variable(
+                        name="shared_counter",
+                        data_type=int_ref,
+                        description="Globals",
+                    )
+                ],
                 output_vars=[Variable(name="local_copy", data_type=int_ref)],
             ),
-            networks=[Network(statements=[
-                Assignment(
-                    target=VariableRef(name="local_copy"),
-                    value=VariableRef(name="shared_counter"),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="local_copy"),
+                            value=VariableRef(name="shared_counter"),
+                        ),
+                    ]
+                )
+            ],
         )
 
         # Share global state between both contexts
@@ -872,11 +910,11 @@ class TestGlobalState:
 
     def test_external_var_default_allocation(self):
         """External var is auto-allocated to default if not in global state."""
-        from plx.model.pou import POU, POUType, POUInterface, Network
+        from plx.model.expressions import LiteralExpr, VariableRef
+        from plx.model.pou import POU, Network, POUInterface, POUType
         from plx.model.statements import Assignment
-        from plx.model.expressions import VariableRef, LiteralExpr
-        from plx.model.variables import Variable
         from plx.model.types import PrimitiveType, PrimitiveTypeRef
+        from plx.model.variables import Variable
 
         bool_ref = PrimitiveTypeRef(type=PrimitiveType.BOOL)
 
@@ -884,18 +922,24 @@ class TestGlobalState:
             pou_type=POUType.PROGRAM,
             name="ExtProg",
             interface=POUInterface(
-                external_vars=[Variable(
-                    name="flag",
-                    data_type=bool_ref,
-                    description="IO",
-                )],
+                external_vars=[
+                    Variable(
+                        name="flag",
+                        data_type=bool_ref,
+                        description="IO",
+                    )
+                ],
             ),
-            networks=[Network(statements=[
-                Assignment(
-                    target=VariableRef(name="flag"),
-                    value=LiteralExpr(value="TRUE", data_type=bool_ref),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="flag"),
+                            value=LiteralExpr(value="TRUE", data_type=bool_ref),
+                        ),
+                    ]
+                )
+            ],
         )
 
         shared = {}
@@ -909,19 +953,21 @@ class TestGlobalState:
 
     def test_global_state_accessible(self):
         """SimulationContext.global_state property returns the shared dict."""
-        from plx.model.pou import POU, POUType, POUInterface
-        from plx.model.variables import Variable
+        from plx.model.pou import POU, POUInterface, POUType
         from plx.model.types import PrimitiveType, PrimitiveTypeRef
+        from plx.model.variables import Variable
 
         pou = POU(
             pou_type=POUType.PROGRAM,
             name="Prog",
             interface=POUInterface(
-                external_vars=[Variable(
-                    name="x",
-                    data_type=PrimitiveTypeRef(type=PrimitiveType.DINT),
-                    description="GVL",
-                )],
+                external_vars=[
+                    Variable(
+                        name="x",
+                        data_type=PrimitiveTypeRef(type=PrimitiveType.DINT),
+                        description="GVL",
+                    )
+                ],
             ),
         )
 

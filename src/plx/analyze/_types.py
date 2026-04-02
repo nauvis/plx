@@ -20,17 +20,25 @@ from plx.model.types import (
     TypeRef,
 )
 
+_COMPARISON_OPS = frozenset(
+    {
+        BinaryOp.EQ,
+        BinaryOp.NE,
+        BinaryOp.GT,
+        BinaryOp.GE,
+        BinaryOp.LT,
+        BinaryOp.LE,
+    }
+)
 
-_COMPARISON_OPS = frozenset({
-    BinaryOp.EQ, BinaryOp.NE,
-    BinaryOp.GT, BinaryOp.GE,
-    BinaryOp.LT, BinaryOp.LE,
-})
-
-_LOGICAL_OPS = frozenset({
-    BinaryOp.AND, BinaryOp.OR,
-    BinaryOp.AND_THEN, BinaryOp.OR_ELSE,
-})
+_LOGICAL_OPS = frozenset(
+    {
+        BinaryOp.AND,
+        BinaryOp.OR,
+        BinaryOp.AND_THEN,
+        BinaryOp.OR_ELSE,
+    }
+)
 
 _BOOL_TYPE = PrimitiveTypeRef(type=PrimitiveType.BOOL)
 
@@ -151,26 +159,43 @@ def _infer_literal_type(value: str) -> TypeRef | None:
 
 # Numeric type bit widths (used for narrowing detection)
 _NUMERIC_WIDTH: dict[PrimitiveType, int] = {
-    PrimitiveType.SINT: 8, PrimitiveType.INT: 16,
-    PrimitiveType.DINT: 32, PrimitiveType.LINT: 64,
-    PrimitiveType.USINT: 8, PrimitiveType.UINT: 16,
-    PrimitiveType.UDINT: 32, PrimitiveType.ULINT: 64,
-    PrimitiveType.BYTE: 8, PrimitiveType.WORD: 16,
-    PrimitiveType.DWORD: 32, PrimitiveType.LWORD: 64,
-    PrimitiveType.REAL: 32, PrimitiveType.LREAL: 64,
+    PrimitiveType.SINT: 8,
+    PrimitiveType.INT: 16,
+    PrimitiveType.DINT: 32,
+    PrimitiveType.LINT: 64,
+    PrimitiveType.USINT: 8,
+    PrimitiveType.UINT: 16,
+    PrimitiveType.UDINT: 32,
+    PrimitiveType.ULINT: 64,
+    PrimitiveType.BYTE: 8,
+    PrimitiveType.WORD: 16,
+    PrimitiveType.DWORD: 32,
+    PrimitiveType.LWORD: 64,
+    PrimitiveType.REAL: 32,
+    PrimitiveType.LREAL: 64,
 }
 
-_SIGNED_INTEGERS = frozenset({
-    PrimitiveType.SINT, PrimitiveType.INT,
-    PrimitiveType.DINT, PrimitiveType.LINT,
-})
+_SIGNED_INTEGERS = frozenset(
+    {
+        PrimitiveType.SINT,
+        PrimitiveType.INT,
+        PrimitiveType.DINT,
+        PrimitiveType.LINT,
+    }
+)
 
-_UNSIGNED_INTEGERS = frozenset({
-    PrimitiveType.USINT, PrimitiveType.UINT,
-    PrimitiveType.UDINT, PrimitiveType.ULINT,
-    PrimitiveType.BYTE, PrimitiveType.WORD,
-    PrimitiveType.DWORD, PrimitiveType.LWORD,
-})
+_UNSIGNED_INTEGERS = frozenset(
+    {
+        PrimitiveType.USINT,
+        PrimitiveType.UINT,
+        PrimitiveType.UDINT,
+        PrimitiveType.ULINT,
+        PrimitiveType.BYTE,
+        PrimitiveType.WORD,
+        PrimitiveType.DWORD,
+        PrimitiveType.LWORD,
+    }
+)
 
 _FLOATS = frozenset({PrimitiveType.REAL, PrimitiveType.LREAL})
 
@@ -209,9 +234,7 @@ def is_narrowing(source: PrimitiveType, target: PrimitiveType) -> bool:
     if s_width > t_width:
         return True
     # Signed → unsigned of same width (loses negative range)
-    if source in _SIGNED_INTEGERS and target in _UNSIGNED_INTEGERS and s_width == t_width:
-        return True
-    return False
+    return source in _SIGNED_INTEGERS and target in _UNSIGNED_INTEGERS and s_width == t_width
 
 
 def parse_integer_literal(value: str) -> int | None:

@@ -6,11 +6,11 @@ configurable on-delay and off-delay before changing state.
 
 from plx.framework import (
     BOOL,
-    fb,
+    Field,
     Input,
     Output,
     delayed,
-    Field,
+    fb,
 )
 
 
@@ -27,6 +27,7 @@ class Debounce:
     Outputs:
         filtered: Debounced output
     """
+
     signal: Input[BOOL] = Field(description="Raw digital input")
 
     filtered: Output[BOOL] = Field(description="Debounced output")

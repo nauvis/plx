@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 from plx.model._base import IRModel
 
 
-class Severity(str, Enum):
+class Severity(StrEnum):
     """Severity level for analysis findings.
 
     Attributes

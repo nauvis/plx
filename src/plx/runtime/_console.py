@@ -62,11 +62,8 @@ class ConsoleDisplay:
 
         lines = [
             f"\nplx runtime | {engine.project_name}",
-            f"  Scan: {engine.scan_period_ms}ms period | "
-            f"{stats.total_scans} scans | "
-            f"{stats.overrun_count} overruns",
-            f"  Timing: avg {_format_duration(stats.avg_duration_us)} | "
-            f"max {_format_duration(stats.max_duration_us)}",
+            f"  Scan: {engine.scan_period_ms}ms period | {stats.total_scans} scans | {stats.overrun_count} overruns",
+            f"  Timing: avg {_format_duration(stats.avg_duration_us)} | max {_format_duration(stats.max_duration_us)}",
             f"  Programs: {', '.join(engine.program_names)}",
         ]
 

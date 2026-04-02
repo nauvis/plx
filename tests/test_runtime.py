@@ -1,38 +1,25 @@
 """Tests for the plx runtime module."""
 
 import asyncio
-import json
-import sys
 import textwrap
-from datetime import timedelta
-from pathlib import Path
-from typing import Optional
 
 import pytest
 
 from plx.framework import (
-    BOOL,
-    REAL,
-    INT,
     Input,
     Output,
-    Field,
-    fb,
     program,
     project,
-    task,
-    delayed,
-    rising,
 )
 from plx.model.project import Project
 from plx.runtime._engine import RuntimeEngine, ScanStats
 from plx.runtime._loader import load_project
 from plx.runtime._plant import PlantIO, PlantModel, PlantRunner, plant
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @program
 class SimpleProgram:
@@ -70,6 +57,7 @@ def _make_counter_project() -> Project:
 # ScanStats
 # ---------------------------------------------------------------------------
 
+
 class TestScanStats:
     def test_initial_state(self):
         stats = ScanStats()
@@ -86,6 +74,7 @@ class TestScanStats:
 # ---------------------------------------------------------------------------
 # RuntimeEngine — synchronous tests
 # ---------------------------------------------------------------------------
+
 
 class TestRuntimeEngine:
     def test_create(self):
@@ -127,7 +116,7 @@ class TestRuntimeEngine:
     def test_read_invalid_path(self):
         ir = _make_simple_project()
         engine = RuntimeEngine(ir)
-        with pytest.raises(KeyError, match="must be 'scope.name'"):
+        with pytest.raises(KeyError, match=r"must be 'scope\.name'"):
             engine.read_variable("no_dot")
 
     def test_multiple_scans(self):
@@ -174,6 +163,7 @@ class TestRuntimeEngine:
 # RuntimeEngine — async tests
 # ---------------------------------------------------------------------------
 
+
 class TestRuntimeEngineAsync:
     @pytest.mark.asyncio
     async def test_start_stop(self):
@@ -206,11 +196,13 @@ class TestRuntimeEngineAsync:
 # Loader tests
 # ---------------------------------------------------------------------------
 
+
 class TestLoader:
     def test_load_python_file(self, tmp_path):
         # Write a simple project file
         py_file = tmp_path / "test_project.py"
-        py_file.write_text(textwrap.dedent("""\
+        py_file.write_text(
+            textwrap.dedent("""\
             from plx.framework import program, project, Input, Output
 
             @program
@@ -221,9 +213,10 @@ class TestLoader:
                     self.y = self.x
 
             proj = project("TestFromFile", pous=[MyProg])
-        """))
+        """)
+        )
 
-        ir, source = load_project(str(py_file))
+        ir, _source = load_project(str(py_file))
         assert ir.name == "TestFromFile"
         assert len(ir.pous) == 1
         assert ir.pous[0].name == "MyProg"
@@ -234,7 +227,7 @@ class TestLoader:
         json_file = tmp_path / "test.plx.json"
         json_file.write_text(ir.model_dump_json(indent=2))
 
-        loaded, source = load_project(str(json_file))
+        loaded, _source = load_project(str(json_file))
         assert loaded.name == ir.name
         assert len(loaded.pous) == len(ir.pous)
 
@@ -247,7 +240,8 @@ class TestLoader:
         pkg_dir = tmp_path / "my_machine"
         pkg_dir.mkdir()
         (pkg_dir / "__init__.py").write_text("")
-        (pkg_dir / "main.py").write_text(textwrap.dedent("""\
+        (pkg_dir / "main.py").write_text(
+            textwrap.dedent("""\
             from plx.framework import program, Input, Output
 
             @program
@@ -256,9 +250,10 @@ class TestLoader:
                 y: Output[bool]
                 def logic(self):
                     self.y = self.x
-        """))
+        """)
+        )
 
-        ir, source = load_project(str(pkg_dir))
+        ir, _source = load_project(str(pkg_dir))
         assert ir.name == "my_machine"
         assert len(ir.pous) >= 1
 
@@ -266,6 +261,7 @@ class TestLoader:
 # ---------------------------------------------------------------------------
 # Plant model tests
 # ---------------------------------------------------------------------------
+
 
 class TestPlantModel:
     def test_plant_decorator(self):
@@ -343,6 +339,7 @@ class TestPlantModel:
 # ---------------------------------------------------------------------------
 # Console display test
 # ---------------------------------------------------------------------------
+
 
 class TestConsoleDisplay:
     def test_format_duration(self):

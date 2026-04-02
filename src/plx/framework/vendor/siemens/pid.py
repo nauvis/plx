@@ -19,10 +19,10 @@ from plx.framework._descriptors import InOut, Input, Output
 from plx.framework._library import LibraryFB
 from plx.framework._types import BOOL, DWORD, INT, REAL
 
-
 # ===================================================================
 # PID_Compact
 # ===================================================================
+
 
 class PID_Compact(LibraryFB, vendor="siemens", library="siemens_technology"):
     """Self-tuning PID controller for continuous actuators.
@@ -64,8 +64,7 @@ class PID_Compact(LibraryFB, vendor="siemens", library="siemens_technology"):
             cv: Output[REAL]
 
             def logic(self):
-                self.pid(Setpoint=self.sp, Input=self.pv,
-                         ModeActivate=True, Mode=3)
+                self.pid(Setpoint=self.sp, Input=self.pv, ModeActivate=True, Mode=3)
                 self.cv = self.pid.Output
     """
 
@@ -101,6 +100,7 @@ class PID_Compact(LibraryFB, vendor="siemens", library="siemens_technology"):
 # PID_3Step
 # ===================================================================
 
+
 class PID_3Step(LibraryFB, vendor="siemens", library="siemens_technology"):
     """PID controller for integrating actuators (motor-operated valves).
 
@@ -135,9 +135,7 @@ class PID_3Step(LibraryFB, vendor="siemens", library="siemens_technology"):
             close_cmd: Output[BOOL]
 
             def logic(self):
-                self.pid(Setpoint=self.sp, Input=self.pv,
-                         Feedback=self.position,
-                         ModeActivate=True, Mode=3)
+                self.pid(Setpoint=self.sp, Input=self.pv, Feedback=self.position, ModeActivate=True, Mode=3)
                 self.open_cmd = self.pid.Output_UP
                 self.close_cmd = self.pid.Output_DN
     """
@@ -182,6 +180,7 @@ class PID_3Step(LibraryFB, vendor="siemens", library="siemens_technology"):
 # PID_Temp
 # ===================================================================
 
+
 class PID_Temp(LibraryFB, vendor="siemens", library="siemens_technology"):
     """Temperature PID controller with heating and cooling outputs.
 
@@ -208,8 +207,7 @@ class PID_Temp(LibraryFB, vendor="siemens", library="siemens_technology"):
             cooler_on: Output[BOOL]
 
             def logic(self):
-                self.pid(Setpoint=self.temp_sp, Input=self.temp_pv,
-                         ModeActivate=True, Mode=3)
+                self.pid(Setpoint=self.temp_sp, Input=self.temp_pv, ModeActivate=True, Mode=3)
                 self.heater_on = self.pid.OutputHeat_PWM
                 self.cooler_on = self.pid.OutputCool_PWM
     """

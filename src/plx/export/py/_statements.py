@@ -60,9 +60,11 @@ class _StatementWriterMixin:
 
     def _write_assignment(self, stmt: Assignment) -> None:
         # Property/function return: ``PropName = expr`` -> ``return expr``
-        if (self._return_var is not None
-                and isinstance(stmt.target, VariableRef)
-                and stmt.target.name == self._return_var):
+        if (
+            self._return_var is not None
+            and isinstance(stmt.target, VariableRef)
+            and stmt.target.name == self._return_var
+        ):
             self._line(f"return {self._expr(stmt.value)}")
             return
         # S=/R= latch assignments have no Python framework equivalent
@@ -177,8 +179,7 @@ class _StatementWriterMixin:
         # IEC FOR is inclusive; Python range() is exclusive. Pre-compute
         # the +1 when the upper bound is an integer literal so we emit
         # clean ``range(1, 6)`` instead of ``range(1, 5 + 1)``.
-        if (isinstance(stmt.to_expr, LiteralExpr)
-                and stmt.to_expr.data_type is None):
+        if isinstance(stmt.to_expr, LiteralExpr) and stmt.to_expr.data_type is None:
             try:
                 to_val = int(stmt.to_expr.value)
                 to_str = str(to_val + 1)
@@ -254,7 +255,7 @@ class _StatementWriterMixin:
         """Add self. prefix to function/method names that need it."""
         # Dotted name: Instance.Method() -- qualify the first part
         if "." in name:
-            first, rest = name.split(".", 1)
+            first, _rest = name.split(".", 1)
             if first in self._self_vars:
                 return f"self.{name}"
             if self._has_unresolved_parent and first not in self._non_self_names:
@@ -342,9 +343,7 @@ class _StatementWriterMixin:
             # and LabelStatement only emit comments.
             _COMMENT_ONLY_KINDS = {"empty", "try_catch", "jump", "label"}
             has_executable = any(
-                s.kind not in _COMMENT_ONLY_KINDS
-                or (s.kind == "empty" and not s.comment)
-                for s in body
+                s.kind not in _COMMENT_ONLY_KINDS or (s.kind == "empty" and not s.comment) for s in body
             )
             for s in body:
                 self._write_stmt(s)

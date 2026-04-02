@@ -30,7 +30,7 @@ from plx.model.expressions import (
     UnaryOp,
     VariableRef,
 )
-from plx.model.pou import Network, POU
+from plx.model.pou import POU, Network
 from plx.model.statements import (
     Assignment,
     FBInvocation,
@@ -52,15 +52,18 @@ from ._model import (
     Parallel,
     Pin,
     Rung,
-    STBox,
     Series,
+    STBox,
 )
 
 # Comparison operators that map to LD box elements
 _COMPARISON_OPS = {
-    BinaryOp.EQ, BinaryOp.NE,
-    BinaryOp.GT, BinaryOp.GE,
-    BinaryOp.LT, BinaryOp.LE,
+    BinaryOp.EQ,
+    BinaryOp.NE,
+    BinaryOp.GT,
+    BinaryOp.GE,
+    BinaryOp.LT,
+    BinaryOp.LE,
 }
 
 _BINOP_LABEL: dict[BinaryOp, str] = {
@@ -74,8 +77,10 @@ _BINOP_LABEL: dict[BinaryOp, str] = {
 
 # Arithmetic operators that map to LD box elements
 _ARITHMETIC_OPS = {
-    BinaryOp.ADD, BinaryOp.SUB,
-    BinaryOp.MUL, BinaryOp.DIV,
+    BinaryOp.ADD,
+    BinaryOp.SUB,
+    BinaryOp.MUL,
+    BinaryOp.DIV,
     BinaryOp.MOD,
 }
 
@@ -92,6 +97,7 @@ _ARITH_LABEL: dict[BinaryOp, str] = {
 # Public API
 # ---------------------------------------------------------------------------
 
+
 def ir_to_ld(target: Union[POU, list[Network]]) -> LDNetwork:
     """Transform IR into an LD element tree.
 
@@ -102,9 +108,7 @@ def ir_to_ld(target: Union[POU, list[Network]]) -> LDNetwork:
     elif isinstance(target, list):
         networks = target
     else:
-        raise TypeError(
-            f"ir_to_ld() expects POU or list[Network], got {type(target).__name__}"
-        )
+        raise TypeError(f"ir_to_ld() expects POU or list[Network], got {type(target).__name__}")
 
     transformer = _LDTransformer()
     return transformer.transform(networks)
@@ -113,6 +117,7 @@ def ir_to_ld(target: Union[POU, list[Network]]) -> LDNetwork:
 # ---------------------------------------------------------------------------
 # Transformer
 # ---------------------------------------------------------------------------
+
 
 class _LDTransformer:
     """Converts IR networks/statements/expressions into LD elements."""
@@ -181,15 +186,11 @@ class _LDTransformer:
         return self._st_fallback_rung(stmt)
 
     def _transform_fb_invocation(self, stmt: FBInvocation) -> Rung:
-        input_pins = [
-            Pin(name=name, expression=format_expression(expr))
-            for name, expr in stmt.inputs.items()
-        ]
-        output_pins = [
-            Pin(name=name, expression=format_expression(expr))
-            for name, expr in stmt.outputs.items()
-        ]
-        instance_label = stmt.instance_name if isinstance(stmt.instance_name, str) else format_expression(stmt.instance_name)
+        input_pins = [Pin(name=name, expression=format_expression(expr)) for name, expr in stmt.inputs.items()]
+        output_pins = [Pin(name=name, expression=format_expression(expr)) for name, expr in stmt.outputs.items()]
+        instance_label = (
+            stmt.instance_name if isinstance(stmt.instance_name, str) else format_expression(stmt.instance_name)
+        )
         type_name = stmt.fb_type.name if isinstance(stmt.fb_type, NamedTypeRef) else instance_label
         box = Box(
             name=instance_label,
@@ -243,27 +244,20 @@ class _LDTransformer:
             and body_stmt.value.value in ("TRUE", "FALSE")
         ):
             target_str = format_expression(body_stmt.target)
-            coil_type = (
-                CoilType.SET if body_stmt.value.value == "TRUE"
-                else CoilType.RESET
-            )
+            coil_type = CoilType.SET if body_stmt.value.value == "TRUE" else CoilType.RESET
             contact_network = self._make_condition_circuit(condition)
             coil = Coil(variable=target_str, coil_type=coil_type)
             return Rung(input_circuit=contact_network, outputs=[coil])
 
         # IF cond THEN y := bool_expr → condition AND value → normal coil
-        if (
-            isinstance(body_stmt, Assignment)
-            and self._is_boolean_expr(body_stmt.value)
-        ):
+        if isinstance(body_stmt, Assignment) and self._is_boolean_expr(body_stmt.value):
             target_str = format_expression(body_stmt.target)
             cond_element = self._transform_expr(condition)
             value_element = self._transform_expr(body_stmt.value)
             # AND the condition with the value in a series
             series_elements = self._unwrap_series(cond_element) + self._unwrap_series(value_element)
             input_circuit: LDElement = (
-                series_elements[0] if len(series_elements) == 1
-                else Series(elements=series_elements)
+                series_elements[0] if len(series_elements) == 1 else Series(elements=series_elements)
             )
             coil = Coil(variable=target_str)
             return Rung(input_circuit=input_circuit, outputs=[coil])
@@ -289,18 +283,22 @@ class _LDTransformer:
             if not isinstance(stmt.value, LiteralExpr):
                 return None
             if stmt.value.value == "TRUE":
-                coils.append(Coil(
-                    variable=format_expression(stmt.target),
-                    coil_type=CoilType.SET,
-                ))
+                coils.append(
+                    Coil(
+                        variable=format_expression(stmt.target),
+                        coil_type=CoilType.SET,
+                    )
+                )
             elif stmt.value.value == "FALSE":
-                coils.append(Coil(
-                    variable=format_expression(stmt.target),
-                    coil_type=CoilType.RESET,
-                ))
+                coils.append(
+                    Coil(
+                        variable=format_expression(stmt.target),
+                        coil_type=CoilType.RESET,
+                    )
+                )
             else:
                 return None
-        return coils if coils else None
+        return coils or None
 
     def _make_condition_circuit(self, condition: Expression) -> LDElement:
         """Transform an IF condition into a contact network."""
@@ -315,16 +313,14 @@ class _LDTransformer:
         return [element]
 
     def _if_fb_invocation(self, condition: Expression, body_stmt: FBInvocation) -> Rung:
-        input_pins = [
-            Pin(name=name, expression=format_expression(expr))
-            for name, expr in body_stmt.inputs.items()
-        ]
-        output_pins = [
-            Pin(name=name, expression=format_expression(expr))
-            for name, expr in body_stmt.outputs.items()
-        ]
+        input_pins = [Pin(name=name, expression=format_expression(expr)) for name, expr in body_stmt.inputs.items()]
+        output_pins = [Pin(name=name, expression=format_expression(expr)) for name, expr in body_stmt.outputs.items()]
         en_circuit = self._make_condition_circuit(condition)
-        instance_label = body_stmt.instance_name if isinstance(body_stmt.instance_name, str) else format_expression(body_stmt.instance_name)
+        instance_label = (
+            body_stmt.instance_name
+            if isinstance(body_stmt.instance_name, str)
+            else format_expression(body_stmt.instance_name)
+        )
         type_name = body_stmt.fb_type.name if isinstance(body_stmt.fb_type, NamedTypeRef) else instance_label
         box = Box(
             name=instance_label,
@@ -485,6 +481,7 @@ class _LDTransformer:
     def _type_conversion_box(self, expr: TypeConversionExpr, target_str: str) -> Box:
         """Create a type conversion box."""
         from plx.model.types import PrimitiveTypeRef
+
         if isinstance(expr.target_type, PrimitiveTypeRef):
             type_name = f"TO_{expr.target_type.type.value}"
         elif isinstance(expr.target_type, NamedTypeRef):
@@ -560,6 +557,4 @@ class _LDTransformer:
             return True
         if isinstance(expr, BitAccessExpr):
             return True
-        if isinstance(expr, ArrayAccessExpr):
-            return True
-        return False
+        return isinstance(expr, ArrayAccessExpr)

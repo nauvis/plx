@@ -13,6 +13,7 @@ Examples
         timeout: TIME = T(s=30)
         enabled: BOOL = True
 
+
     @global_vars(description="IO mappings for conveyor")
     class ConveyorIO:
         motor_run: BOOL
@@ -27,14 +28,14 @@ from typing import Any, Literal
 from plx.model.project import GlobalVariableList
 from plx.model.variables import Variable
 
-from ._descriptors import FieldDescriptor, _format_initial, _unwrap_annotated, _field_to_variable
+from ._descriptors import FieldDescriptor, _field_to_variable, _format_initial, _unwrap_annotated
 from ._errors import DefinitionError
 from ._types import _resolve_type_ref
-
 
 # ---------------------------------------------------------------------------
 # @global_vars decorator
 # ---------------------------------------------------------------------------
+
 
 def global_vars(
     cls: type | None = None,
@@ -59,11 +60,13 @@ def global_vars(
             motor_run: BOOL = False
             speed: REAL = 0.0
 
+
         @global_vars(description="Conveyor IO mapping")
         class ConveyorIO:
             run_cmd: BOOL
             speed: REAL = Field(initial=50.0, retain=True)
     """
+
     def _apply(cls: type) -> type:
         variables: list[Variable] = []
 
@@ -84,11 +87,13 @@ def global_vars(
             else:
                 # Bare annotation with optional simple default
                 initial_value = _format_initial(default)
-                variables.append(Variable(
-                    name=attr_name,
-                    data_type=data_type,
-                    initial_value=initial_value,
-                ))
+                variables.append(
+                    Variable(
+                        name=attr_name,
+                        data_type=data_type,
+                        initial_value=initial_value,
+                    )
+                )
 
         if not variables:
             raise DefinitionError(

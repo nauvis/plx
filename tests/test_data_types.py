@@ -3,7 +3,6 @@
 import pytest
 
 from plx.framework._compiler import CompileError
-from plx.framework._errors import DefinitionError, ProjectAssemblyError
 from plx.framework._data_types import (
     _is_data_type,
     _is_enumeration,
@@ -11,10 +10,11 @@ from plx.framework._data_types import (
     enumeration,
     struct,
 )
-from plx.framework._decorators import fb, program
-from plx.framework._descriptors import Input, Field, Output
-from plx.framework._project import project
+from plx.framework._decorators import fb
+from plx.framework._descriptors import Input, Output
+from plx.framework._errors import DefinitionError, ProjectAssemblyError
 from plx.framework._plc_types import real
+from plx.framework._project import project
 from plx.framework._types import (
     ARRAY,
     BOOL,
@@ -23,8 +23,7 @@ from plx.framework._types import (
     REAL,
     _resolve_type_ref,
 )
-from plx.model.expressions import BinaryExpr, BinaryOp, LiteralExpr, VariableRef
-from plx.model.pou import POU
+from plx.model.expressions import BinaryExpr, BinaryOp, LiteralExpr
 from plx.model.statements import Assignment, CaseStatement
 from plx.model.types import (
     EnumType,
@@ -32,14 +31,13 @@ from plx.model.types import (
     PrimitiveType,
     PrimitiveTypeRef,
     StringTypeRef,
-    StructMember,
     StructType,
 )
-
 
 # ---------------------------------------------------------------------------
 # @struct
 # ---------------------------------------------------------------------------
+
 
 class TestStruct:
     def test_basic_struct(self):
@@ -120,6 +118,7 @@ class TestStruct:
 
     def test_empty_struct_error(self):
         with pytest.raises(DefinitionError, match="no annotated members"):
+
             @struct
             class Empty:
                 pass
@@ -149,7 +148,7 @@ class TestStruct:
         class HasAttr:
             x: REAL = 0.0
 
-        assert hasattr(HasAttr, '_compiled_type')
+        assert hasattr(HasAttr, "_compiled_type")
         assert isinstance(HasAttr._compiled_type, StructType)
 
     def test_struct_python_types(self):
@@ -177,8 +176,11 @@ class TestStruct:
     def test_struct_float_rejected(self):
         """float is ambiguous — must use real or lreal."""
         import pytest
+
         from plx.framework._errors import DeclarationError
+
         with pytest.raises(DeclarationError, match="float is ambiguous"):
+
             @struct
             class BadStruct:
                 speed: float = 0.0
@@ -187,6 +189,7 @@ class TestStruct:
 # ---------------------------------------------------------------------------
 # @enumeration
 # ---------------------------------------------------------------------------
+
 
 class TestEnum:
     def test_basic_enum(self):
@@ -233,12 +236,14 @@ class TestEnum:
 
     def test_empty_enum_error(self):
         with pytest.raises(DefinitionError, match="has no members"):
+
             @enumeration
             class Empty:
                 pass
 
     def test_non_int_member_error(self):
         with pytest.raises(DefinitionError, match="must be an int"):
+
             @enumeration
             class Bad:
                 GOOD = 0
@@ -299,6 +304,7 @@ class TestEnum:
 # ---------------------------------------------------------------------------
 # Data types as type arguments in descriptors
 # ---------------------------------------------------------------------------
+
 
 class TestDataTypeAsTypeArg:
     def test_struct_in_resolve_type_ref(self):
@@ -378,6 +384,7 @@ class TestDataTypeAsTypeArg:
 # ---------------------------------------------------------------------------
 # Enum literals in logic()
 # ---------------------------------------------------------------------------
+
 
 class TestEnumInLogic:
     def test_enum_attribute_access(self):
@@ -484,6 +491,7 @@ class TestEnumInLogic:
             B = 1
 
         with pytest.raises(CompileError, match="not a member of enum"):
+
             @fb
             class Bad:
                 out: Output[INT]
@@ -497,6 +505,7 @@ class TestEnumInLogic:
             X = 0
 
         with pytest.raises(CompileError, match="not a member of enum"):
+
             @fb
             class BadMatch:
                 val: INT = 0
@@ -536,6 +545,7 @@ class TestEnumInLogic:
 # ---------------------------------------------------------------------------
 # Project with data types
 # ---------------------------------------------------------------------------
+
 
 class TestProjectWithDataTypes:
     def test_project_with_struct(self):
@@ -612,20 +622,24 @@ class TestProjectWithDataTypes:
 # Introspection helpers
 # ---------------------------------------------------------------------------
 
+
 class TestIntrospectionHelpers:
     def test_is_struct_on_plain_class(self):
         class Plain:
             pass
+
         assert not _is_struct(Plain)
 
     def test_is_enum_on_plain_class(self):
         class Plain:
             pass
+
         assert not _is_enumeration(Plain)
 
     def test_is_data_type_on_plain_class(self):
         class Plain:
             pass
+
         assert not _is_data_type(Plain)
 
     def test_is_struct_not_on_fb(self):
@@ -633,6 +647,7 @@ class TestIntrospectionHelpers:
         class SomeFB:
             def logic(self):
                 pass
+
         assert not _is_struct(SomeFB)
         assert not _is_enumeration(SomeFB)
 
@@ -640,6 +655,7 @@ class TestIntrospectionHelpers:
 # ---------------------------------------------------------------------------
 # folder= kwarg
 # ---------------------------------------------------------------------------
+
 
 class TestDataTypeFolderKwarg:
     def test_struct_folder(self):
@@ -688,6 +704,7 @@ class TestDataTypeFolderKwarg:
 # IntEnum support
 # ---------------------------------------------------------------------------
 
+
 class TestIntEnum:
     def test_basic_intenum(self):
         from enum import IntEnum
@@ -709,7 +726,7 @@ class TestIntEnum:
             RUN = 1
             STOP = 2
 
-        ref = _resolve_type_ref(Phase)
+        _resolve_type_ref(Phase)
         compiled = Phase.compile()
         assert isinstance(compiled, EnumType)
         assert compiled.name == "Phase"

@@ -17,73 +17,73 @@ from .alarms import (
     Program_Alarm,
 )
 from .communication import (
-    # Compact TCP
-    TSEND_C,
-    TRCV_C,
+    GET,
+    # S7 Communication
+    PUT,
     # TCP Connection Management
     TCON,
     TDISCON,
+    TRCV,
+    TRCV_C,
     # TCP Data Transfer
     TSEND,
-    TRCV,
-    # S7 Communication
-    PUT,
-    GET,
+    # Compact TCP
+    TSEND_C,
 )
 from .data_handling import (
     # Scaling
     NORM_X,
     SCALE_X,
+    Deserialize,
     # Serialization
     Serialize,
-    Deserialize,
 )
 from .data_logging import (
+    DataLogClear,
+    DataLogClose,
     DataLogCreate,
+    DataLogDelete,
     DataLogOpen,
     DataLogWrite,
-    DataLogClose,
-    DataLogDelete,
-    DataLogClear,
 )
 from .modbus import (
     # Modbus TCP
     MB_CLIENT,
-    MB_SERVER,
     # Modbus RTU
     MB_COMM_LOAD,
     MB_MASTER,
+    MB_SERVER,
     MB_SLAVE,
 )
 from .motion import (
-    # Structs
-    TO_SpeedAxis,
-    TO_PositioningAxis,
-    # Axis Administration
-    MC_Power,
-    MC_Reset,
-    MC_Home,
-    # Motion Commands
-    MC_Halt,
-    MC_MoveAbsolute,
-    MC_MoveRelative,
-    MC_MoveVelocity,
-    MC_MoveJog,
-    MC_Stop,
     # Coupling
     MC_GearIn,
     MC_GearOut,
+    # Motion Commands
+    MC_Halt,
+    MC_Home,
+    MC_MoveAbsolute,
+    MC_MoveJog,
+    MC_MoveRelative,
+    MC_MoveVelocity,
+    # Axis Administration
+    MC_Power,
+    MC_Reset,
+    MC_Stop,
+    TO_PositioningAxis,
+    # Structs
+    TO_SpeedAxis,
 )
 from .opc_ua import (
     OPC_UA_Connect,
     OPC_UA_Disconnect,
+    OPC_UA_MethodCall,
     OPC_UA_ReadList,
     OPC_UA_WriteList,
-    OPC_UA_MethodCall,
 )
 from .pid import (
-    PID_Compact,
     PID_3Step,
+    PID_Compact,
     PID_Temp,
 )
 from .timers import (

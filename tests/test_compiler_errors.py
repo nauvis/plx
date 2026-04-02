@@ -5,15 +5,14 @@ import textwrap
 
 import pytest
 
-from conftest import compile_stmts, compile_expr
-
+from conftest import compile_expr, compile_stmts
 from plx.framework._compiler import ASTCompiler, CompileContext, CompileError
-from plx.framework._descriptors import Field, VarDirection
-
+from plx.framework._descriptors import VarDirection
 
 # ---------------------------------------------------------------------------
 # Rejected statement nodes
 # ---------------------------------------------------------------------------
+
 
 class TestRejectedStatements:
     def test_function_def(self):
@@ -82,6 +81,7 @@ def outer():
 # Rejected expression nodes
 # ---------------------------------------------------------------------------
 
+
 class TestRejectedExpressions:
     def test_lambda(self):
         with pytest.raises(CompileError, match="Lambda"):
@@ -132,9 +132,10 @@ class TestRejectedExpressions:
 # Specific error cases
 # ---------------------------------------------------------------------------
 
+
 class TestSpecificErrors:
     def test_range_outside_for(self):
-        with pytest.raises(CompileError, match="range.*for loop"):
+        with pytest.raises(CompileError, match=r"range.*for loop"):
             compile_expr("range(10)")
 
     def test_for_non_range(self):
@@ -166,7 +167,7 @@ for a, b in range(10):
     def test_sentinel_no_duration(self):
         with pytest.raises(CompileError, match="requires a duration"):
             ctx = CompileContext()
-            stmts = compile_stmts("self.x = delayed(self.input)", ctx)
+            compile_stmts("self.x = delayed(self.input)", ctx)
 
     def test_rising_no_signal(self):
         with pytest.raises(CompileError, match="requires a signal"):
@@ -174,7 +175,7 @@ for a, b in range(10):
 
     def test_compile_error_has_location(self):
         ctx = CompileContext(source_file="test.py", source_line_offset=10)
-        with pytest.raises(CompileError, match="test.py"):
+        with pytest.raises(CompileError, match=r"test\.py"):
             compile_stmts("def foo(): pass", ctx)
 
     def test_fb_positional_args_rejected(self):
@@ -188,10 +189,10 @@ for a, b in range(10):
 
 from plx.model.types import NamedTypeRef
 
-
 # ---------------------------------------------------------------------------
 # MatMult operator rejection (#6)
 # ---------------------------------------------------------------------------
+
 
 class TestMatMultRejected:
     def test_matmult_raises(self):
@@ -205,6 +206,7 @@ class TestMatMultRejected:
 # Multiple assignment targets (silent bug fix)
 # ---------------------------------------------------------------------------
 
+
 class TestMultipleAssignment:
     def test_chained_assignment_rejected(self):
         """a = b = 5 must be rejected (was silently dropping second target)."""
@@ -213,7 +215,9 @@ class TestMultipleAssignment:
             compile_stmts("self.a = self.b = 5", ctx)
 
     def test_triple_assignment_rejected(self):
-        ctx = CompileContext(declared_vars={"a": VarDirection.STATIC, "b": VarDirection.STATIC, "c": VarDirection.STATIC})
+        ctx = CompileContext(
+            declared_vars={"a": VarDirection.STATIC, "b": VarDirection.STATIC, "c": VarDirection.STATIC}
+        )
         with pytest.raises(CompileError, match="Multiple assignment targets"):
             compile_stmts("self.a = self.b = self.c = 5", ctx)
 
@@ -226,6 +230,7 @@ class TestMultipleAssignment:
 # ---------------------------------------------------------------------------
 # Tuple unpacking
 # ---------------------------------------------------------------------------
+
 
 class TestTupleUnpacking:
     def test_tuple_unpacking_rejected(self):
@@ -242,6 +247,7 @@ class TestTupleUnpacking:
 # ---------------------------------------------------------------------------
 # Comparison operators
 # ---------------------------------------------------------------------------
+
 
 class TestComparisonOperators:
     def test_in_requires_tuple(self):
@@ -273,39 +279,41 @@ class TestComparisonOperators:
 # Rejected Python builtins
 # ---------------------------------------------------------------------------
 
+
 class TestRejectedBuiltins:
     def test_print_rejected_as_expr(self):
-        with pytest.raises(CompileError, match="print.*does not exist"):
+        with pytest.raises(CompileError, match=r"print.*does not exist"):
             compile_expr("print('hello')")
 
     def test_print_rejected_as_stmt(self):
-        with pytest.raises(CompileError, match="print.*does not exist"):
+        with pytest.raises(CompileError, match=r"print.*does not exist"):
             compile_stmts("print('hello')")
 
     def test_str_rejected(self):
-        with pytest.raises(CompileError, match="str.*not supported"):
+        with pytest.raises(CompileError, match=r"str.*not supported"):
             compile_expr("str(42)")
 
     def test_isinstance_rejected(self):
-        with pytest.raises(CompileError, match="isinstance.*statically typed"):
+        with pytest.raises(CompileError, match=r"isinstance.*statically typed"):
             compile_expr("isinstance(x, int)")
 
     def test_type_rejected(self):
-        with pytest.raises(CompileError, match="type.*statically typed"):
+        with pytest.raises(CompileError, match=r"type.*statically typed"):
             compile_expr("type(x)")
 
     def test_sum_rejected(self):
-        with pytest.raises(CompileError, match="sum.*for loop"):
+        with pytest.raises(CompileError, match=r"sum.*for loop"):
             compile_expr("sum(values)")
 
     def test_enumerate_rejected(self):
-        with pytest.raises(CompileError, match="enumerate.*for loop"):
+        with pytest.raises(CompileError, match=r"enumerate.*for loop"):
             compile_expr("enumerate(items)")
 
 
 # ---------------------------------------------------------------------------
 # None constant
 # ---------------------------------------------------------------------------
+
 
 class TestNoneConstant:
     def test_none_assignment_rejected(self):
@@ -315,7 +323,7 @@ class TestNoneConstant:
 
     def test_none_guidance(self):
         ctx = CompileContext(declared_vars={"x": VarDirection.STATIC})
-        with pytest.raises(CompileError, match="0.*FALSE"):
+        with pytest.raises(CompileError, match=r"0.*FALSE"):
             compile_stmts("self.x = None", ctx)
 
 
@@ -323,10 +331,12 @@ class TestNoneConstant:
 # Augmented assignment errors
 # ---------------------------------------------------------------------------
 
+
 class TestAugAssignErrors:
     def test_floordiv_augassign_compiles(self):
         """//= now compiles to TRUNC(x / y) — no longer rejected."""
         from plx.model.types import PrimitiveType, PrimitiveTypeRef
+
         ctx = CompileContext(
             declared_vars={"x": VarDirection.STATIC},
             static_var_types={"x": PrimitiveTypeRef(type=PrimitiveType.DINT)},
@@ -339,21 +349,22 @@ class TestAugAssignErrors:
 # Improved guidance in rejected nodes
 # ---------------------------------------------------------------------------
 
+
 class TestImprovedGuidance:
     def test_function_def_guidance(self):
-        with pytest.raises(CompileError, match="@fb.*@function"):
+        with pytest.raises(CompileError, match=r"@fb.*@function"):
             compile_stmts("def foo(): pass")
 
     def test_try_guidance(self):
-        with pytest.raises(CompileError, match="if/else.*error flags"):
+        with pytest.raises(CompileError, match=r"if/else.*error flags"):
             compile_stmts("try:\n    pass\nexcept:\n    pass")
 
     def test_raise_guidance(self):
-        with pytest.raises(CompileError, match="if/else.*error flags"):
+        with pytest.raises(CompileError, match=r"if/else.*error flags"):
             compile_stmts("raise ValueError()")
 
     def test_assert_guidance(self):
-        with pytest.raises(CompileError, match="if/else.*fault flags"):
+        with pytest.raises(CompileError, match=r"if/else.*fault flags"):
             compile_stmts("assert True")
 
     def test_with_guidance(self):
@@ -361,15 +372,15 @@ class TestImprovedGuidance:
             compile_stmts("with open('f') as f: pass")
 
     def test_walrus_guidance(self):
-        with pytest.raises(CompileError, match="temp variable.*separate line"):
+        with pytest.raises(CompileError, match=r"temp variable.*separate line"):
             compile_expr("(x := 5)")
 
     def test_lambda_guidance(self):
-        with pytest.raises(CompileError, match="@fb.*@function"):
+        with pytest.raises(CompileError, match=r"@fb.*@function"):
             compile_expr("lambda x: x")
 
     def test_list_guidance(self):
-        with pytest.raises(CompileError, match="ARRAY.*@struct"):
+        with pytest.raises(CompileError, match=r"ARRAY.*@struct"):
             compile_expr("[1, 2, 3]")
 
     def test_dict_guidance(self):

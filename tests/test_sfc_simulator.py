@@ -1,28 +1,24 @@
 """Tests for SFC execution in the simulator."""
 
-import pytest
-
 from datetime import timedelta
 
 from plx.framework import (
     BOOL,
-    DINT,
     INT,
     REAL,
-    delayed,
     Input,
     Output,
+    delayed,
     sfc,
     step,
     transition,
-    Field,
 )
 from plx.simulate import simulate
-
 
 # ---------------------------------------------------------------------------
 # Basic execution
 # ---------------------------------------------------------------------------
+
 
 class TestBasicExecution:
     def test_initial_step_active_on_first_scan(self):
@@ -108,6 +104,7 @@ class TestBasicExecution:
 # Entry / exit actions
 # ---------------------------------------------------------------------------
 
+
 class TestEntryExitActions:
     def test_entry_action_runs_once(self):
         @sfc
@@ -170,6 +167,7 @@ class TestEntryExitActions:
 
     def test_initial_step_entry_action(self):
         """Entry action on the initial step runs on first scan."""
+
         @sfc
         class InitEntry:
             entry_count: INT = 0
@@ -190,9 +188,11 @@ class TestEntryExitActions:
 # Selection divergence
 # ---------------------------------------------------------------------------
 
+
 class TestSelectionDivergence:
     def test_first_true_wins(self):
         """Two transitions from same step: first-true wins (declaration order)."""
+
         @sfc
         class Sel:
             IDLE = step(initial=True)
@@ -224,6 +224,7 @@ class TestSelectionDivergence:
 # Simultaneous divergence (AND-fork)
 # ---------------------------------------------------------------------------
 
+
 class TestSimultaneousDivergence:
     def test_and_fork(self):
         @sfc
@@ -252,9 +253,11 @@ class TestSimultaneousDivergence:
 # Simultaneous convergence (AND-join)
 # ---------------------------------------------------------------------------
 
+
 class TestSimultaneousConvergence:
     def test_and_join(self):
         """Transition only fires when ALL source steps are active."""
+
         @sfc
         class Join:
             go: Input[BOOL]
@@ -289,6 +292,7 @@ class TestSimultaneousConvergence:
 # ---------------------------------------------------------------------------
 # Multi-step sequence
 # ---------------------------------------------------------------------------
+
 
 class TestMultiStepSequence:
     def test_full_cycle(self):
@@ -363,9 +367,11 @@ class TestMultiStepSequence:
 # Time-based qualifiers
 # ---------------------------------------------------------------------------
 
+
 class TestTimeQualifiers:
     def test_l_time_limited(self):
         """L qualifier: action runs while step active AND elapsed < duration."""
+
         @sfc
         class LTest:
             go: Input[BOOL]
@@ -407,6 +413,7 @@ class TestTimeQualifiers:
 
     def test_d_time_delayed(self):
         """D qualifier: action starts after duration while step still active."""
+
         @sfc
         class DTest:
             go: Input[BOOL]
@@ -442,6 +449,7 @@ class TestTimeQualifiers:
 
     def test_s_stored_and_r_reset(self):
         """S qualifier: action persists after step deactivation. R stops it."""
+
         @sfc
         class SRTest:
             go: Input[BOOL]
@@ -500,6 +508,7 @@ class TestTimeQualifiers:
 
     def test_sd_stored_delayed(self):
         """SD qualifier: becomes stored after delay, even if step deactivates."""
+
         @sfc
         class SDTest:
             go: Input[BOOL]
@@ -542,6 +551,7 @@ class TestTimeQualifiers:
 
     def test_ds_delayed_stored_cancelled_on_deactivation(self):
         """DS qualifier: cancelled if step deactivates before delay expires."""
+
         @sfc
         class DSTest:
             go: Input[BOOL]
@@ -578,6 +588,7 @@ class TestTimeQualifiers:
 
     def test_ds_delayed_stored_fires_when_step_active(self):
         """DS qualifier: becomes stored after delay if step stays active."""
+
         @sfc
         class DSTest2:
             go: Input[BOOL]
@@ -616,6 +627,7 @@ class TestTimeQualifiers:
 
     def test_sl_stored_time_limited(self):
         """SL qualifier: stored action expires after duration."""
+
         @sfc
         class SLTest:
             go: Input[BOOL]
@@ -662,6 +674,7 @@ class TestTimeQualifiers:
 
     def test_sl_does_not_restart_while_step_active(self):
         """SL qualifier must not restart after expiring while step is still active."""
+
         @sfc
         class SLRestart:
             go: Input[BOOL]
@@ -701,6 +714,7 @@ class TestTimeQualifiers:
 # Sentinel functions in actions
 # ---------------------------------------------------------------------------
 
+
 class TestSentinelsInActions:
     def test_delayed_in_action(self):
         @sfc
@@ -724,6 +738,7 @@ class TestSentinelsInActions:
 # ---------------------------------------------------------------------------
 # active_steps property
 # ---------------------------------------------------------------------------
+
 
 class TestActiveSteps:
     def test_active_steps_returns_correct_set(self):
@@ -759,6 +774,7 @@ class TestActiveSteps:
         @fb
         class Plain:
             x: Input[BOOL]
+
             def logic(self):
                 pass
 
@@ -770,6 +786,7 @@ class TestActiveSteps:
 # ---------------------------------------------------------------------------
 # Integration: end-to-end
 # ---------------------------------------------------------------------------
+
 
 class TestIntegration:
     def test_end_to_end_fill_sequence(self):

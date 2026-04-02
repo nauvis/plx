@@ -82,6 +82,7 @@ class StartupTask(IRModel):
     priority: int = 0
     assigned_pous: list[str] = []
 
+
 Task = Annotated[
     Union[PeriodicTask, ContinuousTask, EventTask, StartupTask],
     Field(discriminator="kind"),

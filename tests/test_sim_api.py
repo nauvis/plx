@@ -3,13 +3,11 @@
 import pytest
 
 from conftest import ptype
-
-from plx.model.pou import Network, POU, POUInterface, POUType
+from plx.model.pou import POU, POUInterface, POUType
 from plx.model.types import (
     EnumMember,
     EnumType,
     PrimitiveType,
-    PrimitiveTypeRef,
     StructMember,
     StructType,
 )
@@ -69,6 +67,7 @@ class TestSimulateAPI:
 
     def test_enum_registry(self):
         from enum import IntEnum
+
         enum_def = EnumType(
             name="Color",
             members=[

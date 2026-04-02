@@ -5,22 +5,20 @@ from pydantic import ValidationError
 
 from plx.model.expressions import LiteralExpr
 from plx.model.pou import (
+    POU,
     Method,
     Network,
-    POU,
     POUType,
     _check_body_exclusivity,
 )
 from plx.model.sfc import (
     Action,
-    ActionQualifier,
     SFCBody,
     Step,
     Transition,
 )
 from plx.model.statements import Assignment, CaseRange
 from plx.model.task import ContinuousTask, EventTask, PeriodicTask, StartupTask
-
 
 # ---------------------------------------------------------------------------
 # Helper: a minimal Expression for building test objects
@@ -178,7 +176,7 @@ class TestSFCBody:
         """SFCBody with steps but no initial step raises ValidationError."""
         with pytest.raises(
             ValidationError,
-            match="SFCBody must have exactly one initial step.*found 0",
+            match=r"SFCBody must have exactly one initial step.*found 0",
         ):
             SFCBody(
                 steps=[
@@ -191,7 +189,7 @@ class TestSFCBody:
         """SFCBody with two initial steps raises ValidationError."""
         with pytest.raises(
             ValidationError,
-            match="SFCBody must have exactly one initial step.*found 2",
+            match=r"SFCBody must have exactly one initial step.*found 2",
         ):
             SFCBody(
                 steps=[
@@ -242,9 +240,7 @@ class TestAction:
 class TestBodyExclusivity:
     def test_shared_helper_raises(self):
         """_check_body_exclusivity raises ValueError when both are present."""
-        with pytest.raises(
-            ValueError, match="TestCtx must have at most one body type"
-        ):
+        with pytest.raises(ValueError, match="TestCtx must have at most one body type"):
             _check_body_exclusivity(
                 networks=[Network(statements=[])],
                 sfc_body=SFCBody(steps=[Step(name="S", is_initial=True)]),
@@ -269,9 +265,7 @@ class TestBodyExclusivity:
 
     def test_pou_both_bodies(self):
         """POU with both networks and sfc_body raises ValidationError."""
-        with pytest.raises(
-            ValidationError, match="POU must have at most one body type"
-        ):
+        with pytest.raises(ValidationError, match="POU must have at most one body type"):
             POU(
                 pou_type=POUType.PROGRAM,
                 name="Main",
@@ -281,9 +275,7 @@ class TestBodyExclusivity:
 
     def test_method_both_bodies(self):
         """Method with both networks and sfc_body raises ValidationError."""
-        with pytest.raises(
-            ValidationError, match="Method must have at most one body type"
-        ):
+        with pytest.raises(ValidationError, match="Method must have at most one body type"):
             Method(
                 name="DoWork",
                 networks=[Network(statements=[])],

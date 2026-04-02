@@ -19,42 +19,41 @@ from dataclasses import dataclass
 from typing import Any
 
 from plx.model.pou import (
+    POU,
     AccessSpecifier,
     Language,
     Method,
     Network,
-    POU,
     POUInterface,
     POUType,
 )
 from plx.model.types import TypeRef
 from plx.model.variables import Variable
 
-from ._compiler import ASTCompiler
-from ._compiler_core import CompileContext, CompileError, resolve_annotation
-from ._registry import register_pou
 from ._compilation_helpers import (
     _build_compile_context,
     _build_var_context,
     _detect_parent_pou,
-    _discover_enums,
     _parse_function_source,
 )
-from ._descriptors import VarDescriptor, VarDirection, _mro_upsert
+from ._compiler import ASTCompiler
+from ._compiler_core import CompileContext, CompileError, resolve_annotation
+from ._descriptors import VarDirection, _mro_upsert
 from ._properties import (
-    PropDescriptor,
     _collect_properties,
     _compile_property,
 )
-
+from ._registry import register_pou
 
 # ---------------------------------------------------------------------------
 # @fb_method decorator
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class _MethodMarker:
     """Stored as ``func._plx_marker`` on @fb_method-decorated functions."""
+
     access: AccessSpecifier
 
 
@@ -104,7 +103,8 @@ def fb_method(
 def _is_method(obj: object) -> bool:
     """Check if an object is a @fb_method-decorated function."""
     return callable(obj) and isinstance(
-        getattr(obj, '_plx_marker', None), _MethodMarker,
+        getattr(obj, "_plx_marker", None),
+        _MethodMarker,
     )
 
 
@@ -143,7 +143,9 @@ def _compile_method(
 
     context_name = f"{cls.__name__}.{method_name}()"
     func_def, _, start_lineno = _parse_function_source(
-        method_func, context_name, validate_self_only=False,
+        method_func,
+        context_name,
+        validate_self_only=False,
     )
 
     # Extract parameters → method input_vars
@@ -157,8 +159,7 @@ def _compile_method(
 
         if arg.annotation is None:
             raise CompileError(
-                f"Method parameter '{param_name}' in {context_name} "
-                f"must have a type annotation",
+                f"Method parameter '{param_name}' in {context_name} must have a type annotation",
                 source_file=source_file,
                 pou_name=cls.__name__,
             )
@@ -174,9 +175,12 @@ def _compile_method(
 
     # Create compile context (includes FB's vars + method params)
     ctx = _build_compile_context(
-        method_func, cls,
-        method_declared_vars, static_var_types,
-        start_lineno, source_file,
+        method_func,
+        cls,
+        method_declared_vars,
+        static_var_types,
+        start_lineno,
+        source_file,
     )
 
     # Compile body
@@ -211,27 +215,24 @@ def _resolve_method_annotation(ann: ast.expr, cls: type, method_name: str) -> Ty
 # Language validation
 # ---------------------------------------------------------------------------
 
+
 def _validate_language(language: str | None) -> Language | None:
     """Validate and convert a language string to a Language enum value."""
     if language is None:
         return None
     if language == "SFC":
-        raise CompileError(
-            "language='SFC' is not supported on @fb/@program/@function. "
-            "Use @sfc instead."
-        )
+        raise CompileError("language='SFC' is not supported on @fb/@program/@function. Use @sfc instead.")
     try:
         return Language(language)
     except ValueError:
         valid = ", ".join(f'"{v.value}"' for v in Language)
-        raise CompileError(
-            f"Invalid language '{language}'. Valid options: {valid}"
-        ) from None
+        raise CompileError(f"Invalid language '{language}'. Valid options: {valid}") from None
 
 
 # ---------------------------------------------------------------------------
 # Comment extraction
 # ---------------------------------------------------------------------------
+
 
 def _extract_comments(source: str) -> dict[int, str]:
     """Extract standalone comments from source.
@@ -252,7 +253,7 @@ def _extract_comments(source: str) -> dict[int, str]:
             if line_idx >= len(source_lines):
                 continue
             # Only standalone comments (nothing before # on the line)
-            preceding = source_lines[line_idx][:tok.start[1]].strip()
+            preceding = source_lines[line_idx][: tok.start[1]].strip()
             if preceding:
                 continue
             text = tok.string[1:].strip()  # strip '#' + whitespace
@@ -307,9 +308,7 @@ def _split_body_by_comments(
 
     for node in body:
         # Find top-level comments between last_end and this node
-        preceding: list[int] = sorted(
-            ln for ln in top_level_comments if last_end <= ln < node.lineno
-        )
+        preceding: list[int] = sorted(ln for ln in top_level_comments if last_end <= ln < node.lineno)
 
         if preceding:
             # Flush current group if it has nodes
@@ -342,6 +341,7 @@ def _split_body_by_comments(
 # ---------------------------------------------------------------------------
 # Core compilation pipeline
 # ---------------------------------------------------------------------------
+
 
 def _parse_logic_source(cls: type) -> tuple[ast.FunctionDef, str, int]:
     """Extract logic() source, parse to AST, validate signature.
@@ -392,15 +392,17 @@ def _compile_all_methods(
     """Compile all @fb_method-decorated functions on *cls*."""
     compiled_methods: list[Method] = []
     for method_name, method_func, method_access in _collect_methods(cls):
-        compiled_methods.append(_compile_method(
-            method_name=method_name,
-            method_func=method_func,
-            method_access=method_access,
-            cls=cls,
-            declared_vars=declared_vars,
-            static_var_types=static_var_types,
-            source_file=source_file,
-        ))
+        compiled_methods.append(
+            _compile_method(
+                method_name=method_name,
+                method_func=method_func,
+                method_access=method_access,
+                cls=cls,
+                declared_vars=declared_vars,
+                static_var_types=static_var_types,
+                source_file=source_file,
+            )
+        )
     return compiled_methods
 
 
@@ -412,16 +414,19 @@ def _compile_all_properties(
 ) -> list:
     """Compile all @fb_property-decorated properties on *cls*."""
     from plx.model.pou import Property as PropertyModel
+
     compiled: list[PropertyModel] = []
     for prop_name, marker in _collect_properties(cls):
-        compiled.append(_compile_property(
-            prop_name=prop_name,
-            marker=marker,
-            cls=cls,
-            declared_vars=declared_vars,
-            static_var_types=static_var_types,
-            source_file=source_file,
-        ))
+        compiled.append(
+            _compile_property(
+                prop_name=prop_name,
+                marker=marker,
+                cls=cls,
+                declared_vars=declared_vars,
+                static_var_types=static_var_types,
+                source_file=source_file,
+            )
+        )
     return compiled
 
 
@@ -448,8 +453,7 @@ def _compile_pou_class(
         except (TypeError, OSError):
             _src = None
         raise CompileError(
-            f"FUNCTION '{cls.__name__}' must have a logic() method "
-            f"with a return type annotation",
+            f"FUNCTION '{cls.__name__}' must have a logic() method with a return type annotation",
             source_file=_src,
             pou_name=cls.__name__,
         )
@@ -471,8 +475,7 @@ def _compile_pou_class(
         if pou_type == POUType.FUNCTION:
             if func_def.returns is None:
                 raise CompileError(
-                    f"FUNCTION '{cls.__name__}' requires a return type — "
-                    f"annotate logic(): def logic(self) -> REAL:",
+                    f"FUNCTION '{cls.__name__}' requires a return type — annotate logic(): def logic(self) -> REAL:",
                     node=func_def,
                     source_file=source_file,
                     pou_name=cls.__name__,
@@ -483,9 +486,12 @@ def _compile_pou_class(
             )
 
         ctx = _build_compile_context(
-            cls.logic, cls,
-            declared_vars, static_var_types,
-            start_lineno, source_file,
+            cls.logic,
+            cls,
+            declared_vars,
+            static_var_types,
+            start_lineno,
+            source_file,
         )
         ctx.known_methods = {name for name, _, _ in _collect_methods(cls)}
 
@@ -541,7 +547,8 @@ def _compile_pou_class(
 # Public decorators
 # ---------------------------------------------------------------------------
 
-def program(cls: type = None, *, language: str | None = None, folder: str = "") -> Any:
+
+def program(cls: type | None = None, *, language: str | None = None, folder: str = "") -> Any:
     """Decorate a class as a PROGRAM POU.
 
     Examples
@@ -555,9 +562,9 @@ def program(cls: type = None, *, language: str | None = None, folder: str = "") 
             def logic(self):
                 pass
 
+
         @program(language="FBD")
-        class FbdMain:
-            ...
+        class FbdMain: ...
     """
     lang = _validate_language(language)
     if cls is not None:
@@ -565,10 +572,13 @@ def program(cls: type = None, *, language: str | None = None, folder: str = "") 
 
     def decorator(c: type) -> type:
         return _compile_pou_class(c, POUType.PROGRAM, language=lang, folder=folder)
+
     return decorator
 
 
-def fb(cls: type = None, *, language: str | None = None, folder: str = "", implements: list[type] | None = None) -> Any:
+def fb(
+    cls: type | None = None, *, language: str | None = None, folder: str = "", implements: list[type] | None = None
+) -> Any:
     """Decorate a class as a FUNCTION_BLOCK POU.
 
     Examples
@@ -583,13 +593,13 @@ def fb(cls: type = None, *, language: str | None = None, folder: str = "", imple
             def logic(self):
                 self.output = self.sensor
 
+
         @fb(language="LD")
-        class LadderFB:
-            ...
+        class LadderFB: ...
+
 
         @fb(implements=[IMoveable])
-        class Motor:
-            ...
+        class Motor: ...
     """
     lang = _validate_language(language)
     impl = _resolve_implements(implements)
@@ -598,6 +608,7 @@ def fb(cls: type = None, *, language: str | None = None, folder: str = "", imple
 
     def decorator(c: type) -> type:
         return _compile_pou_class(c, POUType.FUNCTION_BLOCK, language=lang, folder=folder, implements=impl)
+
     return decorator
 
 
@@ -608,14 +619,12 @@ def _resolve_implements(implements: list[type] | None) -> list[str]:
     names: list[str] = []
     for iface_cls in implements:
         if not getattr(iface_cls, "__plx_interface__", False):
-            raise CompileError(
-                f"'{iface_cls.__name__}' is not an @interface-decorated class"
-            )
+            raise CompileError(f"'{iface_cls.__name__}' is not an @interface-decorated class")
         names.append(iface_cls._compiled_pou.name)
     return names
 
 
-def function(cls: type = None, *, language: str | None = None, folder: str = "") -> Any:
+def function(cls: type | None = None, *, language: str | None = None, folder: str = "") -> Any:
     """Decorate a class as a FUNCTION POU.
 
     The return type is taken from the ``logic()`` annotation::
@@ -627,9 +636,9 @@ def function(cls: type = None, *, language: str | None = None, folder: str = "")
             def logic(self) -> REAL:
                 return self.x + 1.0
 
+
         @function(language="FBD")
-        class FbdFunc:
-            ...
+        class FbdFunc: ...
     """
     lang = _validate_language(language)
     if cls is not None:
@@ -637,6 +646,7 @@ def function(cls: type = None, *, language: str | None = None, folder: str = "")
 
     def decorator(c: type) -> type:
         return _compile_pou_class(c, POUType.FUNCTION, language=lang, folder=folder)
+
     return decorator
 
 
@@ -644,7 +654,8 @@ def function(cls: type = None, *, language: str | None = None, folder: str = "")
 # @interface decorator
 # ---------------------------------------------------------------------------
 
-def interface(cls: type = None, *, folder: str = "") -> Any:
+
+def interface(cls: type | None = None, *, folder: str = "") -> Any:
     """Decorate a class as an IEC 61131-3 INTERFACE.
 
     Can be used as ``@interface`` or ``@interface(folder="...")``.
@@ -662,11 +673,13 @@ def interface(cls: type = None, *, folder: str = "") -> Any:
             @fb_method
             def move_to(self, target: REAL) -> BOOL: ...
 
+
         @interface
         class IResettable(IMoveable):
             @fb_method
             def reset(self): ...
     """
+
     def _apply(cls: type) -> type:
         # Determine extends from parent interfaces
         extends: str | None = None
@@ -699,7 +712,8 @@ def interface(cls: type = None, *, folder: str = "") -> Any:
                     raise CompileError(
                         f"Interface method parameter '{arg.arg}' in "
                         f"{cls.__name__}.{method_name}() must have a type annotation",
-                        source_file=_src, pou_name=cls.__name__,
+                        source_file=_src,
+                        pou_name=cls.__name__,
                     )
                 type_ref = resolve_annotation(
                     arg.annotation,
@@ -714,24 +728,29 @@ def interface(cls: type = None, *, folder: str = "") -> Any:
                     location_hint=f"{cls.__name__}.{method_name}()",
                 )
 
-            method_irs.append(Method(
-                name=method_name,
-                return_type=return_type_val,
-                access=method_access,
-                interface=POUInterface(input_vars=method_input_vars),
-            ))
+            method_irs.append(
+                Method(
+                    name=method_name,
+                    return_type=return_type_val,
+                    access=method_access,
+                    interface=POUInterface(input_vars=method_input_vars),
+                )
+            )
 
         # Collect @fb_property signatures
         property_irs = []
         for prop_name, marker in _collect_properties(cls):
             from plx.model.pou import Property as PropertyModel
-            property_irs.append(PropertyModel(
-                name=prop_name,
-                data_type=marker.data_type,
-                access=marker.access,
-                abstract=marker.abstract,
-                final=marker.final,
-            ))
+
+            property_irs.append(
+                PropertyModel(
+                    name=prop_name,
+                    data_type=marker.data_type,
+                    access=marker.access,
+                    abstract=marker.abstract,
+                    final=marker.final,
+                )
+            )
 
         pou = POU(
             pou_type=POUType.INTERFACE,

@@ -3,16 +3,15 @@
 import pytest
 
 from plx.framework._compiler_core import CompileError
-from plx.framework._decorators import fb, fb_method
-from plx.framework._descriptors import Input, Field, Output
+from plx.framework._decorators import fb
 from plx.framework._properties import PropDescriptor, fb_property
-from plx.framework._types import BOOL, INT, REAL
-from plx.model.pou import AccessSpecifier, POUType
-
+from plx.framework._types import INT, REAL
+from plx.model.pou import AccessSpecifier
 
 # ---------------------------------------------------------------------------
 # Getter-only property
 # ---------------------------------------------------------------------------
+
 
 class TestGetterOnly:
     def test_getter_only_compiles(self):
@@ -56,6 +55,7 @@ class TestGetterOnly:
 # Getter + setter
 # ---------------------------------------------------------------------------
 
+
 class TestGetterSetter:
     def test_getter_and_setter(self):
         @fb
@@ -82,6 +82,7 @@ class TestGetterSetter:
 
     def test_setter_chaining_returns_descriptor(self):
         """The .setter decorator should return the same PropDescriptor."""
+
         @fb_property(REAL)
         def speed(self):
             return self._speed
@@ -99,6 +100,7 @@ class TestGetterSetter:
 # ---------------------------------------------------------------------------
 # Access specifiers
 # ---------------------------------------------------------------------------
+
 
 class TestAccess:
     def test_default_access_is_public(self):
@@ -151,6 +153,7 @@ class TestAccess:
 # Abstract / final
 # ---------------------------------------------------------------------------
 
+
 class TestAbstractFinal:
     def test_abstract_property(self):
         @fb
@@ -189,6 +192,7 @@ class TestAbstractFinal:
 # Multiple properties on one FB
 # ---------------------------------------------------------------------------
 
+
 class TestMultipleProperties:
     def test_two_properties(self):
         @fb
@@ -222,9 +226,11 @@ class TestMultipleProperties:
 # Error handling
 # ---------------------------------------------------------------------------
 
+
 class TestErrors:
     def test_fb_property_requires_type(self):
         with pytest.raises(CompileError, match="requires a type argument"):
+
             @fb_property
             def bad(self):
                 pass
@@ -233,6 +239,7 @@ class TestErrors:
 # ---------------------------------------------------------------------------
 # ST export
 # ---------------------------------------------------------------------------
+
 
 class TestPropertySTExport:
     def test_getter_only_st(self):

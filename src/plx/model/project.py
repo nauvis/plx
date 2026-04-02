@@ -7,7 +7,6 @@ from typing import Any, Literal, Self
 from pydantic import Field, model_validator
 
 from ._base import IRModel
-
 from .pou import POU
 from .task import Task
 from .types import TypeDefinition
@@ -54,10 +53,7 @@ class GlobalVariableList(IRModel):
         seen: set[str] = set()
         for v in self.variables:
             if v.name in seen:
-                raise ValueError(
-                    f"Duplicate variable name '{v.name}' "
-                    f"in global variable list '{self.name}'"
-                )
+                raise ValueError(f"Duplicate variable name '{v.name}' in global variable list '{self.name}'")
             seen.add(v.name)
         return self
 
@@ -119,9 +115,7 @@ class Project(IRModel):
         seen: set[str] = set()
         for gvl in self.global_variable_lists:
             if gvl.name in seen:
-                raise ValueError(
-                    f"Duplicate global variable list name '{gvl.name}'"
-                )
+                raise ValueError(f"Duplicate global variable list name '{gvl.name}'")
             seen.add(gvl.name)
         return self
 

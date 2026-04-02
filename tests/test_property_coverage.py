@@ -1,13 +1,8 @@
 """Extended tests for @fb_property: inheritance, setter renaming, complex logic."""
 
-import pytest
-
-from plx.framework._compiler_core import CompileError
 from plx.framework._decorators import fb
-from plx.framework._descriptors import Input, Output
 from plx.framework._properties import (
     PropDescriptor,
-    _PropertyMarker,
     _collect_properties,
     _rename_in_node,
     fb_property,
@@ -20,17 +15,17 @@ from plx.model.expressions import (
     MemberAccessExpr,
     VariableRef,
 )
-from plx.model.pou import AccessSpecifier
 from plx.model.statements import Assignment
-
 
 # ---------------------------------------------------------------------------
 # Property inheritance
 # ---------------------------------------------------------------------------
 
+
 class TestPropertyInheritance:
     def test_inherited_property(self):
         """Child FB inherits parent property."""
+
         @fb
         class Base:
             _speed: REAL
@@ -53,6 +48,7 @@ class TestPropertyInheritance:
 
     def test_overridden_property(self):
         """Child can override parent property."""
+
         @fb
         class Base:
             _speed: REAL
@@ -82,6 +78,7 @@ class TestPropertyInheritance:
 
     def test_child_adds_new_property(self):
         """Child can add properties beyond what parent has."""
+
         @fb
         class Base:
             _speed: REAL
@@ -114,9 +111,11 @@ class TestPropertyInheritance:
 # Setter parameter renaming
 # ---------------------------------------------------------------------------
 
+
 class TestSetterRenaming:
     def test_setter_param_renamed_to_property_name(self):
         """IEC 61131-3 setters use the property name, not the Python param."""
+
         @fb
         class Tank:
             _level: REAL
@@ -150,6 +149,7 @@ class TestSetterRenaming:
 
     def test_setter_param_same_as_property_no_rename(self):
         """If Python param matches property name, no rename needed."""
+
         @fb
         class Pump:
             _flow: REAL
@@ -180,6 +180,7 @@ class TestSetterRenaming:
 # ---------------------------------------------------------------------------
 # _rename_in_node
 # ---------------------------------------------------------------------------
+
 
 class TestRenameInNode:
     def test_rename_variable_ref(self):
@@ -239,6 +240,7 @@ class TestRenameInNode:
 # Complex getter/setter logic
 # ---------------------------------------------------------------------------
 
+
 class TestComplexPropertyLogic:
     def test_getter_with_arithmetic(self):
         @fb
@@ -288,6 +290,7 @@ class TestComplexPropertyLogic:
 # ---------------------------------------------------------------------------
 # Various data types on properties
 # ---------------------------------------------------------------------------
+
 
 class TestPropertyTypes:
     def test_bool_property(self):
@@ -340,6 +343,7 @@ class TestPropertyTypes:
 # _collect_properties
 # ---------------------------------------------------------------------------
 
+
 class TestCollectProperties:
     def test_collect_from_single_class(self):
         class Fake:
@@ -385,6 +389,7 @@ class TestCollectProperties:
 # ---------------------------------------------------------------------------
 # PropDescriptor
 # ---------------------------------------------------------------------------
+
 
 class TestPropDescriptor:
     def test_descriptor_creation(self):

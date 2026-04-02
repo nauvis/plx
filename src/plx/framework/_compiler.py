@@ -39,9 +39,6 @@ from plx.model.types import (
 # Re-export shared definitions so existing imports continue to work.
 # Test files and __init__.py import from ._compiler — this keeps them valid.
 from ._compiler_core import (  # noqa: F401
-    CompileContext,
-    CompileError,
-    SENTINEL_REGISTRY,
     _BINOP_MAP,
     _BIT_ACCESS_RE,
     _BUILTIN_FUNCS,
@@ -50,21 +47,24 @@ from ._compiler_core import (  # noqa: F401
     _REJECTED_BINOP_MESSAGES,
     _REJECTED_NODES,
     _TYPE_CONV_RE,
+    SENTINEL_REGISTRY,
+    CompileContext,
+    CompileError,
     resolve_annotation,
 )
+from ._compiler_expressions import _ExpressionMixin
 
 # Import mixins at the top — no late imports needed now that shared
 # constants live in _compiler_core.
 from ._compiler_sentinels import _SentinelMixin
-from ._compiler_expressions import _ExpressionMixin
 from ._compiler_statements import _StatementMixin
-
 
 # ---------------------------------------------------------------------------
 # Sentinel functions
 # ---------------------------------------------------------------------------
 # These exist for IDE autocompletion / linting.  The AST compiler
 # recognises them by name and never calls them.
+
 
 def delayed(signal: object, duration: object = None, *, name: str | None = None) -> bool:
     """On-delay timer (TON). Returns True when ``signal`` has been True
@@ -330,7 +330,15 @@ def count_down(signal: object, *, preset: int = 0, load: object = None, name: st
     raise RuntimeError("count_down() is a compile-time sentinel — do not call directly")
 
 
-def count_up_down(up_signal: object, down_signal: object, *, preset: int = 0, reset: object = None, load: object = None, name: str | None = None) -> bool:
+def count_up_down(
+    up_signal: object,
+    down_signal: object,
+    *,
+    preset: int = 0,
+    reset: object = None,
+    load: object = None,
+    name: str | None = None,
+) -> bool:
     """Bidirectional counter (CTUD). Increments on rising edges of
     ``up_signal``, decrements on rising edges of ``down_signal``.
     Returns True when the count reaches ``preset``.
@@ -435,6 +443,7 @@ def reset_dominant(set_signal: object, reset_signal: object, *, name: str | None
 # ASTCompiler — composed from mixins
 # ---------------------------------------------------------------------------
 
+
 class ASTCompiler(_StatementMixin, _ExpressionMixin, _SentinelMixin):
     """Compiles Python AST nodes into Universal IR nodes."""
 
@@ -469,14 +478,13 @@ class ASTCompiler(_StatementMixin, _ExpressionMixin, _SentinelMixin):
         handler = self._STATEMENT_HANDLERS.get(type(node))
         if handler is None:
             raise CompileError(
-                f"Unsupported Python syntax: {type(node).__name__}. "
-                f"PLC logic supports a subset of Python.",
-                node, self.ctx,
+                f"Unsupported Python syntax: {type(node).__name__}. PLC logic supports a subset of Python.",
+                node,
+                self.ctx,
             )
         result = handler(self, node)
         assert not self.ctx.pending_fb_invocations, (
-            f"Unflushed pending_fb_invocations after {type(node).__name__}. "
-            f"Handler must call _flush_pending()."
+            f"Unflushed pending_fb_invocations after {type(node).__name__}. Handler must call _flush_pending()."
         )
         return result
 
@@ -493,9 +501,9 @@ class ASTCompiler(_StatementMixin, _ExpressionMixin, _SentinelMixin):
         handler = self._EXPRESSION_HANDLERS.get(type(node))
         if handler is None:
             raise CompileError(
-                f"Unsupported Python syntax: {type(node).__name__}. "
-                f"PLC logic supports a subset of Python.",
-                node, self.ctx,
+                f"Unsupported Python syntax: {type(node).__name__}. PLC logic supports a subset of Python.",
+                node,
+                self.ctx,
             )
         return handler(self, node)
 
@@ -521,6 +529,7 @@ class ASTCompiler(_StatementMixin, _ExpressionMixin, _SentinelMixin):
             return None
         # Only STATIC vars can be FB instances — skip input/output/etc.
         from plx.framework._compiler_core import VarDirection
+
         if self.ctx.declared_vars.get(instance_name) is not VarDirection.STATIC:
             return None
         type_ref = self.ctx.static_var_types[instance_name]
@@ -533,13 +542,17 @@ class ASTCompiler(_StatementMixin, _ExpressionMixin, _SentinelMixin):
         )
 
     def _build_fb_array_invocation(
-        self, array_name: str, index_exprs: list[Expression], call_node: ast.Call,
+        self,
+        array_name: str,
+        index_exprs: list[Expression],
+        call_node: ast.Call,
     ) -> FBInvocation | None:
         """Build an FBInvocation for an array-subscripted FB: ``self.timers[i](...)``."""
         if array_name not in self.ctx.static_var_types:
             return None
         # Only STATIC vars can be FB arrays
         from plx.framework._compiler_core import VarDirection
+
         if self.ctx.declared_vars.get(array_name) is not VarDirection.STATIC:
             return None
         type_ref = self.ctx.static_var_types[array_name]

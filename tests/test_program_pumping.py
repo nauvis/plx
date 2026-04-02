@@ -5,21 +5,21 @@ delayed() for fail-to-start, and 4-level alarm with hysteresis.
 ~35 I/O: 12 DI, 3 DO, 5 AI, 3 AO across 3 VFD pumps + level control.
 """
 
-import pytest
-
 from datetime import timedelta
+
+import pytest
 
 from plx.framework import (
     BOOL,
     DINT,
     INT,
     REAL,
+    Input,
+    Output,
     delayed,
     fb,
     function,
     global_vars,
-    Input,
-    Output,
     program,
     project,
     rising,
@@ -27,7 +27,6 @@ from plx.framework import (
     task,
 )
 from plx.simulate import simulate
-
 
 # ==========================================================================
 # Data Types
@@ -443,12 +442,7 @@ class PumpStation:
         self.hihi_alarm = self.level_alarm.hihi
 
         # Alarm horn and beacon
-        any_alarm: BOOL = (
-            self.level_alarm.hihi
-            or self.level_alarm.hi
-            or self.level_alarm.lo
-            or self.level_alarm.lolo
-        )
+        any_alarm: BOOL = self.level_alarm.hihi or self.level_alarm.hi or self.level_alarm.lo or self.level_alarm.lolo
         self.alarm_horn = any_alarm and not self.alarm_ack
         self.alarm_beacon = any_alarm
 

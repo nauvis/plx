@@ -23,9 +23,9 @@ from plx.model.types import NamedTypeRef, PrimitiveType, PrimitiveTypeRef
 from plx.model.variables import Variable
 
 from ._compiler_core import (
+    SENTINEL_REGISTRY,
     CompileContext,
     CompileError,
-    SENTINEL_REGISTRY,
 )
 
 if TYPE_CHECKING:
@@ -35,6 +35,7 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 # Name kwarg helper
 # ---------------------------------------------------------------------------
+
 
 def _extract_name_kwarg(
     call_node: ast.Call,
@@ -51,16 +52,22 @@ def _extract_name_kwarg(
             name = kw.value.value
             if not name.isidentifier():
                 raise CompileError(
-                    f"name={name!r} is not a valid identifier", call_node, ctx,
+                    f"name={name!r} is not a valid identifier",
+                    call_node,
+                    ctx,
                 )
             if name in ctx.declared_vars:
                 raise CompileError(
-                    f"name={name!r} conflicts with a declared variable", call_node, ctx,
+                    f"name={name!r} conflicts with a declared variable",
+                    call_node,
+                    ctx,
                 )
             existing_names = {v.name for v in ctx.generated_static_vars}
             if name in existing_names:
                 raise CompileError(
-                    f"name={name!r} conflicts with an existing generated variable", call_node, ctx,
+                    f"name={name!r} conflicts with an existing generated variable",
+                    call_node,
+                    ctx,
                 )
             return name
     return None
@@ -69,6 +76,7 @@ def _extract_name_kwarg(
 # ---------------------------------------------------------------------------
 # Duration helper
 # ---------------------------------------------------------------------------
+
 
 def _parse_duration_kwarg(
     call_node: ast.Call,
@@ -96,13 +104,15 @@ def _parse_duration_kwarg(
     raise CompileError(
         "Timer sentinel requires a duration argument: "
         "e.g. delayed(signal, timedelta(seconds=5)) or delayed(signal, duration=expr)",
-        call_node, ctx,
+        call_node,
+        ctx,
     )
 
 
 # ---------------------------------------------------------------------------
 # Sentinel mixin
 # ---------------------------------------------------------------------------
+
 
 class _SentinelMixin:
     """Mixin providing sentinel expansion methods for ASTCompiler."""
@@ -120,16 +130,20 @@ class _SentinelMixin:
         """
         instance_name = name if name is not None else self.ctx.next_auto_name(fb_type.lower())
 
-        self.ctx.generated_static_vars.append(Variable(
-            name=instance_name,
-            data_type=NamedTypeRef(name=fb_type),
-        ))
+        self.ctx.generated_static_vars.append(
+            Variable(
+                name=instance_name,
+                data_type=NamedTypeRef(name=fb_type),
+            )
+        )
 
-        self.ctx.pending_fb_invocations.append(FBInvocation(
-            instance_name=instance_name,
-            fb_type=NamedTypeRef(name=fb_type),
-            inputs=inputs,
-        ))
+        self.ctx.pending_fb_invocations.append(
+            FBInvocation(
+                instance_name=instance_name,
+                fb_type=NamedTypeRef(name=fb_type),
+                inputs=inputs,
+            )
+        )
 
         return MemberAccessExpr(
             struct=VariableRef(name=instance_name),
@@ -148,7 +162,9 @@ class _SentinelMixin:
         duration = _parse_duration_kwarg(node, self.ctx, self)
 
         return self._emit_fb_sentinel(
-            s.fb_type, {s.params["signal"]: signal, s.params["duration"]: duration}, name=user_name,
+            s.fb_type,
+            {s.params["signal"]: signal, s.params["duration"]: duration},
+            name=user_name,
         )
 
     def _compile_edge_sentinel(self, sentinel_name: str, node: ast.Call) -> Expression:
@@ -180,7 +196,8 @@ class _SentinelMixin:
         if "preset" not in keywords:
             raise CompileError(
                 f"{sentinel_name}() requires a preset= argument",
-                node, self.ctx,
+                node,
+                self.ctx,
             )
         preset_node = keywords["preset"]
         if isinstance(preset_node, ast.Constant) and isinstance(preset_node.value, int):
@@ -205,7 +222,8 @@ class _SentinelMixin:
         if len(node.args) < 2:
             raise CompileError(
                 "count_up_down() requires two arguments: up_signal and down_signal",
-                node, self.ctx,
+                node,
+                self.ctx,
             )
 
         user_name = _extract_name_kwarg(node, self.ctx)
@@ -217,7 +235,8 @@ class _SentinelMixin:
         if "preset" not in keywords:
             raise CompileError(
                 "count_up_down() requires a preset= argument",
-                node, self.ctx,
+                node,
+                self.ctx,
             )
         preset_node = keywords["preset"]
         if isinstance(preset_node, ast.Constant) and isinstance(preset_node.value, int):
@@ -237,7 +256,6 @@ class _SentinelMixin:
 
         return self._emit_fb_sentinel("CTUD", inputs, output_member="QU", name=user_name)
 
-
     def _compile_bistable_sentinel(self, sentinel_name: str, node: ast.Call) -> Expression:
         """Compile set_dominant/reset_dominant sentinel into SR/RS."""
         s = SENTINEL_REGISTRY[sentinel_name]
@@ -245,7 +263,8 @@ class _SentinelMixin:
         if len(node.args) < 2:
             raise CompileError(
                 f"{sentinel_name}() requires two arguments: set_signal and reset_signal",
-                node, self.ctx,
+                node,
+                self.ctx,
             )
 
         user_name = _extract_name_kwarg(node, self.ctx)

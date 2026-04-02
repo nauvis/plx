@@ -1,34 +1,23 @@
 """Smoke test: end-to-end pneumatic actuator example."""
 
 import json
-
 from datetime import timedelta
 
 from plx.framework import (
     BOOL,
-    DINT,
     REAL,
     TIME,
-    ARRAY,
-    STRING,
-    CompileError,
-    delayed,
-    falling,
-    fb,
-    function,
+    Field,
     Input,
     Output,
+    delayed,
+    fb,
+    function,
     program,
     project,
-    pulse,
-    rising,
-    sustained,
-    Temp,
-    Field,
 )
 from plx.model.pou import POU, POUType
 from plx.model.project import Project
-from plx.model.statements import Assignment, FBInvocation, IfStatement
 
 
 @fb
@@ -97,7 +86,7 @@ class TestSmokeEndToEnd:
 
     def test_pneumatic_actuator_has_ton_instances(self):
         pou = PneumaticActuator.compile()
-        ton_vars = [v for v in pou.interface.static_vars if hasattr(v.data_type, 'name') and v.data_type.name == "TON"]
+        ton_vars = [v for v in pou.interface.static_vars if hasattr(v.data_type, "name") and v.data_type.name == "TON"]
         assert len(ton_vars) == 2  # Two delayed() calls
 
     def test_project_compiles(self):
@@ -130,32 +119,3 @@ class TestSmokeEndToEnd:
 
     def test_imports_from_flat_namespace(self):
         """Verify all public symbols are importable."""
-        from plx.framework import (
-            BOOL,
-            INT,
-            DINT,
-            REAL,
-            TIME,
-            LTIME,
-            timedelta,
-            ARRAY,
-            STRING,
-            WSTRING,
-            POINTER_TO,
-            REFERENCE_TO,
-            fb,
-            program,
-            function,
-            Input,
-            Output,
-            InOut,
-            Temp,
-            delayed,
-            rising,
-            falling,
-            sustained,
-            pulse,
-            CompileError,
-            project,
-            Field,
-        )

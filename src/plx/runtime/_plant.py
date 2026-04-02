@@ -11,9 +11,10 @@ import asyncio
 import importlib
 import logging
 import sys
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from ._engine import RuntimeEngine
 
@@ -122,6 +123,7 @@ def plant(
             io.write("MainProgram.level_raw", int(level * 327.67))
             io.state["level"] = level
     """
+
     def decorator(fn: Callable[[PlantIO], None]) -> PlantModel:
         return PlantModel(
             name=fn.__name__,
@@ -189,7 +191,9 @@ class PlantRunner:
                     model.func(io)
                 except Exception as exc:
                     logger.error(
-                        "Plant model '%s' error: %s", model.name, exc,
+                        "Plant model '%s' error: %s",
+                        model.name,
+                        exc,
                     )
                 await asyncio.sleep(period_s)
         except asyncio.CancelledError:

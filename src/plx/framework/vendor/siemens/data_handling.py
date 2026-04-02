@@ -19,12 +19,12 @@ annotations must be live objects for interface parsing.
 
 from plx.framework._descriptors import InOut, Input, Output
 from plx.framework._library import LibraryFB
-from plx.framework._types import BOOL, DINT, INT, REAL
-
+from plx.framework._types import DINT, INT, REAL
 
 # ===================================================================
 # Scaling
 # ===================================================================
+
 
 class NORM_X(LibraryFB, vendor="siemens", library="siemens_system"):
     """Normalize a value to the 0.0..1.0 range.
@@ -96,8 +96,7 @@ class SCALE_X(LibraryFB, vendor="siemens", library="siemens_system"):
             temperature_c: Output[REAL]
 
             def logic(self):
-                self.scale(MIN=-20.0, VALUE=self.normalized_input,
-                           MAX=120.0)
+                self.scale(MIN=-20.0, VALUE=self.normalized_input, MAX=120.0)
                 self.temperature_c = self.scale.OUT
     """
 
@@ -118,6 +117,7 @@ class SCALE_X(LibraryFB, vendor="siemens", library="siemens_system"):
 # ===================================================================
 # Serialization
 # ===================================================================
+
 
 class Serialize(LibraryFB, vendor="siemens", library="siemens_system"):
     """Serialize structured data to a byte array.

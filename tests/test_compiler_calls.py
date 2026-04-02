@@ -1,12 +1,10 @@
 """Tests for AST compiler — call resolution (sentinels, FB calls, builtins)."""
 
-from conftest import compile_stmts, compile_expr
-
+from conftest import compile_stmts
 from plx.framework._compiler import CompileContext
-from plx.framework._descriptors import Field, VarDirection
+from plx.framework._descriptors import VarDirection
 from plx.model.expressions import (
     BinaryExpr,
-    FunctionCallExpr,
     LiteralExpr,
     MemberAccessExpr,
     SystemFlag,
@@ -19,13 +17,12 @@ from plx.model.statements import (
     FunctionCallStatement,
     IfStatement,
 )
-from plx.model.types import NamedTypeRef, PrimitiveType, PrimitiveTypeRef
-from plx.model.variables import Variable
-
+from plx.model.types import NamedTypeRef
 
 # ---------------------------------------------------------------------------
 # Timer sentinels (delayed, sustained, pulse)
 # ---------------------------------------------------------------------------
+
 
 class TestDelayed:
     def test_basic(self):
@@ -69,10 +66,13 @@ class TestDelayed:
 
     def test_multiple_instances_unique_names(self):
         ctx = CompileContext()
-        compile_stmts("""\
+        compile_stmts(
+            """\
 self.a = delayed(self.x, timedelta(seconds=1))
 self.b = delayed(self.y, timedelta(seconds=2))
-""", ctx)
+""",
+            ctx,
+        )
         assert len(ctx.generated_static_vars) == 2
         names = [v.name for v in ctx.generated_static_vars]
         assert len(set(names)) == 2  # unique names
@@ -127,10 +127,13 @@ class TestRetentive:
 
     def test_in_if_condition(self):
         ctx = CompileContext()
-        stmts = compile_stmts("""\
+        stmts = compile_stmts(
+            """\
 if retentive(self.signal, timedelta(seconds=10)):
     self.done = True
-""", ctx)
+""",
+            ctx,
+        )
         assert len(stmts) == 2
         assert isinstance(stmts[0], FBInvocation)
         assert stmts[0].fb_type.name == "RTO"
@@ -143,6 +146,7 @@ if retentive(self.signal, timedelta(seconds=10)):
 # ---------------------------------------------------------------------------
 # Edge sentinels (rising, falling)
 # ---------------------------------------------------------------------------
+
 
 class TestRising:
     def test_basic(self):
@@ -162,10 +166,13 @@ class TestRising:
 
     def test_in_if_condition(self):
         ctx = CompileContext()
-        stmts = compile_stmts("""\
+        stmts = compile_stmts(
+            """\
 if rising(self.button):
     self.count += 1
-""", ctx)
+""",
+            ctx,
+        )
         # Should have: FBInvocation (R_TRIG), IfStatement
         assert len(stmts) == 2
         assert isinstance(stmts[0], FBInvocation)
@@ -187,6 +194,7 @@ class TestFalling:
 # ---------------------------------------------------------------------------
 # FB invocation (self.instance(...))
 # ---------------------------------------------------------------------------
+
 
 class TestFBInvocation:
     def test_as_statement(self):
@@ -229,6 +237,7 @@ class TestFBInvocation:
 # Function call as statement
 # ---------------------------------------------------------------------------
 
+
 class TestFunctionCallStatement:
     def test_basic(self):
         stmts = compile_stmts("MyFunc(1, 2)")
@@ -246,6 +255,7 @@ class TestFunctionCallStatement:
 # ---------------------------------------------------------------------------
 # Duration parsing
 # ---------------------------------------------------------------------------
+
 
 class TestDurationParsing:
     def test_variable_duration(self):
@@ -272,23 +282,30 @@ class TestDurationParsing:
 # Pending FB invocation flushing
 # ---------------------------------------------------------------------------
 
+
 class TestPendingFlush:
     def test_sentinel_in_if_condition(self):
         """Sentinel used in condition should flush before the if statement."""
         ctx = CompileContext()
-        stmts = compile_stmts("""\
+        stmts = compile_stmts(
+            """\
 if delayed(self.sensor, timedelta(seconds=3)):
     self.output = True
-""", ctx)
+""",
+            ctx,
+        )
         assert len(stmts) == 2
         assert isinstance(stmts[0], FBInvocation)
         assert isinstance(stmts[1], IfStatement)
 
     def test_multiple_sentinels_in_expression(self):
         ctx = CompileContext()
-        stmts = compile_stmts("""\
+        stmts = compile_stmts(
+            """\
 self.output = delayed(self.a, timedelta(seconds=1)) and delayed(self.b, timedelta(seconds=2))
-""", ctx)
+""",
+            ctx,
+        )
         # Two FBInvocations + one Assignment
         assert len(stmts) == 3
         assert isinstance(stmts[0], FBInvocation)
@@ -299,6 +316,7 @@ self.output = delayed(self.a, timedelta(seconds=1)) and delayed(self.b, timedelt
 # ---------------------------------------------------------------------------
 # Counter sentinels (count_up, count_down)
 # ---------------------------------------------------------------------------
+
 
 class TestCountUp:
     def test_basic(self):
@@ -336,6 +354,7 @@ class TestCountUp:
 
     def test_preset_required(self):
         import pytest
+
         ctx = CompileContext()
         with pytest.raises(Exception, match="preset="):
             compile_stmts("self.output = count_up(self.input)", ctx)
@@ -349,10 +368,13 @@ class TestCountUp:
 
     def test_multiple_instances_unique_names(self):
         ctx = CompileContext()
-        compile_stmts("""\
+        compile_stmts(
+            """\
 self.a = count_up(self.x, preset=10)
 self.b = count_up(self.y, preset=20)
-""", ctx)
+""",
+            ctx,
+        )
         assert len(ctx.generated_static_vars) == 2
         names = [v.name for v in ctx.generated_static_vars]
         assert len(set(names)) == 2
@@ -367,10 +389,13 @@ self.b = count_up(self.y, preset=20)
 
     def test_in_if_condition(self):
         ctx = CompileContext()
-        stmts = compile_stmts("""\
+        stmts = compile_stmts(
+            """\
 if count_up(self.sensor, preset=100):
     self.done = True
-""", ctx)
+""",
+            ctx,
+        )
         assert len(stmts) == 2
         assert isinstance(stmts[0], FBInvocation)
         assert isinstance(stmts[1], IfStatement)
@@ -380,6 +405,7 @@ if count_up(self.sensor, preset=100):
 
     def test_as_statement_error(self):
         import pytest
+
         ctx = CompileContext()
         with pytest.raises(Exception, match="must be used in an expression"):
             compile_stmts("count_up(self.input, preset=10)", ctx)
@@ -409,6 +435,7 @@ class TestCountDown:
 
     def test_preset_required(self):
         import pytest
+
         ctx = CompileContext()
         with pytest.raises(Exception, match="preset="):
             compile_stmts("self.output = count_down(self.input)", ctx)
@@ -425,6 +452,7 @@ class TestCountDown:
 # ---------------------------------------------------------------------------
 # CTUD sentinel (count_up_down)
 # ---------------------------------------------------------------------------
+
 
 class TestCountUpDown:
     def test_basic(self):
@@ -468,19 +496,23 @@ class TestCountUpDown:
 
     def test_with_reset_and_load(self):
         ctx = CompileContext()
-        stmts = compile_stmts("self.full = count_up_down(self.up, self.down, preset=10, reset=self.rst, load=self.ld)", ctx)
+        stmts = compile_stmts(
+            "self.full = count_up_down(self.up, self.down, preset=10, reset=self.rst, load=self.ld)", ctx
+        )
         assert isinstance(stmts[0], FBInvocation)
         assert "RESET" in stmts[0].inputs
         assert "LOAD" in stmts[0].inputs
 
     def test_preset_required(self):
         import pytest
+
         ctx = CompileContext()
         with pytest.raises(Exception, match="preset="):
             compile_stmts("self.full = count_up_down(self.up, self.down)", ctx)
 
     def test_requires_two_signals(self):
         import pytest
+
         ctx = CompileContext()
         with pytest.raises(Exception, match="two arguments"):
             compile_stmts("self.full = count_up_down(self.up, preset=10)", ctx)
@@ -502,10 +534,13 @@ class TestCountUpDown:
 
     def test_in_if_condition(self):
         ctx = CompileContext()
-        stmts = compile_stmts("""\
+        stmts = compile_stmts(
+            """\
 if count_up_down(self.up, self.down, preset=50):
     self.full = True
-""", ctx)
+""",
+            ctx,
+        )
         assert len(stmts) == 2
         assert isinstance(stmts[0], FBInvocation)
         assert isinstance(stmts[1], IfStatement)
@@ -524,13 +559,17 @@ if count_up_down(self.up, self.down, preset=50):
 # System flag sentinels (first_scan)
 # ---------------------------------------------------------------------------
 
+
 class TestFirstScan:
     def test_basic(self):
         ctx = CompileContext()
-        stmts = compile_stmts("""\
+        stmts = compile_stmts(
+            """\
 if first_scan():
     self.init = True
-""", ctx)
+""",
+            ctx,
+        )
         assert len(stmts) == 1
         assert isinstance(stmts[0], IfStatement)
         cond = stmts[0].if_branch.condition
@@ -549,6 +588,7 @@ if first_scan():
 
     def test_no_args_allowed(self):
         import pytest
+
         ctx = CompileContext()
         with pytest.raises(Exception, match="takes no arguments"):
             compile_stmts("self.flag = first_scan(self.x)", ctx)
@@ -564,10 +604,13 @@ if first_scan():
     def test_in_boolean_expression(self):
         ctx = CompileContext()
         ctx.declared_vars["enable"] = VarDirection.INPUT
-        stmts = compile_stmts("""\
+        stmts = compile_stmts(
+            """\
 if first_scan() and self.enable:
     self.init = True
-""", ctx)
+""",
+            ctx,
+        )
         assert len(stmts) == 1
         cond = stmts[0].if_branch.condition
         assert isinstance(cond, BinaryExpr)
@@ -578,6 +621,7 @@ if first_scan() and self.enable:
 # ---------------------------------------------------------------------------
 # Bistable sentinels (set_dominant, reset_dominant)
 # ---------------------------------------------------------------------------
+
 
 class TestSetDominant:
     def test_basic(self):
@@ -603,6 +647,7 @@ class TestSetDominant:
 
     def test_requires_two_args(self):
         import pytest
+
         ctx = CompileContext()
         with pytest.raises(Exception, match="two arguments"):
             compile_stmts("self.output = set_dominant(self.s)", ctx)
@@ -632,10 +677,13 @@ class TestResetDominant:
 
     def test_in_if_condition(self):
         ctx = CompileContext()
-        stmts = compile_stmts("""\
+        stmts = compile_stmts(
+            """\
 if reset_dominant(self.s, self.r):
     self.active = True
-""", ctx)
+""",
+            ctx,
+        )
         assert len(stmts) == 2
         assert isinstance(stmts[0], FBInvocation)
         assert isinstance(stmts[1], IfStatement)
@@ -647,6 +695,7 @@ if reset_dominant(self.s, self.r):
 # ---------------------------------------------------------------------------
 # Named sentinels (name= kwarg)
 # ---------------------------------------------------------------------------
+
 
 class TestNamedSentinels:
     def test_delayed_with_name(self):
@@ -680,25 +729,30 @@ class TestNamedSentinels:
 
     def test_name_must_be_string_literal(self):
         import pytest
+
         ctx = CompileContext()
         with pytest.raises(Exception, match="name= argument must be a string literal"):
             compile_stmts("self.output = delayed(self.input, timedelta(seconds=5), name=my_var)", ctx)
 
     def test_name_must_be_valid_identifier(self):
         import pytest
+
         ctx = CompileContext()
         with pytest.raises(Exception, match="not a valid identifier"):
             compile_stmts('self.output = delayed(self.input, timedelta(seconds=5), name="123bad")', ctx)
 
     def test_name_conflict_with_declared_var(self):
         import pytest
+
         from plx.framework._descriptors import VarDirection
+
         ctx = CompileContext(declared_vars={"cure_timer": VarDirection.STATIC})
         with pytest.raises(Exception, match="conflicts with a declared variable"):
             compile_stmts('self.output = delayed(self.input, timedelta(seconds=5), name="cure_timer")', ctx)
 
     def test_name_conflict_with_generated_var(self):
         import pytest
+
         ctx = CompileContext()
         # First sentinel uses the name
         compile_stmts('self.a = delayed(self.x, timedelta(seconds=1), name="my_timer")', ctx)
@@ -708,6 +762,7 @@ class TestNamedSentinels:
 
     def test_first_scan_rejects_name(self):
         import pytest
+
         ctx = CompileContext()
         with pytest.raises(Exception, match="takes no arguments"):
             compile_stmts('self.flag = first_scan(name="init")', ctx)
@@ -717,11 +772,14 @@ class TestNamedSentinels:
 # Timedelta error messages
 # ---------------------------------------------------------------------------
 
+
 class TestTimedeltaErrors:
     def test_variable_duration_error_mentions_duration_keyword(self):
         """Error for timedelta(seconds=self.x) should suggest duration= pattern."""
         import pytest
+
         from plx.framework._compiler_core import CompileError
+
         ctx = CompileContext()
         with pytest.raises(CompileError, match="duration="):
             compile_stmts("self.out = delayed(True, timedelta(seconds=self.timeout))", ctx)

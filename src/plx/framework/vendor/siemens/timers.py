@@ -17,10 +17,10 @@ from plx.framework._descriptors import Input, Output
 from plx.framework._library import LibraryFB
 from plx.framework._types import BOOL, TIME
 
-
 # ===================================================================
 # Retentive On-Delay Timer
 # ===================================================================
+
 
 class TONR(LibraryFB, vendor="siemens", library="siemens_standard"):
     """Retentive on-delay timer with explicit reset (TONR).
@@ -54,9 +54,7 @@ class TONR(LibraryFB, vendor="siemens", library="siemens_standard"):
             runtime_exceeded: Output[BOOL]
 
             def logic(self):
-                self.timer(IN=self.motor_running,
-                           R=self.reset_hours,
-                           PT=TIME('T#8H'))
+                self.timer(IN=self.motor_running, R=self.reset_hours, PT=TIME("T#8H"))
                 self.runtime_exceeded = self.timer.Q
     """
 

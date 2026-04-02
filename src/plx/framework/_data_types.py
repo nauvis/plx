@@ -17,11 +17,13 @@ Examples
         running: BOOL = False
         fault_code: INT = 0
 
+
     @enumeration
     class MachineState:
         STOPPED = 0
         RUNNING = 1
         FAULTED = 2
+
 
     @enumeration(base_type=DINT)
     class AlarmCode:
@@ -47,10 +49,10 @@ from ._errors import DefinitionError
 from ._registry import register_type
 from ._types import _resolve_type_ref
 
-
 # ---------------------------------------------------------------------------
 # @struct decorator
 # ---------------------------------------------------------------------------
+
 
 def struct(cls: type | None = None, *, folder: str = "") -> Any:
     """Decorate a class as a PLC struct type definition.
@@ -65,12 +67,12 @@ def struct(cls: type | None = None, *, folder: str = "") -> Any:
             running: BOOL = False
             fault_code: INT = 0
     """
+
     def _apply(cls: type) -> type:
         annotations = cls.__dict__.get("__annotations__", {})
         if not annotations:
             raise DefinitionError(
-                f"@struct class '{cls.__name__}' has no annotated members. "
-                f"Add type annotations like: speed: REAL = 0.0"
+                f"@struct class '{cls.__name__}' has no annotated members. Add type annotations like: speed: REAL = 0.0"
             )
 
         members: list[StructMember] = []
@@ -78,11 +80,13 @@ def struct(cls: type | None = None, *, folder: str = "") -> Any:
             data_type = _resolve_type_ref(type_hint)
             default = cls.__dict__.get(member_name)
             initial_value = _format_initial(default)
-            members.append(StructMember(
-                name=member_name,
-                data_type=data_type,
-                initial_value=initial_value,
-            ))
+            members.append(
+                StructMember(
+                    name=member_name,
+                    data_type=data_type,
+                    initial_value=initial_value,
+                )
+            )
 
         compiled = StructType(name=cls.__name__, members=members, folder=folder)
         cls._compiled_type = compiled
@@ -105,6 +109,7 @@ def struct(cls: type | None = None, *, folder: str = "") -> Any:
 # @enumeration decorator
 # ---------------------------------------------------------------------------
 
+
 def enumeration(
     cls: type | None = None,
     *,
@@ -125,11 +130,13 @@ def enumeration(
             RUNNING = 1
             FAULTED = 2
 
+
         @enumeration(base_type=DINT)
         class AlarmCode:
             NONE = 0
             OVERHEAT = 100
     """
+
     def _apply(cls: type) -> type:
         # Collect non-dunder int attributes as enum members
         enum_values: dict[str, int] = {}
@@ -140,16 +147,14 @@ def enumeration(
                 continue
             if not isinstance(value, int):
                 raise DefinitionError(
-                    f"Enum member '{cls.__name__}.{attr_name}' must be an int, "
-                    f"got {type(value).__name__}"
+                    f"Enum member '{cls.__name__}.{attr_name}' must be an int, got {type(value).__name__}"
                 )
             enum_values[attr_name] = value
             ir_members.append(EnumMember(name=attr_name, value=value))
 
         if not ir_members:
             raise DefinitionError(
-                f"@enumeration class '{cls.__name__}' has no members. "
-                f"Add integer attributes like: STOPPED = 0"
+                f"@enumeration class '{cls.__name__}' has no members. Add integer attributes like: STOPPED = 0"
             )
 
         compiled = EnumType(
@@ -180,6 +185,7 @@ def enumeration(
 # ---------------------------------------------------------------------------
 # Type introspection helpers
 # ---------------------------------------------------------------------------
+
 
 def _is_struct(obj: object) -> bool:
     """Check if *obj* is a @struct-decorated class."""
@@ -212,5 +218,3 @@ def _ensure_enum_compiled(cls: type) -> None:
     cls.__plx_enum__ = True
     register_type(cls)
     cls.compile = classmethod(lambda klass: klass._compiled_type)
-
-
