@@ -12,10 +12,10 @@ from plx.framework._descriptors import Input, Output
 from plx.framework._library import LibraryFB
 from plx.framework._types import BOOL, INT, TIME
 
-
 # ---------------------------------------------------------------------------
 # Timers
 # ---------------------------------------------------------------------------
+
 
 class TON(LibraryFB):
     """On-delay timer. Q becomes TRUE after IN held TRUE for >= PT ms."""
@@ -180,6 +180,7 @@ class RTO(LibraryFB):
 # Edge detectors
 # ---------------------------------------------------------------------------
 
+
 class R_TRIG(LibraryFB):
     """Rising edge detector. Q is TRUE for one scan on FALSE->TRUE."""
 
@@ -221,6 +222,7 @@ class F_TRIG(LibraryFB):
 # ---------------------------------------------------------------------------
 # Counters
 # ---------------------------------------------------------------------------
+
 
 class CTU(LibraryFB):
     """Up counter. Rising edge of CU increments CV. Q = CV >= PV."""
@@ -323,6 +325,7 @@ class CTUD(LibraryFB):
 # Bistables
 # ---------------------------------------------------------------------------
 
+
 class SR(LibraryFB):
     """Set-dominant bistable. Q1 = SET1 OR (NOT RESET AND Q1_prev)."""
 
@@ -351,9 +354,18 @@ class RS(LibraryFB):
 # Convenience set for backwards compatibility
 # ---------------------------------------------------------------------------
 
-IEC_STANDARD_FB_TYPES: frozenset[str] = frozenset({
-    "TON", "TOF", "TP", "RTO",
-    "R_TRIG", "F_TRIG",
-    "CTU", "CTD", "CTUD",
-    "SR", "RS",
-})
+IEC_STANDARD_FB_TYPES: frozenset[str] = frozenset(
+    {
+        "TON",
+        "TOF",
+        "TP",
+        "RTO",
+        "R_TRIG",
+        "F_TRIG",
+        "CTU",
+        "CTD",
+        "CTUD",
+        "SR",
+        "RS",
+    }
+)

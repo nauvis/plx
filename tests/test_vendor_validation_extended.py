@@ -2,27 +2,17 @@
 
 import pytest
 
-from plx.framework._compiler_core import CompileError
-from plx.framework._decorators import fb, interface, fb_method, program
-from plx.framework._descriptors import Input, Output, Static
+from plx.framework._decorators import fb, fb_method, interface, program
+from plx.framework._descriptors import Input
 from plx.framework._project import project
 from plx.framework._properties import fb_property
-from plx.framework._types import ARRAY, BOOL, DINT, INT, POINTER_TO, REAL, REFERENCE_TO
+from plx.framework._types import ARRAY, BOOL, DINT, POINTER_TO, REAL, REFERENCE_TO
 from plx.framework._vendor import (
     CompileResult,
     PortabilityWarning,
     Vendor,
     VendorValidationError,
     _type_contains,
-    validate_target,
-)
-from plx.model.pou import (
-    POU,
-    POUInterface,
-    POUType,
-    AccessSpecifier,
-    Method,
-    Property,
 )
 from plx.model.project import Project
 from plx.model.types import (
@@ -34,12 +24,11 @@ from plx.model.types import (
     PrimitiveTypeRef,
     ReferenceTypeRef,
 )
-from plx.model.variables import Variable
-
 
 # ---------------------------------------------------------------------------
 # _type_contains — recursive type checking
 # ---------------------------------------------------------------------------
+
 
 class TestTypeContains:
     def test_direct_pointer(self):
@@ -99,9 +88,11 @@ class TestTypeContains:
 # Nested POINTER_TO / REFERENCE_TO rejection
 # ---------------------------------------------------------------------------
 
+
 class TestNestedTypeRejection:
     def test_ab_rejects_pointer_in_array(self):
         """ARRAY OF POINTER_TO should be rejected on AB."""
+
         @fb
         class FBWithArrayPointer:
             arr: ARRAY(POINTER_TO(DINT), 10)
@@ -114,6 +105,7 @@ class TestNestedTypeRejection:
 
     def test_ab_rejects_reference_in_array(self):
         """ARRAY OF REFERENCE_TO should be rejected on AB."""
+
         @fb
         class FBWithArrayRef:
             arr: ARRAY(REFERENCE_TO(REAL), 10)
@@ -126,6 +118,7 @@ class TestNestedTypeRejection:
 
     def test_beckhoff_allows_pointer_in_array(self):
         """ARRAY OF POINTER_TO should pass on Beckhoff."""
+
         @fb
         class FBWithArrayPointerBk:
             arr: ARRAY(POINTER_TO(DINT), 10)
@@ -133,15 +126,14 @@ class TestNestedTypeRejection:
             def logic(self):
                 pass
 
-        result = project("P", pous=[FBWithArrayPointerBk]).compile(
-            target=Vendor.BECKHOFF
-        )
+        result = project("P", pous=[FBWithArrayPointerBk]).compile(target=Vendor.BECKHOFF)
         assert isinstance(result, CompileResult)
 
 
 # ---------------------------------------------------------------------------
 # Interface rejection on AB / Siemens
 # ---------------------------------------------------------------------------
+
 
 class TestInterfaceRejection:
     def test_ab_rejects_interface_pou(self):
@@ -194,6 +186,7 @@ class TestInterfaceRejection:
 # Property rejection on AB / Siemens
 # ---------------------------------------------------------------------------
 
+
 class TestPropertyRejection:
     def test_ab_rejects_properties(self):
         @fb
@@ -245,6 +238,7 @@ class TestPropertyRejection:
 # Multiple errors collected
 # ---------------------------------------------------------------------------
 
+
 class TestMultipleErrors:
     def test_methods_and_properties_both_reported(self):
         @fb
@@ -289,6 +283,7 @@ class TestMultipleErrors:
 # ---------------------------------------------------------------------------
 # Deep interface hierarchies
 # ---------------------------------------------------------------------------
+
 
 class TestDeepInterfaceHierarchy:
     def test_three_level_interface(self):
@@ -357,6 +352,7 @@ class TestDeepInterfaceHierarchy:
 # CompileResult behavior
 # ---------------------------------------------------------------------------
 
+
 class TestCompileResultBehavior:
     def test_delegates_data_types(self):
         from plx.framework._data_types import struct
@@ -402,6 +398,7 @@ class TestCompileResultBehavior:
 # ---------------------------------------------------------------------------
 # PortabilityWarning fields
 # ---------------------------------------------------------------------------
+
 
 class TestPortabilityWarningFields:
     def test_warning_has_all_fields(self):

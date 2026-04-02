@@ -13,7 +13,6 @@ from __future__ import annotations
 
 from ._values import SimulationError
 
-
 # Null pointer value — matches PLC convention (0 = null).
 NULL_PTR = 0
 
@@ -121,14 +120,11 @@ class PointerTable:
         if addr == NULL_PTR:
             raise SimulationError("Null pointer dereference (address 0)")
         if addr in self._freed:
-            raise SimulationError(
-                f"Use after free: address 0x{addr:08X} has been deleted"
-            )
+            raise SimulationError(f"Use after free: address 0x{addr:08X} has been deleted")
         binding = self._addr_to_binding.get(addr)
         if binding is None:
             raise SimulationError(
-                f"Invalid pointer address 0x{addr:08X} — "
-                f"pointer arithmetic is not supported in simulation"
+                f"Invalid pointer address 0x{addr:08X} — pointer arithmetic is not supported in simulation"
             )
         container, key = binding
         return container[key]
@@ -153,14 +149,11 @@ class PointerTable:
         if addr == NULL_PTR:
             raise SimulationError("Null pointer write (address 0)")
         if addr in self._freed:
-            raise SimulationError(
-                f"Write after free: address 0x{addr:08X} has been deleted"
-            )
+            raise SimulationError(f"Write after free: address 0x{addr:08X} has been deleted")
         binding = self._addr_to_binding.get(addr)
         if binding is None:
             raise SimulationError(
-                f"Invalid pointer address 0x{addr:08X} — "
-                f"pointer arithmetic is not supported in simulation"
+                f"Invalid pointer address 0x{addr:08X} — pointer arithmetic is not supported in simulation"
             )
         container, key = binding
         container[key] = value
@@ -205,13 +198,10 @@ class PointerTable:
         if addr == NULL_PTR:
             raise SimulationError("Cannot __DELETE null pointer (address 0)")
         if addr in self._freed:
-            raise SimulationError(
-                f"Double free: address 0x{addr:08X} already deleted"
-            )
+            raise SimulationError(f"Double free: address 0x{addr:08X} already deleted")
         if addr not in self._heap_addrs:
             raise SimulationError(
-                f"Cannot __DELETE address 0x{addr:08X} — "
-                f"not allocated by __NEW (only heap memory can be freed)"
+                f"Cannot __DELETE address 0x{addr:08X} — not allocated by __NEW (only heap memory can be freed)"
             )
         self._freed.add(addr)
         # Remove the binding so future reads/writes fail

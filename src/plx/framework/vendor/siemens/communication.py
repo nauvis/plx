@@ -29,10 +29,10 @@ from plx.framework._descriptors import InOut, Input, Output
 from plx.framework._library import LibraryFB
 from plx.framework._types import BOOL, DINT, UDINT, WORD
 
-
 # ===================================================================
 # Compact TCP (connection + data transfer in one FB)
 # ===================================================================
+
 
 class TSEND_C(LibraryFB, vendor="siemens", library="siemens_communication"):
     """Compact TCP send — establishes connection and sends data.
@@ -136,6 +136,7 @@ class TRCV_C(LibraryFB, vendor="siemens", library="siemens_communication"):
 # TCP Connection Management
 # ===================================================================
 
+
 class TCON(LibraryFB, vendor="siemens", library="siemens_communication"):
     """Establish a TCP connection.
 
@@ -213,6 +214,7 @@ class TDISCON(LibraryFB, vendor="siemens", library="siemens_communication"):
 # ===================================================================
 # TCP Data Transfer
 # ===================================================================
+
 
 class TSEND(LibraryFB, vendor="siemens", library="siemens_communication"):
     """Send data over an established TCP connection.
@@ -296,6 +298,7 @@ class TRCV(LibraryFB, vendor="siemens", library="siemens_communication"):
 # ===================================================================
 # S7 Communication (PUT/GET)
 # ===================================================================
+
 
 class PUT(LibraryFB, vendor="siemens", library="siemens_communication"):
     """Write data to a remote S7 CPU via S7 communication.

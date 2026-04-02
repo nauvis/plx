@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Any, Self
 
 from pydantic import Field, field_validator, model_validator
 
 from ._base import IRModel, validate_iec_identifier
-
 from .sfc import SFCBody
 from .statements import Statement
 from .types import TypeRef
@@ -19,13 +18,10 @@ def _check_body_exclusivity(networks: list, sfc_body: object | None, context: st
     """Shared validation: at most one body type (networks or sfc_body)."""
     bodies = sum([bool(networks), sfc_body is not None])
     if bodies > 1:
-        raise ValueError(
-            f"{context} must have at most one body type "
-            f"(networks or sfc_body)"
-        )
+        raise ValueError(f"{context} must have at most one body type (networks or sfc_body)")
 
 
-class POUType(str, Enum):
+class POUType(StrEnum):
     """IEC 61131-3 POU classification."""
 
     PROGRAM = "PROGRAM"
@@ -34,7 +30,7 @@ class POUType(str, Enum):
     INTERFACE = "INTERFACE"
 
 
-class AccessSpecifier(str, Enum):
+class AccessSpecifier(StrEnum):
     """OOP visibility for methods and properties."""
 
     PUBLIC = "PUBLIC"
@@ -43,8 +39,9 @@ class AccessSpecifier(str, Enum):
     INTERNAL = "INTERNAL"
 
 
-class Language(str, Enum):
+class Language(StrEnum):
     """IEC 61131-3 programming language for POU body."""
+
     ST = "ST"
     LD = "LD"
     FBD = "FBD"
@@ -117,10 +114,7 @@ class POUInterface(IRModel):
         ):
             for var in var_list:
                 if var.name in seen:
-                    raise ValueError(
-                        f"Duplicate variable name '{var.name}' "
-                        f"in {seen[var.name]} and {section_name}"
-                    )
+                    raise ValueError(f"Duplicate variable name '{var.name}' in {seen[var.name]} and {section_name}")
                 seen[var.name] = section_name
         return self
 
@@ -311,9 +305,7 @@ class POU(IRModel):
         seen: set[str] = set()
         for m in self.methods:
             if m.name in seen:
-                raise ValueError(
-                    f"Duplicate method name '{m.name}' in POU '{self.name}'"
-                )
+                raise ValueError(f"Duplicate method name '{m.name}' in POU '{self.name}'")
             seen.add(m.name)
         return self
 
@@ -322,9 +314,7 @@ class POU(IRModel):
         seen: set[str] = set()
         for p in self.properties:
             if p.name in seen:
-                raise ValueError(
-                    f"Duplicate property name '{p.name}' in POU '{self.name}'"
-                )
+                raise ValueError(f"Duplicate property name '{p.name}' in POU '{self.name}'")
             seen.add(p.name)
         return self
 
@@ -333,42 +323,27 @@ class POU(IRModel):
         seen: set[str] = set()
         for a in self.actions:
             if a.name in seen:
-                raise ValueError(
-                    f"Duplicate action name '{a.name}' in POU '{self.name}'"
-                )
+                raise ValueError(f"Duplicate action name '{a.name}' in POU '{self.name}'")
             seen.add(a.name)
         return self
 
     @model_validator(mode="after")
     def _validate_return_type(self) -> Self:
         if self.return_type is not None and self.pou_type != POUType.FUNCTION:
-            raise ValueError(
-                f"return_type is only valid for FUNCTION POUs, "
-                f"not {self.pou_type.value}"
-            )
+            raise ValueError(f"return_type is only valid for FUNCTION POUs, not {self.pou_type.value}")
         return self
 
     @model_validator(mode="after")
     def _validate_interface_pou(self) -> Self:
         if self.pou_type == POUType.INTERFACE:
             if self.networks:
-                raise ValueError(
-                    "INTERFACE POUs must not have networks"
-                )
+                raise ValueError("INTERFACE POUs must not have networks")
             if self.sfc_body is not None:
-                raise ValueError(
-                    "INTERFACE POUs must not have sfc_body"
-                )
+                raise ValueError("INTERFACE POUs must not have sfc_body")
             if self.interface.static_vars:
-                raise ValueError(
-                    "INTERFACE POUs must not have static_vars"
-                )
+                raise ValueError("INTERFACE POUs must not have static_vars")
             if self.interface.temp_vars:
-                raise ValueError(
-                    "INTERFACE POUs must not have temp_vars"
-                )
+                raise ValueError("INTERFACE POUs must not have temp_vars")
             if self.actions:
-                raise ValueError(
-                    "INTERFACE POUs must not have actions"
-                )
+                raise ValueError("INTERFACE POUs must not have actions")
         return self

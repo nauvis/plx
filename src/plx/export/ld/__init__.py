@@ -33,8 +33,8 @@ from ._model import (
     Parallel,
     Pin,
     Rung,
-    STBox,
     Series,
+    STBox,
 )
 from ._transform import ir_to_ld
 

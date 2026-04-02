@@ -95,15 +95,17 @@ def main(argv: list[str] | None = None) -> None:
     scan_period_ms = _parse_scan_rate(args.scan_rate) if args.scan_rate else 10
 
     try:
-        asyncio.run(_run(
-            project_path=args.project_path,
-            port=args.port,
-            enable_opcua=not args.no_opcua,
-            enable_watch=not args.no_watch,
-            plant_files=args.plant,
-            scan_period_ms=scan_period_ms,
-            quiet=args.quiet,
-        ))
+        asyncio.run(
+            _run(
+                project_path=args.project_path,
+                port=args.port,
+                enable_opcua=not args.no_opcua,
+                enable_watch=not args.no_watch,
+                plant_files=args.plant,
+                scan_period_ms=scan_period_ms,
+                quiet=args.quiet,
+            )
+        )
     except KeyboardInterrupt:
         pass
 
@@ -119,9 +121,9 @@ async def _run(
     quiet: bool,
 ) -> None:
     """Main async runtime loop."""
-    from ._loader import load_project, reload_project
-    from ._engine import RuntimeEngine
     from ._console import ConsoleDisplay
+    from ._engine import RuntimeEngine
+    from ._loader import load_project, reload_project
     from ._plant import PlantRunner, load_plant_models
 
     logger = logging.getLogger("plx.runtime")
@@ -142,6 +144,7 @@ async def _run(
     if enable_opcua:
         try:
             from ._opcua import OPCUAServer
+
             opcua_server = OPCUAServer(engine, port=port)
             opcua_info = opcua_server.endpoint
         except RuntimeError as exc:
@@ -180,6 +183,7 @@ async def _run(
     if enable_watch:
         try:
             from ._watcher import FileWatcher
+
             watcher = FileWatcher(source_path, project_path, on_reload)
         except RuntimeError as exc:
             logger.warning("%s", exc)

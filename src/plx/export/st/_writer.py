@@ -15,7 +15,7 @@ from plx.model.pou import (
     Property,
 )
 from plx.model.project import GlobalVariableList, Project
-from plx.model.sfc import Action, ActionQualifier, SFCBody, Step
+from plx.model.sfc import Action, SFCBody, Step
 from plx.model.types import (
     AliasType,
     ArrayTypeRef,
@@ -317,6 +317,7 @@ class STWriter(_ExpressionWriterMixin, _StatementWriterMixin):
             if isinstance(b, int):
                 return str(b)
             return self._expr(b)
+
         return f"{_bound(d.lower)}..{_bound(d.upper)}"
 
     # ======================================================================
@@ -382,7 +383,7 @@ class STWriter(_ExpressionWriterMixin, _StatementWriterMixin):
     # ======================================================================
 
     def _write_method(self, method: Method, interface_only: bool = False) -> None:
-        header = f"METHOD"
+        header = "METHOD"
         if method.access != AccessSpecifier.PUBLIC:
             header += f" {method.access.value}"
         if method.abstract:
@@ -409,7 +410,7 @@ class STWriter(_ExpressionWriterMixin, _StatementWriterMixin):
         self._line("END_METHOD")
 
     def _write_property(self, prop: Property, interface_only: bool = False) -> None:
-        header = f"PROPERTY"
+        header = "PROPERTY"
         if prop.access != AccessSpecifier.PUBLIC:
             header += f" {prop.access.value}"
         if prop.abstract:

@@ -9,9 +9,8 @@ from plx.model.pou import (
     Property,
 )
 from plx.model.project import GlobalVariableList
-from plx.model.types import PrimitiveType, PrimitiveTypeRef, StructType, StructMember
+from plx.model.types import PrimitiveType, PrimitiveTypeRef, StructMember, StructType
 from plx.model.variables import Variable
-
 
 BOOL_REF = PrimitiveTypeRef(type=PrimitiveType.BOOL)
 
@@ -19,6 +18,7 @@ BOOL_REF = PrimitiveTypeRef(type=PrimitiveType.BOOL)
 # ---------------------------------------------------------------------------
 # Variable.metadata
 # ---------------------------------------------------------------------------
+
 
 class TestVariableMetadata:
     def test_default_empty(self):
@@ -39,6 +39,7 @@ class TestVariableMetadata:
 # ---------------------------------------------------------------------------
 # POU.metadata
 # ---------------------------------------------------------------------------
+
 
 class TestPOUMetadata:
     def test_default_empty(self):
@@ -69,6 +70,7 @@ class TestPOUMetadata:
 # GlobalVariableList.metadata
 # ---------------------------------------------------------------------------
 
+
 class TestGVLMetadata:
     def test_default_empty(self):
         gvl = GlobalVariableList(name="GVL1")
@@ -88,6 +90,7 @@ class TestGVLMetadata:
 # ---------------------------------------------------------------------------
 # GlobalVariableList.scope
 # ---------------------------------------------------------------------------
+
 
 class TestGVLScope:
     def test_default_empty(self):
@@ -110,9 +113,12 @@ class TestGVLScope:
 
     def test_backward_compat_no_scope(self):
         """Constructing without scope still works (default empty string)."""
-        gvl = GlobalVariableList(name="X", variables=[
-            Variable(name="v", data_type=BOOL_REF),
-        ])
+        gvl = GlobalVariableList(
+            name="X",
+            variables=[
+                Variable(name="v", data_type=BOOL_REF),
+            ],
+        )
         assert gvl.scope == ""
         assert len(gvl.variables) == 1
 
@@ -120,6 +126,7 @@ class TestGVLScope:
 # ---------------------------------------------------------------------------
 # POU.abstract / POU.description / POU.safety
 # ---------------------------------------------------------------------------
+
 
 class TestPOUAbstract:
     def test_default_false(self):
@@ -204,6 +211,7 @@ class TestMethodAbstractFinal:
 # Property.abstract / Property.final
 # ---------------------------------------------------------------------------
 
+
 class TestPropertyAbstractFinal:
     def test_defaults(self):
         p = Property(name="Speed", data_type=REAL_REF)
@@ -228,6 +236,7 @@ class TestPropertyAbstractFinal:
 # ---------------------------------------------------------------------------
 # POUInterface.external_vars
 # ---------------------------------------------------------------------------
+
 
 class TestExternalVars:
     def test_default_empty(self):
@@ -254,23 +263,35 @@ class TestExternalVars:
 # StructType.extends
 # ---------------------------------------------------------------------------
 
+
 class TestStructExtends:
     def test_default_none(self):
-        st = StructType(name="Base", members=[
-            StructMember(name="x", data_type=BOOL_REF),
-        ])
+        st = StructType(
+            name="Base",
+            members=[
+                StructMember(name="x", data_type=BOOL_REF),
+            ],
+        )
         assert st.extends is None
 
     def test_set_extends(self):
-        st = StructType(name="Derived", extends="Base", members=[
-            StructMember(name="y", data_type=REAL_REF),
-        ])
+        st = StructType(
+            name="Derived",
+            extends="Base",
+            members=[
+                StructMember(name="y", data_type=REAL_REF),
+            ],
+        )
         assert st.extends == "Base"
 
     def test_json_roundtrip(self):
-        st = StructType(name="Derived", extends="Base", members=[
-            StructMember(name="y", data_type=REAL_REF),
-        ])
+        st = StructType(
+            name="Derived",
+            extends="Base",
+            members=[
+                StructMember(name="y", data_type=REAL_REF),
+            ],
+        )
         restored = StructType.model_validate_json(st.model_dump_json())
         assert restored.extends == "Base"
 
@@ -278,6 +299,7 @@ class TestStructExtends:
 # ---------------------------------------------------------------------------
 # GlobalVariableList.qualified_only
 # ---------------------------------------------------------------------------
+
 
 class TestGVLQualifiedOnly:
     def test_default_false(self):
@@ -297,6 +319,7 @@ class TestGVLQualifiedOnly:
 # ---------------------------------------------------------------------------
 # Language.SFC
 # ---------------------------------------------------------------------------
+
 
 class TestLanguageSFC:
     def test_sfc_value(self):

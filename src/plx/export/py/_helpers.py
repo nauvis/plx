@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING
 
-from plx.model.expressions import BinaryOp, Expression
+from plx.model.expressions import BinaryOp
 from plx.model.pou import POU, POUInterface, POUType
-from plx.model.project import GlobalVariableList, Project
+from plx.model.project import Project
 from plx.model.statements import CaseBranch
 from plx.model.types import (
     AliasType,
@@ -17,7 +16,6 @@ from plx.model.types import (
     PointerTypeRef,
     PrimitiveType,
     ReferenceTypeRef,
-    StringTypeRef,
     StructType,
     SubrangeType,
     TypeRef,
@@ -28,6 +26,7 @@ from plx.model.types import (
 def _standard_fb_types() -> frozenset[str]:
     """Lazy import to avoid circular dependency with plx.framework.__init__."""
     from plx.framework._constants import STANDARD_FB_TYPES
+
     return STANDARD_FB_TYPES
 
 
@@ -115,7 +114,7 @@ _BINOP_PYTHON: dict[BinaryOp, str] = {
     BinaryOp.LT: "<",
     BinaryOp.LE: "<=",
     BinaryOp.EXPT: "**",
-    BinaryOp.AND_THEN: "and",   # Python and/or are already short-circuit
+    BinaryOp.AND_THEN: "and",  # Python and/or are already short-circuit
     BinaryOp.OR_ELSE: "or",
 }
 
@@ -181,6 +180,7 @@ _POU_DECORATOR = {
 # ---------------------------------------------------------------------------
 # String quoting
 # ---------------------------------------------------------------------------
+
 
 def _quote_string(s: str) -> str:
     """Quote a string for use in generated Python code.
@@ -282,8 +282,8 @@ def _fix_embedded_iec(name: str) -> str:
     result = _IEC_OP_RE.sub(_replace_op, name)
 
     # Convert THIS^/This^/this^ → self (case-insensitive) within embedded args
-    result = re.sub(r'\bTHIS\^\.', 'self.', result, flags=re.IGNORECASE)
-    result = re.sub(r'\bTHIS\^', 'self', result, flags=re.IGNORECASE)
+    result = re.sub(r"\bTHIS\^\.", "self.", result, flags=re.IGNORECASE)
+    result = re.sub(r"\bTHIS\^", "self", result, flags=re.IGNORECASE)
 
     # Convert remaining ptr^.member → ptr.deref.member
     result = result.replace("^.", ".deref.")
@@ -294,7 +294,7 @@ def _fix_embedded_iec(name: str) -> str:
 
     # Convert IEC = (comparison) to == where it appears as comparison
     # (not := assignment, not == already, not at start of expression)
-    result = re.sub(r'(?<![:<>=!])=(?!=)', '==', result)
+    result = re.sub(r"(?<![:<>=!])=(?!=)", "==", result)
 
     # Convert IEC string escapes within embedded single-quoted strings
     def _fix_iec_string(m: re.Match) -> str:
@@ -374,6 +374,7 @@ def _parse_iec_time(value: str) -> str | None:
 # Initial value formatting
 # ---------------------------------------------------------------------------
 
+
 def _format_initial_value(value: str) -> str | None:
     """Convert an IEC initial value string to a Python literal.
 
@@ -393,9 +394,18 @@ def _format_initial_value(value: str) -> str | None:
 
     # Date/time typed literals: DATE#2024-01-15 -> "DATE#2024-01-15" (string)
     _DATE_TIME_PREFIXES = {
-        "DATE", "LDATE", "TOD", "LTOD", "DT", "LDT",
-        "TIME_OF_DAY", "LTIME_OF_DAY", "DATE_AND_TIME", "LDATE_AND_TIME",
-        "D", "LD",  # short forms
+        "DATE",
+        "LDATE",
+        "TOD",
+        "LTOD",
+        "DT",
+        "LDT",
+        "TIME_OF_DAY",
+        "LTIME_OF_DAY",
+        "DATE_AND_TIME",
+        "LDATE_AND_TIME",
+        "D",
+        "LD",  # short forms
     }
     if "#" in value:
         prefix = value.split("#", 1)[0].upper()
@@ -405,10 +415,21 @@ def _format_initial_value(value: str) -> str | None:
     # Typed numeric literal: BYTE#255 -> 255, REAL#3.14 -> 3.14
     # The prefix is an IEC type name; the suffix is a numeric value.
     _NUMERIC_TYPE_PREFIXES = {
-        "BYTE", "WORD", "DWORD", "LWORD",
-        "SINT", "INT", "DINT", "LINT",
-        "USINT", "UINT", "UDINT", "ULINT",
-        "REAL", "LREAL", "BOOL",
+        "BYTE",
+        "WORD",
+        "DWORD",
+        "LWORD",
+        "SINT",
+        "INT",
+        "DINT",
+        "LINT",
+        "USINT",
+        "UINT",
+        "UDINT",
+        "ULINT",
+        "REAL",
+        "LREAL",
+        "BOOL",
     }
     if "#" in value and not value.startswith("16#") and not value.startswith("8#"):
         prefix, _, suffix = value.partition("#")
@@ -453,7 +474,7 @@ def _format_initial_value(value: str) -> str | None:
         pass
 
     # String literal -- convert IEC escapes to Python
-    if value.startswith("'") or value.startswith('"'):
+    if value.startswith(("'", '"')):
         return _iec_string_to_python(value)
 
     # IEC FB/struct initialization: (Param := Value, ...) -> dict(Param=Value, ...)
@@ -547,6 +568,7 @@ def _split_init_params(text: str) -> list[str]:
 # Self-var / inheritance helpers
 # ---------------------------------------------------------------------------
 
+
 def _build_self_vars(iface: POUInterface) -> set[str]:
     """Build the set of variable names that need self. prefix.
 
@@ -569,7 +591,8 @@ def _build_self_vars(iface: POUInterface) -> set[str]:
 
 
 def _build_inherited_self_context(
-    parent_name: str, all_pous: list[POU],
+    parent_name: str,
+    all_pous: list[POU],
 ) -> tuple[set[str], set[str], bool]:
     """Walk the inheritance chain and collect parent vars + method names.
 
@@ -594,23 +617,69 @@ def _build_inherited_self_context(
 # Well-known IEC 61131-3 / Beckhoff built-in functions that should never get
 # a self. prefix. This is intentionally non-exhaustive -- when the parent is
 # fully resolved, the heuristic is not needed.
-_KNOWN_GLOBAL_FUNCTIONS: frozenset[str] = frozenset({
-    # IEC standard functions
-    "ABS", "SQRT", "LN", "LOG", "EXP", "SIN", "COS", "TAN",
-    "ASIN", "ACOS", "ATAN", "ATAN2",
-    "CEIL", "FLOOR", "TRUNC", "ROUND",
-    "MIN", "MAX", "LIMIT", "SEL", "MUX",
-    "SHL", "SHR", "ROL", "ROR",
-    "LEN", "LEFT", "RIGHT", "MID", "FIND", "REPLACE", "INSERT", "DELETE",
-    "CONCAT", "SIZEOF", "ADR", "ADRINST",
-    "MEMSET", "MEMCPY", "MEMMOVE",
-    "AND", "OR", "XOR", "NOT",
-    # Python builtins used in plx
-    "abs", "min", "max", "len", "round", "range", "print",
-    # Common Beckhoff system functions
-    "F_GetActualDcTime64", "F_CreateAllEventsInClass", "F_GetMaxSeverityRaised",
-    "F_RaiseAlarmWithStringParameters", "F_UnitModeToString",
-})
+_KNOWN_GLOBAL_FUNCTIONS: frozenset[str] = frozenset(
+    {
+        # IEC standard functions
+        "ABS",
+        "SQRT",
+        "LN",
+        "LOG",
+        "EXP",
+        "SIN",
+        "COS",
+        "TAN",
+        "ASIN",
+        "ACOS",
+        "ATAN",
+        "ATAN2",
+        "CEIL",
+        "FLOOR",
+        "TRUNC",
+        "ROUND",
+        "MIN",
+        "MAX",
+        "LIMIT",
+        "SEL",
+        "MUX",
+        "SHL",
+        "SHR",
+        "ROL",
+        "ROR",
+        "LEN",
+        "LEFT",
+        "RIGHT",
+        "MID",
+        "FIND",
+        "REPLACE",
+        "INSERT",
+        "DELETE",
+        "CONCAT",
+        "SIZEOF",
+        "ADR",
+        "ADRINST",
+        "MEMSET",
+        "MEMCPY",
+        "MEMMOVE",
+        "AND",
+        "OR",
+        "XOR",
+        "NOT",
+        # Python builtins used in plx
+        "abs",
+        "min",
+        "max",
+        "len",
+        "round",
+        "range",
+        "print",
+        # Common Beckhoff system functions
+        "F_GetActualDcTime64",
+        "F_CreateAllEventsInClass",
+        "F_GetMaxSeverityRaised",
+        "F_RaiseAlarmWithStringParameters",
+        "F_UnitModeToString",
+    }
+)
 
 
 def _build_non_self_names(pou: POU, project: Project | None) -> set[str]:
@@ -652,6 +721,7 @@ def _build_non_self_names(pou: POU, project: Project | None) -> set[str]:
 # ---------------------------------------------------------------------------
 # Topological sort / SFC / CASE helpers
 # ---------------------------------------------------------------------------
+
 
 def _topo_sort_fbs(fbs: list[POU]) -> list[POU]:
     """Sort function blocks so bases come before derived classes."""
@@ -728,13 +798,45 @@ def _case_branch_condition(sel: str, branch: CaseBranch) -> str:
 # Identifier / folder sanitization
 # ---------------------------------------------------------------------------
 
-_PYTHON_KEYWORDS = frozenset({
-    "False", "None", "True", "and", "as", "assert", "async", "await",
-    "break", "class", "continue", "def", "del", "elif", "else", "except",
-    "finally", "for", "from", "global", "if", "import", "in", "is",
-    "lambda", "nonlocal", "not", "or", "pass", "raise", "return",
-    "try", "while", "with", "yield",
-})
+_PYTHON_KEYWORDS = frozenset(
+    {
+        "False",
+        "None",
+        "True",
+        "and",
+        "as",
+        "assert",
+        "async",
+        "await",
+        "break",
+        "class",
+        "continue",
+        "def",
+        "del",
+        "elif",
+        "else",
+        "except",
+        "finally",
+        "for",
+        "from",
+        "global",
+        "if",
+        "import",
+        "in",
+        "is",
+        "lambda",
+        "nonlocal",
+        "not",
+        "or",
+        "pass",
+        "raise",
+        "return",
+        "try",
+        "while",
+        "with",
+        "yield",
+    }
+)
 
 
 def _sanitize_identifier(name: str) -> str:
@@ -755,7 +857,7 @@ def _safe_name(name: str) -> str:
     Appends ``_`` when the name (case-insensitively lowered, since the framework
     uses lowercase PLC types) collides with a Python keyword or builtin constant.
     """
-    if name in _PYTHON_KEYWORDS or name in ("None",):
+    if name in _PYTHON_KEYWORDS or name == "None":
         return name + "_"
     return name
 
@@ -775,6 +877,7 @@ def _sanitize_folder(folder: str) -> str:
 # ---------------------------------------------------------------------------
 # Dependency collection
 # ---------------------------------------------------------------------------
+
 
 def _collect_named_refs(tr: TypeRef) -> set[str]:
     """Collect all NamedTypeRef names from a TypeRef tree."""
@@ -846,9 +949,12 @@ def _collect_library_imports(pou: POU, project: Project) -> list[str]:
 
     def _collect_from_interface(iface: POUInterface) -> None:
         for var_list in (
-            iface.input_vars, iface.output_vars,
-            iface.inout_vars, iface.static_vars,
-            iface.temp_vars, iface.constant_vars,
+            iface.input_vars,
+            iface.output_vars,
+            iface.inout_vars,
+            iface.static_vars,
+            iface.temp_vars,
+            iface.constant_vars,
             iface.external_vars,
         ):
             for v in var_list:
@@ -917,9 +1023,7 @@ def _collect_library_imports(pou: POU, project: Project) -> list[str]:
     lines: list[str] = []
     for vendor in sorted(groups):
         type_names = sorted(groups[vendor])
-        lines.append(
-            f"from plx.framework.vendor.{vendor} import {', '.join(type_names)}"
-        )
+        lines.append(f"from plx.framework.vendor.{vendor} import {', '.join(type_names)}")
     return lines
 
 
@@ -930,6 +1034,7 @@ def _collect_pou_deps(pou: POU, project: Project) -> dict[str, list[str]]:
     Only includes names that correspond to project-level definitions
     (data types, GVLs, other POUs).
     """
+
     # Build lookup of what's defined where
     def _mod(folder: str, name: str) -> str:
         folder = _sanitize_folder(folder)
@@ -950,11 +1055,14 @@ def _collect_pou_deps(pou: POU, project: Project) -> dict[str, list[str]]:
     # Collect all NamedTypeRef references from this POU's interface
     referenced: set[str] = set()
 
-    def _collect_from_interface(iface: "POUInterface") -> None:
+    def _collect_from_interface(iface: POUInterface) -> None:
         for var_list in (
-            iface.input_vars, iface.output_vars,
-            iface.inout_vars, iface.static_vars,
-            iface.temp_vars, iface.constant_vars,
+            iface.input_vars,
+            iface.output_vars,
+            iface.inout_vars,
+            iface.static_vars,
+            iface.temp_vars,
+            iface.constant_vars,
             iface.external_vars,
         ):
             for v in var_list:

@@ -9,43 +9,41 @@ Properties tested:
 from __future__ import annotations
 
 import pytest
-from hypothesis import given, settings, HealthCheck
+from hypothesis import HealthCheck, given, settings
 
 pytestmark = pytest.mark.fuzz
 
-from plx.model import (
-    Project,
-    POU,
-    POUType,
-    POUInterface,
-    Network,
-    Variable,
-    GlobalVariableList,
-    PeriodicTask,
-)
-
 from tests.fuzz.strategies import (
+    all_primitive_type_refs,
+    enum_types,
     expressions,
-    statements,
-    variables,
-    variable_lists,
+    global_variable_lists,
     pou_interfaces,
     pous,
     projects,
-    type_refs,
-    type_definitions,
-    global_variable_lists,
-    literal_exprs,
-    all_primitive_type_refs,
-    struct_types,
-    enum_types,
     statement_lists,
+    statements,
+    struct_types,
+    type_definitions,
+    type_refs,
+    variable_lists,
+    variables,
 )
 
+from plx.model import (
+    POU,
+    GlobalVariableList,
+    Network,
+    POUInterface,
+    POUType,
+    Project,
+    Variable,
+)
 
 # ---------------------------------------------------------------------------
 # Expression roundtrip
 # ---------------------------------------------------------------------------
+
 
 class TestExpressionRoundtrip:
     """Expression trees survive JSON serialization."""
@@ -56,6 +54,7 @@ class TestExpressionRoundtrip:
         """Serialize to JSON and back — result must equal original."""
         # Wrap in a statement to use the discriminated union
         from plx.model import Assignment, VariableRef
+
         stmt = Assignment(target=VariableRef(name="x"), value=expr)
         json_str = stmt.model_dump_json()
         restored = Assignment.model_validate_json(json_str)
@@ -66,6 +65,7 @@ class TestExpressionRoundtrip:
     def test_dict_roundtrip(self, expr):
         """Serialize to dict and back — result must equal original."""
         from plx.model import Assignment, VariableRef
+
         stmt = Assignment(target=VariableRef(name="x"), value=expr)
         data = stmt.model_dump()
         restored = Assignment.model_validate(data)
@@ -82,8 +82,8 @@ class TestExpressionRoundtrip:
 # TypeRef roundtrip
 # ---------------------------------------------------------------------------
 
-class TestTypeRefRoundtrip:
 
+class TestTypeRefRoundtrip:
     @given(tr=type_refs(max_depth=3))
     @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_json_roundtrip(self, tr):
@@ -104,12 +104,11 @@ class TestTypeRefRoundtrip:
 # TypeDefinition roundtrip
 # ---------------------------------------------------------------------------
 
-class TestTypeDefinitionRoundtrip:
 
+class TestTypeDefinitionRoundtrip:
     @given(td=type_definitions())
     @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_json_roundtrip(self, td):
-        data = td.model_dump()
         # Use Project as wrapper for discriminated union deserialization
         proj = Project(name="test", data_types=[td])
         json_str = proj.model_dump_json()
@@ -135,8 +134,8 @@ class TestTypeDefinitionRoundtrip:
 # Statement roundtrip
 # ---------------------------------------------------------------------------
 
-class TestStatementRoundtrip:
 
+class TestStatementRoundtrip:
     @given(stmt=statements(max_depth=3))
     @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_json_roundtrip(self, stmt):
@@ -169,8 +168,8 @@ class TestStatementRoundtrip:
 # Variable roundtrip
 # ---------------------------------------------------------------------------
 
-class TestVariableRoundtrip:
 
+class TestVariableRoundtrip:
     @given(var=variables())
     def test_json_roundtrip(self, var):
         json_str = var.model_dump_json()
@@ -189,8 +188,8 @@ class TestVariableRoundtrip:
 # POUInterface roundtrip
 # ---------------------------------------------------------------------------
 
-class TestPOUInterfaceRoundtrip:
 
+class TestPOUInterfaceRoundtrip:
     @given(iface=pou_interfaces())
     @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_json_roundtrip(self, iface):
@@ -217,8 +216,8 @@ class TestPOUInterfaceRoundtrip:
 # POU roundtrip
 # ---------------------------------------------------------------------------
 
-class TestPOURoundtrip:
 
+class TestPOURoundtrip:
     @given(pou=pous(max_networks=3, max_depth=2))
     @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_json_roundtrip(self, pou):
@@ -238,8 +237,8 @@ class TestPOURoundtrip:
 # Project roundtrip
 # ---------------------------------------------------------------------------
 
-class TestProjectRoundtrip:
 
+class TestProjectRoundtrip:
     @given(proj=projects(max_pous=3, max_depth=2))
     @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_json_roundtrip(self, proj):
@@ -274,8 +273,8 @@ class TestProjectRoundtrip:
 # GVL roundtrip
 # ---------------------------------------------------------------------------
 
-class TestGVLRoundtrip:
 
+class TestGVLRoundtrip:
     @given(gvl=global_variable_lists())
     @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_json_roundtrip(self, gvl):

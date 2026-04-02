@@ -1,7 +1,7 @@
 """Roller conveyor FB."""
 
 from plx.framework._decorators import fb
-from plx.framework._descriptors import Input, Field, Output
+from plx.framework._descriptors import Input, Output
 from plx.framework._types import BOOL
 
 

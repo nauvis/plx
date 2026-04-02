@@ -2,7 +2,7 @@
 
 from plx.framework._data_types import struct
 from plx.framework._decorators import fb
-from plx.framework._descriptors import Input, Field, Output
+from plx.framework._descriptors import Input, Output
 from plx.framework._types import BOOL, REAL
 
 

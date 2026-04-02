@@ -22,10 +22,10 @@ from plx.framework._descriptors import InOut, Input, Output
 from plx.framework._library import LibraryFB
 from plx.framework._types import BOOL, DINT, UDINT, WORD
 
-
 # ===================================================================
 # Data Logging
 # ===================================================================
+
 
 class DataLogCreate(LibraryFB, vendor="siemens", library="siemens_data_logging"):
     """Create a new data log on the CPU memory card.
@@ -52,9 +52,7 @@ class DataLogCreate(LibraryFB, vendor="siemens", library="siemens_data_logging")
             log_ready: Output[BOOL]
 
             def logic(self):
-                self.create_log(REQ=self.init_req,
-                                RECORDS=10000,
-                                NAME='ProductionLog')
+                self.create_log(REQ=self.init_req, RECORDS=10000, NAME="ProductionLog")
                 self.log_ready = self.create_log.DONE
                 self.log_id = self.create_log.ID
     """
@@ -96,8 +94,7 @@ class DataLogOpen(LibraryFB, vendor="siemens", library="siemens_data_logging"):
             opened: Output[BOOL]
 
             def logic(self):
-                self.open_log(REQ=self.open_req,
-                              NAME='ProductionLog', ID=0)
+                self.open_log(REQ=self.open_req, NAME="ProductionLog", ID=0)
                 self.opened = self.open_log.DONE
     """
 
@@ -200,8 +197,7 @@ class DataLogDelete(LibraryFB, vendor="siemens", library="siemens_data_logging")
             deleted: Output[BOOL]
 
             def logic(self):
-                self.delete_log(REQ=self.delete_req,
-                                NAME='OldLog')
+                self.delete_log(REQ=self.delete_req, NAME="OldLog")
                 self.deleted = self.delete_log.DONE
     """
 

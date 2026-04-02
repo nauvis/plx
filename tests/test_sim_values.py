@@ -1,8 +1,10 @@
 """Tests for simulator value system."""
 
+from datetime import UTC
+
 import pytest
 
-from plx.model.types import PrimitiveType, PrimitiveTypeRef, StringTypeRef, NamedTypeRef
+from plx.model.types import NamedTypeRef, PrimitiveType, PrimitiveTypeRef, StringTypeRef
 from plx.simulate._values import (
     SimulationError,
     coerce_type,
@@ -10,10 +12,10 @@ from plx.simulate._values import (
     type_default,
 )
 
-
 # ---------------------------------------------------------------------------
 # parse_literal
 # ---------------------------------------------------------------------------
+
 
 class TestParseLiteral:
     def test_true(self):
@@ -73,6 +75,7 @@ class TestParseLiteral:
 
     def test_enum_literal(self):
         from enum import IntEnum
+
         MachineState = IntEnum("MachineState", {"RUNNING": 1, "STOPPED": 0})
         registry = {"MachineState": MachineState}
         result = parse_literal("MachineState#RUNNING", enum_registry=registry)
@@ -96,20 +99,23 @@ class TestParseLiteral:
 
     def test_date_literal(self):
         result = parse_literal("DATE#2024-01-15")
-        from datetime import datetime, timezone
-        expected = int(datetime(2024, 1, 15, tzinfo=timezone.utc).timestamp() * 1000)
+        from datetime import datetime
+
+        expected = int(datetime(2024, 1, 15, tzinfo=UTC).timestamp() * 1000)
         assert result == expected
 
     def test_date_d_prefix(self):
         result = parse_literal("D#2024-06-01")
-        from datetime import datetime, timezone
-        expected = int(datetime(2024, 6, 1, tzinfo=timezone.utc).timestamp() * 1000)
+        from datetime import datetime
+
+        expected = int(datetime(2024, 6, 1, tzinfo=UTC).timestamp() * 1000)
         assert result == expected
 
     def test_ldate_literal(self):
         result = parse_literal("LDATE#2024-01-15")
-        from datetime import datetime, timezone
-        expected = int(datetime(2024, 1, 15, tzinfo=timezone.utc).timestamp() * 1000)
+        from datetime import datetime
+
+        expected = int(datetime(2024, 1, 15, tzinfo=UTC).timestamp() * 1000)
         assert result == expected
 
     def test_tod_literal(self):
@@ -130,32 +136,37 @@ class TestParseLiteral:
 
     def test_dt_literal(self):
         result = parse_literal("DT#2024-01-15-14:30:00")
-        from datetime import datetime, timezone
-        expected = int(datetime(2024, 1, 15, 14, 30, 0, tzinfo=timezone.utc).timestamp() * 1000)
+        from datetime import datetime
+
+        expected = int(datetime(2024, 1, 15, 14, 30, 0, tzinfo=UTC).timestamp() * 1000)
         assert result == expected
 
     def test_ldt_literal(self):
         result = parse_literal("LDT#2024-01-15-14:30:00")
-        from datetime import datetime, timezone
-        expected = int(datetime(2024, 1, 15, 14, 30, 0, tzinfo=timezone.utc).timestamp() * 1000)
+        from datetime import datetime
+
+        expected = int(datetime(2024, 1, 15, 14, 30, 0, tzinfo=UTC).timestamp() * 1000)
         assert result == expected
 
     def test_date_and_time_prefix(self):
         result = parse_literal("DATE_AND_TIME#2024-06-01-00:00:00")
-        from datetime import datetime, timezone
-        expected = int(datetime(2024, 6, 1, 0, 0, 0, tzinfo=timezone.utc).timestamp() * 1000)
+        from datetime import datetime
+
+        expected = int(datetime(2024, 6, 1, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
         assert result == expected
 
     def test_dt_with_fraction(self):
         result = parse_literal("DT#2024-01-15-14:30:00.250")
-        from datetime import datetime, timezone
-        expected = int(datetime(2024, 1, 15, 14, 30, 0, tzinfo=timezone.utc).timestamp() * 1000) + 250
+        from datetime import datetime
+
+        expected = int(datetime(2024, 1, 15, 14, 30, 0, tzinfo=UTC).timestamp() * 1000) + 250
         assert result == expected
 
 
 # ---------------------------------------------------------------------------
 # type_default
 # ---------------------------------------------------------------------------
+
 
 class TestTypeDefault:
     def test_bool(self):
@@ -200,6 +211,7 @@ class TestTypeDefault:
 # ---------------------------------------------------------------------------
 # coerce_type
 # ---------------------------------------------------------------------------
+
 
 class TestCoerceType:
     def test_int_to_float(self):

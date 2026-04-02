@@ -3,14 +3,12 @@
 import pytest
 
 from plx.framework._discover import DiscoveryResult, _infer_folder, discover
-from plx.framework._task import PlxTask
 from plx.framework._project import project
-from plx.framework._protocols import CompiledDataType, CompiledGlobalVarList, CompiledPOU
-
 
 # ---------------------------------------------------------------------------
 # _infer_folder
 # ---------------------------------------------------------------------------
+
 
 class TestInferFolder:
     """Tests for _infer_folder() with various module structures."""
@@ -77,6 +75,7 @@ class TestInferFolder:
 # ---------------------------------------------------------------------------
 # discover() — integration with test fixture package
 # ---------------------------------------------------------------------------
+
 
 class TestDiscover:
     """Tests for discover() using the sample_project fixture."""
@@ -184,7 +183,8 @@ class TestDiscover:
 
         try:
             import warnings
-            with warnings.catch_warnings(record=True) as w:
+
+            with warnings.catch_warnings(record=True) as _w:
                 warnings.simplefilter("always")
                 result = discover("_plx_test_bad_pkg")
             # Should still return a result (not crash)
@@ -196,6 +196,7 @@ class TestDiscover:
 # ---------------------------------------------------------------------------
 # Explicit folder= overrides inference
 # ---------------------------------------------------------------------------
+
 
 class TestFolderOverride:
     """Explicit folder= on decorators should not be overridden by discovery."""
@@ -219,6 +220,7 @@ class TestFolderOverride:
 # ---------------------------------------------------------------------------
 # project(packages=...)
 # ---------------------------------------------------------------------------
+
 
 class TestProjectPackages:
     """Tests for project(packages=...) integration."""

@@ -15,15 +15,16 @@ from plx.model.statements import Statement
 from ._source_map import _build_source_map, _collect_variable_names
 from ._writer import STWriter
 
-
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 @overload
 def to_structured_text(target: Union[Project, POU], *, source_map: bool = False) -> str: ...
 @overload
 def to_structured_text(target: Union[Project, POU], *, source_map: bool = True) -> tuple[str, list[dict]]: ...
+
 
 def to_structured_text(target: Union[Project, POU], *, source_map: bool = False) -> str | tuple[str, list[dict]]:
     """Emit IEC 61131-3 Structured Text for a Project or single POU.
@@ -51,9 +52,7 @@ def to_structured_text(target: Union[Project, POU], *, source_map: bool = False)
     elif isinstance(target, POU):
         w.write_pou(target)
     else:
-        raise TypeError(
-            f"to_structured_text() expects Project or POU, got {type(target).__name__}"
-        )
+        raise TypeError(f"to_structured_text() expects Project or POU, got {type(target).__name__}")
     st_text = w.getvalue()
 
     if not source_map:

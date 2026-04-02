@@ -1,8 +1,8 @@
 """Tests for @sfc decorator — SFC framework compilation."""
 
-import pytest
-
 from datetime import timedelta
+
+import pytest
 
 from plx.framework import (
     BOOL,
@@ -11,22 +11,21 @@ from plx.framework import (
     REAL,
     CompileError,
     Input,
-    fb_method,
     Output,
+    fb_method,
     project,
     sfc,
     step,
     transition,
-    Field,
 )
 from plx.framework._protocols import CompiledPOU
 from plx.model.pou import POU, POUType
 from plx.model.sfc import ActionQualifier
 
-
 # ---------------------------------------------------------------------------
 # Basic step/transition declarations
 # ---------------------------------------------------------------------------
+
 
 class TestBasicSFC:
     def test_basic_sfc_compiles(self):
@@ -76,7 +75,8 @@ class TestBasicSFC:
         assert pou.pou_type == POUType.FUNCTION_BLOCK
 
     def test_function_pou_type_rejected(self):
-        with pytest.raises(CompileError, match="FUNCTION.*SFC requires state"):
+        with pytest.raises(CompileError, match=r"FUNCTION.*SFC requires state"):
+
             @sfc(pou_type="FUNCTION")
             class BadSfc:
                 S0 = step(initial=True)
@@ -149,6 +149,7 @@ class TestBasicSFC:
 # ---------------------------------------------------------------------------
 # Action compilation
 # ---------------------------------------------------------------------------
+
 
 class TestActions:
     def test_n_qualified_action(self):
@@ -253,9 +254,11 @@ class TestActions:
 # Divergence / Convergence
 # ---------------------------------------------------------------------------
 
+
 class TestDivergenceConvergence:
     def test_and_fork(self):
         """A >> (B & C) → simultaneous divergence."""
+
         @sfc
         class Fork:
             cmd: Input[BOOL]
@@ -278,6 +281,7 @@ class TestDivergenceConvergence:
 
     def test_and_join(self):
         """A & B >> C → simultaneous convergence."""
+
         @sfc
         class Join:
             cmd: Input[BOOL]
@@ -304,6 +308,7 @@ class TestDivergenceConvergence:
 
     def test_selection_divergence(self):
         """Multiple transitions from same source → declaration order preserved."""
+
         @sfc
         class Sel:
             go: Input[BOOL]
@@ -340,15 +345,18 @@ class TestDivergenceConvergence:
 # Error cases
 # ---------------------------------------------------------------------------
 
+
 class TestErrors:
     def test_no_steps(self):
         with pytest.raises(CompileError, match="must define at least one step"):
+
             @sfc
             class NoSteps:
                 out: Output[BOOL]
 
     def test_no_initial_step(self):
         with pytest.raises(CompileError, match="must have exactly one initial step"):
+
             @sfc
             class NoInitial:
                 A = step()
@@ -356,6 +364,7 @@ class TestErrors:
 
     def test_multiple_initial_steps(self):
         with pytest.raises(CompileError, match="multiple initial steps"):
+
             @sfc
             class MultiInit:
                 A = step(initial=True)
@@ -364,10 +373,12 @@ class TestErrors:
     def test_action_references_undefined_step(self):
         """Action referencing a step not in this class raises CompileError."""
         from plx.framework._sfc import StepDescriptor
+
         foreign_step = StepDescriptor(initial=False)
         foreign_step.name = "NONEXISTENT"  # simulate __set_name__
 
         with pytest.raises(CompileError, match="could not be resolved"):
+
             @sfc
             class BadAction:
                 out: Output[BOOL]
@@ -376,7 +387,9 @@ class TestErrors:
                 # Manually stamp an action referencing a foreign step descriptor
                 def bad_action(self):
                     self.out = True
+
                 from plx.framework._sfc import _ActionMarker
+
                 bad_action._plx_marker = _ActionMarker(
                     step_desc=foreign_step,
                     qualifier=ActionQualifier.N,
@@ -384,7 +397,8 @@ class TestErrors:
                 )
 
     def test_transition_body_not_single_return(self):
-        with pytest.raises(CompileError, match="must have exactly one statement.*return"):
+        with pytest.raises(CompileError, match=r"must have exactly one statement.*return"):
+
             @sfc
             class BadTransition:
                 cmd: Input[BOOL]
@@ -402,6 +416,7 @@ class TestErrors:
 
     def test_logic_method_rejected(self):
         with pytest.raises(CompileError, match="must not define a logic"):
+
             @sfc
             class HasLogic:
                 S0 = step(initial=True)
@@ -413,6 +428,7 @@ class TestErrors:
 # ---------------------------------------------------------------------------
 # Protocol compliance
 # ---------------------------------------------------------------------------
+
 
 class TestProtocol:
     def test_satisfies_compiled_pou(self):
@@ -443,6 +459,7 @@ class TestProtocol:
 # ---------------------------------------------------------------------------
 # Serialization roundtrip
 # ---------------------------------------------------------------------------
+
 
 class TestSerialization:
     def test_json_roundtrip(self):
@@ -482,6 +499,7 @@ class TestSerialization:
 # @fb_method on @sfc class
 # ---------------------------------------------------------------------------
 
+
 class TestMethodOnSfc:
     def test_method_compiles_on_sfc(self):
         @sfc
@@ -503,6 +521,7 @@ class TestMethodOnSfc:
 # folder= kwarg
 # ---------------------------------------------------------------------------
 
+
 class TestSfcFolderKwarg:
     def test_sfc_folder(self):
         @sfc(folder="sequences")
@@ -522,6 +541,7 @@ class TestSfcFolderKwarg:
 # ---------------------------------------------------------------------------
 # Operator precedence / chaining guards on TransitionPath
 # ---------------------------------------------------------------------------
+
 
 class TestTransitionPathOperatorGuards:
     """TransitionPath should reject & and chained >> with clear errors."""
@@ -587,6 +607,7 @@ class TestTransitionPathOperatorGuards:
     def test_correct_parenthesized_divergence_still_works(self):
         """A >> (B & C) should still produce a valid TransitionPath."""
         from plx.framework._sfc import TransitionPath
+
         A = step(initial=True)
         B = step()
         C = step()
@@ -598,6 +619,7 @@ class TestTransitionPathOperatorGuards:
     def test_correct_parenthesized_convergence_still_works(self):
         """(A & B) >> C should still produce a valid TransitionPath."""
         from plx.framework._sfc import TransitionPath
+
         A = step(initial=True)
         B = step()
         C = step()

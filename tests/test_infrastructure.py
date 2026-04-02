@@ -8,38 +8,28 @@ import pytest
 
 from plx.framework import (
     BOOL,
-    DINT,
-    INT,
-    REAL,
-    fb,
-    program,
-    struct,
-    project,
     Input,
     Output,
-    delayed,
     Vendor,
+    delayed,
+    fb,
+    program,
+    project,
 )
-from plx.framework._compiler_core import SENTINEL_REGISTRY, SentinelDef
-from plx.framework._errors import ProjectAssemblyError
+from plx.framework._compiler_core import SENTINEL_REGISTRY
 from plx.framework._project import (
-    _collect_type_ref_names,
     _MAX_DEP_ITERATIONS,
+    _collect_type_ref_names,
 )
 from plx.framework._registry import (
-    _pou_registry,
-    _type_registry,
-    _snapshot_registries,
     _restore_registries,
+    _snapshot_registries,
+    lookup_pou,
     register_pou,
     register_type,
-    lookup_pou,
-    lookup_type,
 )
 from plx.framework._vendor import (
-    CompileResult,
     PortabilityWarning,
-    Vendor,
     _clear_vendor_extensions,
     register_fb_translation_warning,
     register_vendor_check,
@@ -54,7 +44,6 @@ from plx.model.types import (
     PrimitiveTypeRef,
     ReferenceTypeRef,
 )
-
 
 # ===================================================================
 # Change 1: Registry scoping
@@ -131,6 +120,7 @@ class TestRegistryIsolationFixture:
         @fb
         class IsolationTestFB:
             x: Input[BOOL]
+
             def logic(self):
                 pass
 
@@ -152,15 +142,18 @@ class TestIterationGuard:
 
     def test_normal_project_resolves(self):
         """Normal projects resolve without hitting the guard."""
+
         @fb
         class GuardInnerFB:
             x: Input[BOOL]
+
             def logic(self):
                 pass
 
         @program
         class GuardProg:
             inst: GuardInnerFB
+
             def logic(self):
                 self.inst(x=True)
 
@@ -198,9 +191,7 @@ class TestCollectTypeRefNames:
 
     def test_pointer_to_primitive_no_names(self):
         names: set[str] = set()
-        ref = PointerTypeRef(
-            target_type=PrimitiveTypeRef(type=PrimitiveType.DINT)
-        )
+        ref = PointerTypeRef(target_type=PrimitiveTypeRef(type=PrimitiveType.DINT))
         _collect_type_ref_names(ref, names)
         assert names == set()
 
@@ -208,9 +199,7 @@ class TestCollectTypeRefNames:
         """Nested: ARRAY OF POINTER_TO MyStruct."""
         names: set[str] = set()
         ref = ArrayTypeRef(
-            element_type=PointerTypeRef(
-                target_type=NamedTypeRef(name="DeepStruct")
-            ),
+            element_type=PointerTypeRef(target_type=NamedTypeRef(name="DeepStruct")),
             dimensions=[DimensionRange(lower=0, upper=4)],
         )
         _collect_type_ref_names(ref, names)
@@ -226,10 +215,17 @@ class TestSentinelRegistry:
     def test_all_sentinels_present(self):
         """All 12 sentinel functions are in the registry."""
         expected = {
-            "delayed", "sustained", "pulse", "retentive",
-            "rising", "falling",
-            "count_up", "count_down", "count_up_down",
-            "set_dominant", "reset_dominant",
+            "delayed",
+            "sustained",
+            "pulse",
+            "retentive",
+            "rising",
+            "falling",
+            "count_up",
+            "count_down",
+            "count_up_down",
+            "set_dominant",
+            "reset_dominant",
             "first_scan",
         }
         assert set(SENTINEL_REGISTRY.keys()) == expected
@@ -290,6 +286,7 @@ class TestSentinelRegistry:
 
     def test_system_flag_sentinels_match(self):
         from plx.model.expressions import SystemFlag
+
         sd = SENTINEL_REGISTRY["first_scan"]
         assert sd.category == "system_flag"
         assert sd.fb_type == ""
@@ -297,10 +294,12 @@ class TestSentinelRegistry:
 
     def test_sentinel_dispatch_still_works(self):
         """Existing sentinel compilation still works through new dispatch."""
+
         @program
         class SentinelDispatchProg:
             cmd: Input[BOOL]
             out: Output[BOOL]
+
             def logic(self):
                 self.out = delayed(self.cmd, timedelta(seconds=5))
 
@@ -345,12 +344,15 @@ class TestVendorCheckExtensibility:
 
     def test_register_vendor_warning(self):
         """A registered warning function adds warnings to CompileResult."""
+
         def my_warning(proj, target, warns):
-            warns.append(PortabilityWarning(
-                category="custom",
-                pou_name="TestPOU",
-                message="custom warning",
-            ))
+            warns.append(
+                PortabilityWarning(
+                    category="custom",
+                    pou_name="TestPOU",
+                    message="custom warning",
+                )
+            )
 
         register_vendor_warning(my_warning)
 
@@ -366,21 +368,19 @@ class TestVendorCheckExtensibility:
 
     def test_register_fb_translation_warning(self):
         """A registered FB translation warning appears for matching FBs."""
-        register_fb_translation_warning(
-            "TON", Vendor.AB, "TON needs special handling on AB"
-        )
+        register_fb_translation_warning("TON", Vendor.AB, "TON needs special handling on AB")
 
         @program
         class FBWarnProg:
             cmd: Input[BOOL]
             out: Output[BOOL]
+
             def logic(self):
                 self.out = delayed(self.cmd, timedelta(seconds=1))
 
         result = project("Test", pous=[FBWarnProg]).compile(target=Vendor.AB)
         ton_warnings = [
-            w for w in result.warnings
-            if w.category == "fb_translation" and w.details.get("fb_type") == "TON"
+            w for w in result.warnings if w.category == "fb_translation" and w.details.get("fb_type") == "TON"
         ]
         assert len(ton_warnings) == 1
         assert "special handling" in ton_warnings[0].message
@@ -401,13 +401,11 @@ class TestVendorCheckExtensibility:
                 pass
 
         result = project("Test", pous=[ClearProg]).compile(target=Vendor.AB)
-        assert not any(
-            w.details.get("fb_type") == "FAKE_FB" for w in result.warnings
-        )
+        assert not any(w.details.get("fb_type") == "FAKE_FB" for w in result.warnings)
 
     def test_builtin_checks_survive_clear(self):
         """Built-in checks (methods, properties, etc.) survive _clear_vendor_extensions."""
-        from plx.framework._vendor import _CHECKS, _BUILTIN_CHECK_COUNT
+        from plx.framework._vendor import _BUILTIN_CHECK_COUNT, _CHECKS
 
         register_vendor_check(lambda p, t, e: None)
         _clear_vendor_extensions()

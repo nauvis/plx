@@ -24,7 +24,6 @@ from plx.model.types import (
     TypeRef,
 )
 
-
 # ---------------------------------------------------------------------------
 # Primitive type constants
 # ---------------------------------------------------------------------------
@@ -82,6 +81,7 @@ wchar = PrimitiveType.WCHAR
 # timedelta → IEC 61131-3 conversion
 # ---------------------------------------------------------------------------
 
+
 def timedelta_to_iec(td: timedelta, *, ltime: bool = False) -> str:
     """Convert a ``timedelta`` to an IEC 61131-3 time literal string.
 
@@ -89,9 +89,9 @@ def timedelta_to_iec(td: timedelta, *, ltime: bool = False) -> str:
     --------
     ::
 
-        timedelta_to_iec(timedelta(seconds=5))         # "T#5s"
-        timedelta_to_iec(timedelta(milliseconds=500))   # "T#500ms"
-        timedelta_to_iec(timedelta(hours=1, minutes=30)) # "T#1h30m"
+        timedelta_to_iec(timedelta(seconds=5))  # "T#5s"
+        timedelta_to_iec(timedelta(milliseconds=500))  # "T#500ms"
+        timedelta_to_iec(timedelta(hours=1, minutes=30))  # "T#1h30m"
         timedelta_to_iec(timedelta(milliseconds=100), ltime=True)  # "LTIME#100ms"
     """
     total_us = int(td.total_seconds() * 1_000_000)
@@ -140,7 +140,8 @@ def _resolve_type_ref(type_arg: PrimitiveType | TypeRef | type | str) -> TypeRef
     - str → NamedTypeRef(name=...)
     """
     # PLC type classes (dint, real, sint, etc.) — check before builtins
-    from ._plc_types import _PlcInt, _PlcFloat
+    from ._plc_types import _PlcFloat, _PlcInt
+
     if isinstance(type_arg, type) and issubclass(type_arg, (_PlcInt, _PlcFloat)):
         return PrimitiveTypeRef(type=PrimitiveType(type_arg._iec_name))
     # Python builtin type aliases (check bool before int — bool is subclass of int)
@@ -150,17 +151,23 @@ def _resolve_type_ref(type_arg: PrimitiveType | TypeRef | type | str) -> TypeRef
         return PrimitiveTypeRef(type=PrimitiveType.INT)
     if type_arg is float:
         from ._errors import DeclarationError
-        raise DeclarationError(
-            "float is ambiguous in PLC — use real (32-bit REAL) or lreal (64-bit LREAL)"
-        )
+
+        raise DeclarationError("float is ambiguous in PLC — use real (32-bit REAL) or lreal (64-bit LREAL)")
     if type_arg is str:
         return StringTypeRef(wide=False, max_length=255)
     if isinstance(type_arg, PrimitiveType):
         return PrimitiveTypeRef(type=type_arg)
-    if isinstance(type_arg, (
-        PrimitiveTypeRef, StringTypeRef, NamedTypeRef,
-        ArrayTypeRef, PointerTypeRef, ReferenceTypeRef,
-    )):
+    if isinstance(
+        type_arg,
+        (
+            PrimitiveTypeRef,
+            StringTypeRef,
+            NamedTypeRef,
+            ArrayTypeRef,
+            PointerTypeRef,
+            ReferenceTypeRef,
+        ),
+    ):
         return type_arg
     # IntEnum subclasses → auto-compile and return NamedTypeRef
     # Late imports: _types.py and _data_types.py are mutually recursive.
@@ -170,12 +177,15 @@ def _resolve_type_ref(type_arg: PrimitiveType | TypeRef | type | str) -> TypeRef
     # break the import cycle while preserving the auto-compilation
     # convenience for IntEnum subclasses.
     from enum import IntEnum
+
     if isinstance(type_arg, type) and issubclass(type_arg, IntEnum) and type_arg is not IntEnum:
         from ._data_types import _ensure_enum_compiled
+
         _ensure_enum_compiled(type_arg)
         return NamedTypeRef(name=type_arg.__name__)
     # @struct / @enumeration decorated classes have _compiled_type
     from ._protocols import CompiledDataType, CompiledPOU
+
     if isinstance(type_arg, CompiledDataType):
         return NamedTypeRef(name=type_arg.__name__)
     # @fb / @program decorated classes have _compiled_pou
@@ -183,6 +193,7 @@ def _resolve_type_ref(type_arg: PrimitiveType | TypeRef | type | str) -> TypeRef
         return NamedTypeRef(name=type_arg.__name__)
     # Library type stubs (LibraryFB, LibraryStruct, LibraryEnum)
     from ._library import LibraryType
+
     if isinstance(type_arg, type) and issubclass(type_arg, LibraryType) and "_abstract" not in type_arg.__dict__:
         return NamedTypeRef(name=type_arg._type_name)
     if isinstance(type_arg, str):
@@ -192,15 +203,13 @@ def _resolve_type_ref(type_arg: PrimitiveType | TypeRef | type | str) -> TypeRef
         return StringTypeRef(wide=False)
     if callable(type_arg) and getattr(type_arg, "__name__", "") == "WSTRING":
         return StringTypeRef(wide=True)
-    raise TypeError(
-        f"Expected a type (PrimitiveType, TypeRef, or str), got {type(type_arg).__name__}"
-    )
-
+    raise TypeError(f"Expected a type (PrimitiveType, TypeRef, or str), got {type(type_arg).__name__}")
 
 
 # ---------------------------------------------------------------------------
 # Type constructors
 # ---------------------------------------------------------------------------
+
 
 def ARRAY(
     element_type: PrimitiveType | TypeRef | type | str,
@@ -216,9 +225,9 @@ def ARRAY(
     --------
     ::
 
-        ARRAY(INT, 10)              # ARRAY[0..9] OF INT
-        ARRAY(REAL, (1, 10))        # ARRAY[1..10] OF REAL
-        ARRAY(BOOL, 3, 4)           # ARRAY[0..2, 0..3] OF BOOL
+        ARRAY(INT, 10)  # ARRAY[0..9] OF INT
+        ARRAY(REAL, (1, 10))  # ARRAY[1..10] OF REAL
+        ARRAY(BOOL, 3, 4)  # ARRAY[0..2, 0..3] OF BOOL
     """
     if not dims:
         raise ValueError("ARRAY requires at least one dimension")
@@ -232,14 +241,11 @@ def ARRAY(
             lower, upper = d
             if lower > upper:
                 from ._errors import DeclarationError
-                raise DeclarationError(
-                    f"Array lower bound ({lower}) must be <= upper bound ({upper})"
-                )
+
+                raise DeclarationError(f"Array lower bound ({lower}) must be <= upper bound ({upper})")
             dimensions.append(DimensionRange(lower=lower, upper=upper))
         else:
-            raise TypeError(
-                f"Dimension must be int or (lower, upper) tuple, got {type(d).__name__}"
-            )
+            raise TypeError(f"Dimension must be int or (lower, upper) tuple, got {type(d).__name__}")
     return ArrayTypeRef(
         element_type=_resolve_type_ref(element_type),
         dimensions=dimensions,
@@ -253,11 +259,12 @@ def STRING(max_length: int = 255) -> StringTypeRef:
     --------
     ::
 
-        STRING()       # STRING[255]
-        STRING(80)     # STRING[80]
+        STRING()  # STRING[255]
+        STRING(80)  # STRING[80]
     """
     if max_length < 1:
         from ._errors import DeclarationError
+
         raise DeclarationError(f"STRING max_length must be >= 1, got {max_length}")
     return StringTypeRef(wide=False, max_length=max_length)
 
@@ -266,6 +273,7 @@ def WSTRING(max_length: int = 255) -> StringTypeRef:
     """Create a WSTRING type reference with optional max length."""
     if max_length < 1:
         from ._errors import DeclarationError
+
         raise DeclarationError(f"WSTRING max_length must be >= 1, got {max_length}")
     return StringTypeRef(wide=True, max_length=max_length)
 
@@ -291,6 +299,7 @@ reference_to = REFERENCE_TO
 # ---------------------------------------------------------------------------
 # System flag sentinels
 # ---------------------------------------------------------------------------
+
 
 def first_scan() -> bool:
     """System flag: True on the first scan cycle after entering Run mode.

@@ -11,13 +11,12 @@ from __future__ import annotations
 import importlib
 import pkgutil
 import sys
-import warnings
 from enum import IntEnum
 from types import ModuleType
 from typing import Any
 
-from ._task import PlxTask
 from ._protocols import CompiledDataType, CompiledGlobalVarList, CompiledPOU
+from ._task import PlxTask
 
 
 class DiscoveryResult:
@@ -63,9 +62,8 @@ def _infer_folder(cls_or_obj: Any, root_package: str) -> str:
         return ""
 
     # Strip root package prefix
-    relative = module_name[len(root_package):]
-    if relative.startswith("."):
-        relative = relative[1:]
+    relative = module_name[len(root_package) :]
+    relative = relative.removeprefix(".")
 
     if not relative:
         # Defined in root package __init__.py
@@ -96,19 +94,19 @@ def _walk_package(package_name: str) -> list[ModuleType]:
         # Not a package, just a single module
         return modules
 
-    for _importer, modname, _ispkg in pkgutil.walk_packages(
-        root.__path__, prefix=package_name + "."
-    ):
+    for _importer, modname, _ispkg in pkgutil.walk_packages(root.__path__, prefix=package_name + "."):
         try:
             mod = importlib.import_module(modname)
             modules.append(mod)
         except Exception as exc:
             import logging as _logging
+
             _logger = _logging.getLogger("plx.discover")
             _logger.error(
-                "Failed to import %s — any POUs defined in this module "
-                "will be missing from the project: %s",
-                modname, exc, exc_info=True,
+                "Failed to import %s — any POUs defined in this module will be missing from the project: %s",
+                modname,
+                exc,
+                exc_info=True,
             )
             continue
 
@@ -144,7 +142,8 @@ def discover(*package_names: str) -> DiscoveryResult:
     ::
 
         result = discover("my_machine")
-        proj = project("MyProject",
+        proj = project(
+            "MyProject",
             pous=result.pous,
             data_types=result.data_types,
             global_var_lists=result.global_var_lists,
@@ -194,6 +193,7 @@ def discover(*package_names: str) -> DiscoveryResult:
                     result.data_types.append(obj)
                 elif isinstance(obj, type) and issubclass(obj, IntEnum) and obj is not IntEnum:
                     from ._data_types import _ensure_enum_compiled
+
                     _ensure_enum_compiled(obj)
                     seen_ids.add(obj_id)
                     _set_inferred_folder(obj._compiled_type, obj, pkg_name)
@@ -211,10 +211,7 @@ def discover(*package_names: str) -> DiscoveryResult:
 
 def _in_packages(module_name: str, package_names: tuple[str, ...]) -> bool:
     """Check if a module name belongs to any of the given packages."""
-    return any(
-        module_name == p or module_name.startswith(p + ".")
-        for p in package_names
-    )
+    return any(module_name == p or module_name.startswith(p + ".") for p in package_names)
 
 
 def _set_inferred_folder(ir_obj: Any, cls: type, root_package: str) -> None:

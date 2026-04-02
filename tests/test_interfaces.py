@@ -3,15 +3,14 @@
 import pytest
 
 from plx.framework._compiler_core import CompileError
-from plx.framework._decorators import fb, interface, fb_method
-from plx.framework._descriptors import Input, Field, Output
+from plx.framework._decorators import fb, fb_method, interface
 from plx.framework._types import BOOL, REAL
 from plx.model.pou import POUType
-
 
 # ---------------------------------------------------------------------------
 # Basic @interface
 # ---------------------------------------------------------------------------
+
 
 class TestInterface:
     def test_basic_interface(self):
@@ -42,6 +41,7 @@ class TestInterface:
 
     def test_interface_no_body_compiled(self):
         """Interface methods should have no networks/body."""
+
         @interface
         class ISimple:
             @fb_method
@@ -62,6 +62,7 @@ class TestInterface:
 # ---------------------------------------------------------------------------
 # Interface extends (inheritance)
 # ---------------------------------------------------------------------------
+
 
 class TestInterfaceExtends:
     def test_extends(self):
@@ -95,6 +96,7 @@ class TestInterfaceExtends:
 # ---------------------------------------------------------------------------
 # implements= on @fb
 # ---------------------------------------------------------------------------
+
 
 class TestImplements:
     def test_fb_implements(self):
@@ -152,6 +154,7 @@ class TestImplements:
                 pass
 
         with pytest.raises(CompileError, match="not an @interface"):
+
             @fb(implements=[NotAnInterface])
             class Bad:
                 def logic(self):
@@ -161,6 +164,7 @@ class TestImplements:
 # ---------------------------------------------------------------------------
 # ST export of interfaces
 # ---------------------------------------------------------------------------
+
 
 class TestInterfaceSTExport:
     def test_interface_st(self):

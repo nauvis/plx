@@ -31,7 +31,7 @@ class StructProxy:
     # dict here keeps StructProxy transparent for code that guards on
     # ``isinstance(val, dict)``.
     @property  # type: ignore[override]
-    def __class__(self):  # noqa: F811
+    def __class__(self):
         return dict
 
     # -- attribute access --------------------------------------------------
@@ -41,9 +41,7 @@ class StructProxy:
         try:
             val = d[name]
         except KeyError:
-            raise AttributeError(
-                f"Struct has no field '{name}'. Available: {sorted(d.keys())}"
-            ) from None
+            raise AttributeError(f"Struct has no field '{name}'. Available: {sorted(d.keys())}") from None
         if isinstance(val, dict):
             return StructProxy(val)
         return val
@@ -53,9 +51,7 @@ class StructProxy:
         if name in d:
             d[name] = _coerce_input_value(value)
         else:
-            raise AttributeError(
-                f"Struct has no field '{name}'. Available: {sorted(d.keys())}"
-            )
+            raise AttributeError(f"Struct has no field '{name}'. Available: {sorted(d.keys())}")
 
     # -- dict-style access (still works) -----------------------------------
 

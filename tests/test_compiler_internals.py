@@ -5,13 +5,6 @@ import ast
 
 import pytest
 
-from plx.framework._compiler_core import (
-    CompileContext,
-    CompileError,
-    _BIT_ACCESS_RE,
-    _TYPE_CONV_RE,
-    resolve_annotation,
-)
 from plx.framework._compilation_helpers import (
     _build_compile_context,
     _build_var_context,
@@ -19,16 +12,23 @@ from plx.framework._compilation_helpers import (
     _discover_enums,
     _parse_function_source,
 )
+from plx.framework._compiler_core import (
+    _BIT_ACCESS_RE,
+    _TYPE_CONV_RE,
+    CompileContext,
+    CompileError,
+    resolve_annotation,
+)
 from plx.framework._data_types import enumeration
 from plx.framework._decorators import fb
-from plx.framework._descriptors import Input, Output, Static, VarDirection
-from plx.framework._types import BOOL, DINT, INT, REAL
+from plx.framework._descriptors import Input, Output, VarDirection
+from plx.framework._types import BOOL, INT, REAL
 from plx.model.types import NamedTypeRef, PrimitiveType, PrimitiveTypeRef
-
 
 # ---------------------------------------------------------------------------
 # CompileError
 # ---------------------------------------------------------------------------
+
 
 class TestCompileError:
     def test_basic_message(self):
@@ -79,6 +79,7 @@ class TestCompileError:
 # CompileContext
 # ---------------------------------------------------------------------------
 
+
 class TestCompileContext:
     def test_next_auto_name_sequential(self):
         ctx = CompileContext()
@@ -110,9 +111,7 @@ class TestCompileContext:
         assert ctx.declared_vars["x"] == VarDirection.INPUT
 
     def test_known_enums_lookup(self):
-        ctx = CompileContext(
-            known_enums={"Color": {"RED": 0, "GREEN": 1, "BLUE": 2}}
-        )
+        ctx = CompileContext(known_enums={"Color": {"RED": 0, "GREEN": 1, "BLUE": 2}})
         assert ctx.known_enums["Color"]["RED"] == 0
         assert ctx.known_enums["Color"]["BLUE"] == 2
 
@@ -120,6 +119,7 @@ class TestCompileContext:
 # ---------------------------------------------------------------------------
 # resolve_annotation
 # ---------------------------------------------------------------------------
+
 
 class TestResolveAnnotation:
     def test_primitive_type(self):
@@ -143,6 +143,7 @@ class TestResolveAnnotation:
     def test_python_builtin_float_rejected(self):
         """float is ambiguous — users must use real or lreal."""
         import pytest
+
         ann = ast.Name(id="float")
         with pytest.raises(CompileError, match="float is ambiguous"):
             resolve_annotation(ann)
@@ -182,6 +183,7 @@ class TestResolveAnnotation:
 # Regex patterns
 # ---------------------------------------------------------------------------
 
+
 class TestRegexPatterns:
     def test_type_conv_matches(self):
         assert _TYPE_CONV_RE.match("INT_TO_REAL")
@@ -206,9 +208,11 @@ class TestRegexPatterns:
 # _discover_enums
 # ---------------------------------------------------------------------------
 
+
 class TestDiscoverEnums:
     def test_discovers_enumeration_from_globals(self):
         """Enums in the module globals should be discovered."""
+
         @enumeration
         class Direction:
             LEFT = 0
@@ -257,6 +261,7 @@ class TestDiscoverEnums:
 
     def test_empty_globals(self):
         """Function with no enums in globals returns empty."""
+
         def bare_func():
             pass
 
@@ -269,6 +274,7 @@ class TestDiscoverEnums:
 # ---------------------------------------------------------------------------
 # _detect_parent_pou
 # ---------------------------------------------------------------------------
+
 
 class TestDetectParentPOU:
     def test_no_parent(self):
@@ -292,6 +298,7 @@ class TestDetectParentPOU:
 
     def test_skips_object(self):
         """object in MRO should be skipped."""
+
         class Simple:
             pass
 
@@ -299,6 +306,7 @@ class TestDetectParentPOU:
 
     def test_non_pou_parent_skipped(self):
         """Non-POU parent classes are skipped."""
+
         class Mixin:
             pass
 
@@ -312,12 +320,13 @@ class TestDetectParentPOU:
 # _parse_function_source
 # ---------------------------------------------------------------------------
 
+
 class TestParseFunctionSource:
     def test_basic_parse(self):
         def logic(self):
             pass
 
-        func_def, source, start = _parse_function_source(logic, "test.logic()")
+        func_def, _source, _start = _parse_function_source(logic, "test.logic()")
         assert isinstance(func_def, ast.FunctionDef)
         assert func_def.name == "logic"
 
@@ -347,7 +356,10 @@ class TestParseFunctionSource:
             return self.x
 
         func_def, _, _ = _parse_function_source(
-            cond, "test", validate_self_only=True, validate_single_return=True,
+            cond,
+            "test",
+            validate_self_only=True,
+            validate_single_return=True,
         )
         assert isinstance(func_def.body[0], ast.Return)
 
@@ -358,7 +370,8 @@ class TestParseFunctionSource:
 
         with pytest.raises(CompileError, match="exactly one statement"):
             _parse_function_source(
-                cond, "test",
+                cond,
+                "test",
                 validate_self_only=True,
                 validate_single_return=True,
             )
@@ -369,18 +382,21 @@ class TestParseFunctionSource:
 
         with pytest.raises(CompileError, match="must return an expression"):
             _parse_function_source(
-                cond, "test",
+                cond,
+                "test",
                 validate_self_only=True,
                 validate_single_return=True,
             )
 
     def test_no_validation(self):
         """With all validation off, extra params are allowed."""
+
         def method(self, x, y):
             return x + y
 
         func_def, _, _ = _parse_function_source(
-            method, "test",
+            method,
+            "test",
             validate_self_only=False,
             validate_single_return=False,
         )
@@ -390,6 +406,7 @@ class TestParseFunctionSource:
 # ---------------------------------------------------------------------------
 # _build_var_context
 # ---------------------------------------------------------------------------
+
 
 class TestBuildVarContext:
     def test_basic_var_context(self):
@@ -402,7 +419,7 @@ class TestBuildVarContext:
             def logic(self):
                 pass
 
-        var_groups, declared_vars, static_var_types = _build_var_context(Simple)
+        _var_groups, declared_vars, _static_var_types = _build_var_context(Simple)
         assert "x" in declared_vars
         assert declared_vars["x"] == VarDirection.INPUT
         assert "y" in declared_vars
@@ -442,6 +459,7 @@ class TestBuildVarContext:
 # ---------------------------------------------------------------------------
 # _build_compile_context
 # ---------------------------------------------------------------------------
+
 
 class TestBuildCompileContext:
     def test_basic_context(self):

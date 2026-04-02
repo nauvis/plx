@@ -12,19 +12,19 @@ TypeDefinition — named types are referenced by name via NamedTypeRef.
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated, Literal, Union
 
 from pydantic import Field, field_validator, model_validator
 
 from ._base import IRModel, validate_iec_identifier
 
-
 # ---------------------------------------------------------------------------
 # Primitives
 # ---------------------------------------------------------------------------
 
-class PrimitiveType(str, Enum):
+
+class PrimitiveType(StrEnum):
     """IEC 61131-3 elementary types."""
 
     # Boolean
@@ -73,6 +73,7 @@ class PrimitiveType(str, Enum):
 # Type References (used in variable decls, expressions, return types, etc.)
 # ---------------------------------------------------------------------------
 
+
 class PrimitiveTypeRef(IRModel):
     """Reference to a primitive type (BOOL, INT, REAL, etc.)."""
 
@@ -99,9 +100,7 @@ class StringTypeRef(IRModel):
     @model_validator(mode="after")
     def _positive_max_length(self):
         if self.max_length is not None and self.max_length < 0:
-            raise ValueError(
-                f"max_length must be >= 0, got {self.max_length}"
-            )
+            raise ValueError(f"max_length must be >= 0, got {self.max_length}")
         return self
 
 
@@ -137,9 +136,7 @@ class DimensionRange(IRModel):
         if isinstance(self.lower, int) and isinstance(self.upper, int):
             # upper == -1 is a sentinel for variable-length arrays (ARRAY[*] OF T)
             if self.upper != -1 and self.lower > self.upper:
-                raise ValueError(
-                    f"lower ({self.lower}) must be <= upper ({self.upper})"
-                )
+                raise ValueError(f"lower ({self.lower}) must be <= upper ({self.upper})")
         return self
 
 
@@ -191,6 +188,7 @@ TypeRef = Annotated[
 # Type Definitions (live in project.data_types)
 # ---------------------------------------------------------------------------
 
+
 class StructMember(IRModel):
     """Member of a struct or union."""
 
@@ -239,9 +237,7 @@ class StructType(IRModel):
         seen: set[str] = set()
         for m in self.members:
             if m.name in seen:
-                raise ValueError(
-                    f"Duplicate member name '{m.name}' in struct '{self.name}'"
-                )
+                raise ValueError(f"Duplicate member name '{m.name}' in struct '{self.name}'")
             seen.add(m.name)
         return self
 
@@ -293,9 +289,7 @@ class EnumType(IRModel):
         seen: set[str] = set()
         for m in self.members:
             if m.name in seen:
-                raise ValueError(
-                    f"Duplicate member name '{m.name}' in enum '{self.name}'"
-                )
+                raise ValueError(f"Duplicate member name '{m.name}' in enum '{self.name}'")
             seen.add(m.name)
         return self
 
@@ -327,9 +321,7 @@ class UnionType(IRModel):
         seen: set[str] = set()
         for m in self.members:
             if m.name in seen:
-                raise ValueError(
-                    f"Duplicate member name '{m.name}' in union '{self.name}'"
-                )
+                raise ValueError(f"Duplicate member name '{m.name}' in union '{self.name}'")
             seen.add(m.name)
         return self
 
@@ -388,10 +380,7 @@ class SubrangeType(IRModel):
     @model_validator(mode="after")
     def _bounds_check(self):
         if self.lower_bound > self.upper_bound:
-            raise ValueError(
-                f"lower_bound ({self.lower_bound}) must be "
-                f"<= upper_bound ({self.upper_bound})"
-            )
+            raise ValueError(f"lower_bound ({self.lower_bound}) must be <= upper_bound ({self.upper_bound})")
         return self
 
 

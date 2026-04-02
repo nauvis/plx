@@ -1,7 +1,5 @@
 """Tests for IR-to-Python code generator."""
 
-import pytest
-
 from plx.export.py import (
     PyWriter,
     _format_initial_value,
@@ -14,8 +12,8 @@ from plx.model.expressions import (
     BinaryExpr,
     BinaryOp,
     BitAccessExpr,
-    FunctionCallExpr,
     CallArg,
+    FunctionCallExpr,
     LiteralExpr,
     MemberAccessExpr,
     SystemFlag,
@@ -30,14 +28,13 @@ from plx.model.pou import (
     AccessSpecifier,
     Method,
     Network,
-    POUAction,
     POUInterface,
     POUType,
     Property,
     PropertyAccessor,
 )
 from plx.model.project import GlobalVariableList, Project
-from plx.model.sfc import Action, ActionQualifier, SFCBody, Step, Transition
+from plx.model.sfc import Action, SFCBody, Step, Transition
 from plx.model.statements import (
     Assignment,
     CaseBranch,
@@ -77,10 +74,10 @@ from plx.model.types import (
 )
 from plx.model.variables import Variable
 
-
 # ---------------------------------------------------------------------------
 # Helper to get output from writer methods
 # ---------------------------------------------------------------------------
+
 
 def _make_writer(self_vars: set[str] | None = None) -> PyWriter:
     w = PyWriter()
@@ -92,6 +89,7 @@ def _make_writer(self_vars: set[str] | None = None) -> PyWriter:
 # ===========================================================================
 # IEC time parsing
 # ===========================================================================
+
 
 class TestParseIecTime:
     def test_milliseconds(self):
@@ -123,6 +121,7 @@ class TestParseIecTime:
 # ===========================================================================
 # Initial value formatting
 # ===========================================================================
+
 
 class TestFormatInitialValue:
     def test_true(self):
@@ -170,9 +169,10 @@ class TestFormatInitialValue:
     def test_fb_init_round_trip(self):
         """IEC init → Python dict → IEC init round-trips correctly."""
         from plx.framework._descriptors import _format_initial
+
         iec = "(Name := 'Pull Wheel', LogStateChanges := TRUE)"
         py = _format_initial_value(iec)
-        d = eval(py)  # noqa: S307
+        d = eval(py)
         assert _format_initial(d) == iec
 
     def test_fb_init_static_var_output(self):
@@ -186,12 +186,13 @@ class TestFormatInitialValue:
         w._self_vars = set()
         w._write_static_var(v)
         out = w.getvalue().strip()
-        assert out == "PullWheels: FB_PullWheel = Field(initial={\"Name\": 'Pull Wheel', \"LogStateChanges\": True})"
+        assert out == 'PullWheels: FB_PullWheel = Field(initial={"Name": \'Pull Wheel\', "LogStateChanges": True})'
 
 
 # ===========================================================================
 # Type references
 # ===========================================================================
+
 
 class TestTypeRef:
     def test_primitive(self):
@@ -269,13 +270,15 @@ class TestTypeRef:
         w = _make_writer()
         tr = ArrayTypeRef(
             element_type=NamedTypeRef(name="I_Module"),
-            dimensions=[DimensionRange(
-                lower=1,
-                upper=MemberAccessExpr(
-                    struct=VariableRef(name="Params"),
-                    member="MAX_MODULES",
-                ),
-            )],
+            dimensions=[
+                DimensionRange(
+                    lower=1,
+                    upper=MemberAccessExpr(
+                        struct=VariableRef(name="Params"),
+                        member="MAX_MODULES",
+                    ),
+                )
+            ],
         )
         assert w._type_ref(tr) == "array(I_Module, (1, Params.MAX_MODULES))"
 
@@ -283,10 +286,12 @@ class TestTypeRef:
         w = _make_writer()
         tr = ArrayTypeRef(
             element_type=PrimitiveTypeRef(type=PrimitiveType.INT),
-            dimensions=[DimensionRange(
-                lower=VariableRef(name="MIN_IDX"),
-                upper=VariableRef(name="MAX_IDX"),
-            )],
+            dimensions=[
+                DimensionRange(
+                    lower=VariableRef(name="MIN_IDX"),
+                    upper=VariableRef(name="MAX_IDX"),
+                )
+            ],
         )
         assert w._type_ref(tr) == "array(int, (MIN_IDX, MAX_IDX))"
 
@@ -309,6 +314,7 @@ class TestTypeRef:
 # ===========================================================================
 # Expressions
 # ===========================================================================
+
 
 class TestExpressions:
     def test_literal_true(self):
@@ -626,6 +632,7 @@ class TestExpressions:
 # Statements
 # ===========================================================================
 
+
 class TestStatements:
     def test_assignment(self):
         w = _make_writer(self_vars={"x"})
@@ -639,9 +646,12 @@ class TestStatements:
     def test_if_simple(self):
         w = _make_writer(self_vars={"flag", "out"})
         stmt = IfStatement(
-            if_branch={"condition": VariableRef(name="flag"), "body": [
-                Assignment(target=VariableRef(name="out"), value=LiteralExpr(value="TRUE")),
-            ]},
+            if_branch={
+                "condition": VariableRef(name="flag"),
+                "body": [
+                    Assignment(target=VariableRef(name="out"), value=LiteralExpr(value="TRUE")),
+                ],
+            },
         )
         out = w.getvalue().strip() if (w._write_stmt(stmt) or True) else ""
         out = w.getvalue().strip()
@@ -652,13 +662,18 @@ class TestStatements:
     def test_if_elif_else(self):
         w = _make_writer(self_vars={"x", "y"})
         stmt = IfStatement(
-            if_branch={"condition": VariableRef(name="x"), "body": [
-                Assignment(target=VariableRef(name="y"), value=LiteralExpr(value="1")),
-            ]},
-            elsif_branches=[{
-                "condition": VariableRef(name="y"),
-                "body": [Assignment(target=VariableRef(name="y"), value=LiteralExpr(value="2"))],
-            }],
+            if_branch={
+                "condition": VariableRef(name="x"),
+                "body": [
+                    Assignment(target=VariableRef(name="y"), value=LiteralExpr(value="1")),
+                ],
+            },
+            elsif_branches=[
+                {
+                    "condition": VariableRef(name="y"),
+                    "body": [Assignment(target=VariableRef(name="y"), value=LiteralExpr(value="2"))],
+                }
+            ],
             else_body=[Assignment(target=VariableRef(name="y"), value=LiteralExpr(value="3"))],
         )
         w._write_stmt(stmt)
@@ -880,13 +895,16 @@ class TestStatements:
 # Type definitions
 # ===========================================================================
 
+
 class TestTypeDefinitions:
     def test_struct(self):
         td = StructType(
             name="MotorData",
             members=[
                 StructMember(name="speed", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL)),
-                StructMember(name="running", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL), initial_value="FALSE"),
+                StructMember(
+                    name="running", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL), initial_value="FALSE"
+                ),
             ],
         )
         w = _make_writer()
@@ -964,6 +982,7 @@ class TestTypeDefinitions:
 # Global variable lists
 # ===========================================================================
 
+
 class TestGlobalVarLists:
     def test_simple_gvl(self):
         gvl = GlobalVariableList(
@@ -1028,6 +1047,7 @@ class TestGlobalVarLists:
 # POU emission
 # ===========================================================================
 
+
 class TestPOUEmission:
     def test_simple_fb(self):
         pou = POU(
@@ -1037,12 +1057,16 @@ class TestPOUEmission:
                 input_vars=[Variable(name="sensor", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL))],
                 output_vars=[Variable(name="valve", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL))],
             ),
-            networks=[Network(statements=[
-                Assignment(
-                    target=VariableRef(name="valve"),
-                    value=VariableRef(name="sensor"),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="valve"),
+                            value=VariableRef(name="sensor"),
+                        ),
+                    ]
+                )
+            ],
         )
         w = _make_writer()
         w._write_pou(pou)
@@ -1077,13 +1101,19 @@ class TestPOUEmission:
             interface=POUInterface(
                 input_vars=[Variable(name="x", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL))],
             ),
-            networks=[Network(statements=[
-                ReturnStatement(value=BinaryExpr(
-                    op=BinaryOp.ADD,
-                    left=VariableRef(name="x"),
-                    right=LiteralExpr(value="1.0"),
-                )),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        ReturnStatement(
+                            value=BinaryExpr(
+                                op=BinaryOp.ADD,
+                                left=VariableRef(name="x"),
+                                right=LiteralExpr(value="1.0"),
+                            )
+                        ),
+                    ]
+                )
+            ],
         )
         w = _make_writer()
         w._write_pou(pou)
@@ -1133,9 +1163,13 @@ class TestPOUEmission:
                     interface=POUInterface(
                         input_vars=[Variable(name="x", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL))],
                     ),
-                    networks=[Network(statements=[
-                        ReturnStatement(value=VariableRef(name="x")),
-                    ])],
+                    networks=[
+                        Network(
+                            statements=[
+                                ReturnStatement(value=VariableRef(name="x")),
+                            ]
+                        )
+                    ],
                 ),
             ],
             networks=[Network(statements=[EmptyStatement()])],
@@ -1234,6 +1268,7 @@ class TestPOUEmission:
 # SFC emission
 # ===========================================================================
 
+
 class TestSFCEmission:
     def test_basic_sfc(self):
         pou = POU(
@@ -1247,13 +1282,17 @@ class TestSFCEmission:
                     Step(
                         name="IDLE",
                         is_initial=True,
-                        actions=[Action(
-                            name="idle_action",
-                            body=[Assignment(
-                                target=VariableRef(name="valve"),
-                                value=LiteralExpr(value="FALSE"),
-                            )],
-                        )],
+                        actions=[
+                            Action(
+                                name="idle_action",
+                                body=[
+                                    Assignment(
+                                        target=VariableRef(name="valve"),
+                                        value=LiteralExpr(value="FALSE"),
+                                    )
+                                ],
+                            )
+                        ],
                     ),
                     Step(name="FILLING"),
                 ],
@@ -1332,6 +1371,7 @@ class TestSFCEmission:
 # Full project generation
 # ===========================================================================
 
+
 class TestFullProject:
     def test_empty_project(self):
         proj = Project(name="Empty")
@@ -1351,12 +1391,16 @@ class TestFullProject:
                         input_vars=[Variable(name="cmd", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL))],
                         output_vars=[Variable(name="run", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL))],
                     ),
-                    networks=[Network(statements=[
-                        Assignment(
-                            target=VariableRef(name="run"),
-                            value=VariableRef(name="cmd"),
-                        ),
-                    ])],
+                    networks=[
+                        Network(
+                            statements=[
+                                Assignment(
+                                    target=VariableRef(name="run"),
+                                    value=VariableRef(name="cmd"),
+                                ),
+                            ]
+                        )
+                    ],
                 ),
             ],
         )
@@ -1442,13 +1486,25 @@ class TestFullProject:
         proj = Project(
             name="OrderTest",
             pous=[
-                POU(pou_type=POUType.PROGRAM, name="Main",
-                    interface=POUInterface(), networks=[Network(statements=[EmptyStatement()])]),
-                POU(pou_type=POUType.FUNCTION, name="Calc",
+                POU(
+                    pou_type=POUType.PROGRAM,
+                    name="Main",
+                    interface=POUInterface(),
+                    networks=[Network(statements=[EmptyStatement()])],
+                ),
+                POU(
+                    pou_type=POUType.FUNCTION,
+                    name="Calc",
                     return_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
-                    interface=POUInterface(), networks=[Network(statements=[ReturnStatement(value=LiteralExpr(value="0.0"))])]),
-                POU(pou_type=POUType.FUNCTION_BLOCK, name="Driver",
-                    interface=POUInterface(), networks=[Network(statements=[EmptyStatement()])]),
+                    interface=POUInterface(),
+                    networks=[Network(statements=[ReturnStatement(value=LiteralExpr(value="0.0"))])],
+                ),
+                POU(
+                    pou_type=POUType.FUNCTION_BLOCK,
+                    name="Driver",
+                    interface=POUInterface(),
+                    networks=[Network(statements=[EmptyStatement()])],
+                ),
             ],
         )
         out = generate(proj)
@@ -1463,11 +1519,19 @@ class TestFullProject:
         proj = Project(
             name="InheritTest",
             pous=[
-                POU(pou_type=POUType.FUNCTION_BLOCK, name="Derived",
+                POU(
+                    pou_type=POUType.FUNCTION_BLOCK,
+                    name="Derived",
                     extends="BaseFB",
-                    interface=POUInterface(), networks=[Network(statements=[EmptyStatement()])]),
-                POU(pou_type=POUType.FUNCTION_BLOCK, name="BaseFB",
-                    interface=POUInterface(), networks=[Network(statements=[EmptyStatement()])]),
+                    interface=POUInterface(),
+                    networks=[Network(statements=[EmptyStatement()])],
+                ),
+                POU(
+                    pou_type=POUType.FUNCTION_BLOCK,
+                    name="BaseFB",
+                    interface=POUInterface(),
+                    networks=[Network(statements=[EmptyStatement()])],
+                ),
             ],
         )
         out = generate(proj)
@@ -1479,11 +1543,14 @@ class TestFullProject:
         proj = Project(
             name="IfaceProj",
             pous=[
-                POU(pou_type=POUType.INTERFACE, name="IMotor",
+                POU(
+                    pou_type=POUType.INTERFACE,
+                    name="IMotor",
                     interface=POUInterface(),
                     methods=[
                         Method(name="Start", interface=POUInterface()),
-                    ]),
+                    ],
+                ),
             ],
         )
         out = generate(proj)
@@ -1496,12 +1563,12 @@ class TestFullProject:
 # Round-trip test: framework → IR → generate → compile → compare IR
 # ===========================================================================
 
+
 class TestRoundTrip:
     def test_simple_fb_round_trip(self):
         """Compile framework → IR → generate Python → verify it's valid Python."""
         from plx.framework._decorators import fb
         from plx.framework._descriptors import Input, Output
-        from plx.framework._types import BOOL
 
         @fb
         class RoundTripFB:
@@ -1546,7 +1613,7 @@ class TestRoundTrip:
     def test_if_else_round_trip(self):
         from plx.framework._decorators import fb
         from plx.framework._descriptors import Input, Output
-        from plx.framework._types import BOOL, DINT
+        from plx.framework._types import DINT
 
         @fb
         class IfElseFB:
@@ -1577,7 +1644,7 @@ class TestRoundTrip:
             total: Output[DINT]
 
             def logic(self):
-                for i in range(0, 10):
+                for i in range(10):  # noqa: B007
                     self.total = self.total + 1
 
         pou_ir = ForLoopFB.compile()
@@ -1590,7 +1657,7 @@ class TestRoundTrip:
         """Framework → IR → Python → recompile → IR: dynamic bit access preserved."""
         from plx.framework._decorators import fb
         from plx.framework._descriptors import Input, Output, Static
-        from plx.framework._plc_types import dword, dint
+        from plx.framework._plc_types import dint, dword
 
         @fb
         class BitAccessFB:
@@ -1619,6 +1686,7 @@ class TestRoundTrip:
         # Write to temp file and import to recompile
         # (inspect.getsource needs a real file on disk)
         import importlib.util
+
         mod_path = tmp_path / "bit_access_rt.py"
         mod_path.write_text(code)
         spec = importlib.util.spec_from_file_location("bit_access_rt", mod_path)
@@ -1629,6 +1697,7 @@ class TestRoundTrip:
 
         # Both static and dynamic bit access preserved
         from plx.model.expressions import BitAccessExpr
+
         all_stmts = [s for n in pou_ir2.networks for s in n.statements]
         bit_stmts = [s for s in all_stmts if hasattr(s, "value") and isinstance(s.value, BitAccessExpr)]
         assert len(bit_stmts) == 2
@@ -1681,12 +1750,12 @@ class TestRoundTrip:
         assert "class IO:" in code
 
     def test_project_assembly_round_trip(self):
+        from datetime import timedelta
+
         from plx.framework._decorators import fb, program
         from plx.framework._descriptors import Input, Output
         from plx.framework._project import project
         from plx.framework._task import task
-        from datetime import timedelta
-        from plx.framework._types import BOOL
 
         @fb
         class MotorCtrl:
@@ -1716,6 +1785,7 @@ class TestRoundTrip:
 # Annotation syntax emission
 # ===========================================================================
 
+
 class TestAnnotationSyntaxEmission:
     def test_simple_fb_uses_annotation_syntax(self):
         """Variables without metadata should use annotation syntax."""
@@ -1726,7 +1796,9 @@ class TestAnnotationSyntaxEmission:
                 input_vars=[Variable(name="sensor", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL))],
                 output_vars=[Variable(name="valve", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL))],
                 inout_vars=[Variable(name="ref", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL))],
-                static_vars=[Variable(name="count", data_type=PrimitiveTypeRef(type=PrimitiveType.DINT), initial_value="0")],
+                static_vars=[
+                    Variable(name="count", data_type=PrimitiveTypeRef(type=PrimitiveType.DINT), initial_value="0")
+                ],
             ),
             networks=[Network(statements=[EmptyStatement()])],
         )
@@ -1744,7 +1816,11 @@ class TestAnnotationSyntaxEmission:
             pou_type=POUType.FUNCTION_BLOCK,
             name="MetaFB",
             interface=POUInterface(
-                input_vars=[Variable(name="sensor", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL), description="Main sensor")],
+                input_vars=[
+                    Variable(
+                        name="sensor", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL), description="Main sensor"
+                    )
+                ],
                 output_vars=[Variable(name="valve", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL), retain=True)],
                 static_vars=[Variable(name="count", data_type=PrimitiveTypeRef(type=PrimitiveType.DINT))],
             ),
@@ -1763,8 +1839,20 @@ class TestAnnotationSyntaxEmission:
             pou_type=POUType.FUNCTION_BLOCK,
             name="HardwareFB",
             interface=POUInterface(
-                input_vars=[Variable(name="sensor", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL), metadata={"hardware": "input"})],
-                output_vars=[Variable(name="motor", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL), metadata={"hardware": "output"})],
+                input_vars=[
+                    Variable(
+                        name="sensor",
+                        data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL),
+                        metadata={"hardware": "input"},
+                    )
+                ],
+                output_vars=[
+                    Variable(
+                        name="motor",
+                        data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL),
+                        metadata={"hardware": "output"},
+                    )
+                ],
             ),
             networks=[Network(statements=[EmptyStatement()])],
         )
@@ -1780,7 +1868,13 @@ class TestAnnotationSyntaxEmission:
             pou_type=POUType.FUNCTION_BLOCK,
             name="ExternalFB",
             interface=POUInterface(
-                static_vars=[Variable(name="speed", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL), metadata={"external": "readwrite"})],
+                static_vars=[
+                    Variable(
+                        name="speed",
+                        data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
+                        metadata={"external": "readwrite"},
+                    )
+                ],
             ),
             networks=[Network(statements=[EmptyStatement()])],
         )
@@ -1795,7 +1889,11 @@ class TestAnnotationSyntaxEmission:
             pou_type=POUType.FUNCTION_BLOCK,
             name="ReadOnlyFB",
             interface=POUInterface(
-                static_vars=[Variable(name="speed", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL), metadata={"external": "read"})],
+                static_vars=[
+                    Variable(
+                        name="speed", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL), metadata={"external": "read"}
+                    )
+                ],
             ),
             networks=[Network(statements=[EmptyStatement()])],
         )
@@ -1810,7 +1908,13 @@ class TestAnnotationSyntaxEmission:
             pou_type=POUType.FUNCTION_BLOCK,
             name="FullFB",
             interface=POUInterface(
-                output_vars=[Variable(name="motor", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL), metadata={"hardware": "output", "external": "readwrite"})],
+                output_vars=[
+                    Variable(
+                        name="motor",
+                        data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL),
+                        metadata={"hardware": "output", "external": "readwrite"},
+                    )
+                ],
             ),
             networks=[Network(statements=[EmptyStatement()])],
         )
@@ -1822,11 +1926,18 @@ class TestAnnotationSyntaxEmission:
     def test_gvl_hardware_metadata(self):
         """GVL variables with hardware metadata should use Field() syntax."""
         from plx.model.project import GlobalVariableList
+
         gvl = GlobalVariableList(
             name="IO",
             variables=[
-                Variable(name="sensor", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL), metadata={"hardware": "input"}),
-                Variable(name="motor", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL), metadata={"hardware": "output", "external": "readwrite"}),
+                Variable(
+                    name="sensor", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL), metadata={"hardware": "input"}
+                ),
+                Variable(
+                    name="motor",
+                    data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL),
+                    metadata={"hardware": "output", "external": "readwrite"},
+                ),
                 Variable(name="plain", data_type=PrimitiveTypeRef(type=PrimitiveType.DINT)),
             ],
         )
@@ -1873,7 +1984,9 @@ class TestAnnotationSyntaxEmission:
             pou_type=POUType.FUNCTION_BLOCK,
             name="InitInputFB",
             interface=POUInterface(
-                input_vars=[Variable(name="speed", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL), initial_value="100.0")],
+                input_vars=[
+                    Variable(name="speed", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL), initial_value="100.0")
+                ],
             ),
             networks=[Network(statements=[EmptyStatement()])],
         )
@@ -1889,8 +2002,12 @@ class TestAnnotationSyntaxEmission:
             name="ConstFB",
             interface=POUInterface(
                 constant_vars=[
-                    Variable(name="SEALER_ALARM_COUNT", data_type=PrimitiveTypeRef(type=PrimitiveType.INT),
-                             initial_value="6", constant=True),
+                    Variable(
+                        name="SEALER_ALARM_COUNT",
+                        data_type=PrimitiveTypeRef(type=PrimitiveType.INT),
+                        initial_value="6",
+                        constant=True,
+                    ),
                 ],
             ),
             networks=[Network(statements=[EmptyStatement()])],
@@ -1907,8 +2024,13 @@ class TestAnnotationSyntaxEmission:
             name="ConstDescFB",
             interface=POUInterface(
                 constant_vars=[
-                    Variable(name="FAULTID", data_type=PrimitiveTypeRef(type=PrimitiveType.INT),
-                             initial_value="1", description="Fault number", constant=True),
+                    Variable(
+                        name="FAULTID",
+                        data_type=PrimitiveTypeRef(type=PrimitiveType.INT),
+                        initial_value="1",
+                        description="Fault number",
+                        constant=True,
+                    ),
                 ],
             ),
             networks=[Network(statements=[EmptyStatement()])],
@@ -1931,8 +2053,9 @@ class TestAnnotationSyntaxEmission:
         """Static var with constant=True emits the flag in Field()."""
         w = _make_writer()
         w._self_vars = set()
-        v = Variable(name="PI", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
-                     initial_value="3.14", constant=True)
+        v = Variable(
+            name="PI", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL), initial_value="3.14", constant=True
+        )
         w._write_static_var(v)
         out = w.getvalue().strip()
         assert "constant=True" in out
@@ -1941,6 +2064,7 @@ class TestAnnotationSyntaxEmission:
 # ===========================================================================
 # Multi-file generation
 # ===========================================================================
+
 
 class TestGenerateFiles:
     def test_empty_project(self):
@@ -1961,9 +2085,13 @@ class TestGenerateFiles:
                         input_vars=[Variable(name="cmd", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL))],
                         output_vars=[Variable(name="run", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL))],
                     ),
-                    networks=[Network(statements=[
-                        Assignment(target=VariableRef(name="run"), value=VariableRef(name="cmd")),
-                    ])],
+                    networks=[
+                        Network(
+                            statements=[
+                                Assignment(target=VariableRef(name="run"), value=VariableRef(name="cmd")),
+                            ]
+                        )
+                    ],
                 ),
                 POU(
                     pou_type=POUType.PROGRAM,
@@ -1991,13 +2119,19 @@ class TestGenerateFiles:
         proj = Project(
             name="TypeFiles",
             data_types=[
-                StructType(name="SensorData", members=[
-                    StructMember(name="value", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL)),
-                ]),
-                EnumType(name="State", members=[
-                    EnumMember(name="OFF", value=0),
-                    EnumMember(name="ON", value=1),
-                ]),
+                StructType(
+                    name="SensorData",
+                    members=[
+                        StructMember(name="value", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL)),
+                    ],
+                ),
+                EnumType(
+                    name="State",
+                    members=[
+                        EnumMember(name="OFF", value=0),
+                        EnumMember(name="ON", value=1),
+                    ],
+                ),
             ],
             pous=[],
         )
@@ -2034,9 +2168,12 @@ class TestGenerateFiles:
         proj = Project(
             name="DepTest",
             data_types=[
-                StructType(name="MotorData", members=[
-                    StructMember(name="speed", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL)),
-                ]),
+                StructType(
+                    name="MotorData",
+                    members=[
+                        StructMember(name="speed", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL)),
+                    ],
+                ),
             ],
             pous=[
                 POU(
@@ -2057,13 +2194,19 @@ class TestGenerateFiles:
         proj = Project(
             name="InheritFiles",
             pous=[
-                POU(pou_type=POUType.FUNCTION_BLOCK, name="BaseFB",
+                POU(
+                    pou_type=POUType.FUNCTION_BLOCK,
+                    name="BaseFB",
                     interface=POUInterface(),
-                    networks=[Network(statements=[EmptyStatement()])]),
-                POU(pou_type=POUType.FUNCTION_BLOCK, name="Derived",
+                    networks=[Network(statements=[EmptyStatement()])],
+                ),
+                POU(
+                    pou_type=POUType.FUNCTION_BLOCK,
+                    name="Derived",
                     extends="BaseFB",
                     interface=POUInterface(),
-                    networks=[Network(statements=[EmptyStatement()])]),
+                    networks=[Network(statements=[EmptyStatement()])],
+                ),
             ],
         )
         files = generate_files(proj)
@@ -2092,14 +2235,20 @@ class TestGenerateFiles:
         proj = Project(
             name="ValidPy",
             data_types=[
-                StructType(name="Cfg", members=[
-                    StructMember(name="val", data_type=PrimitiveTypeRef(type=PrimitiveType.INT)),
-                ]),
+                StructType(
+                    name="Cfg",
+                    members=[
+                        StructMember(name="val", data_type=PrimitiveTypeRef(type=PrimitiveType.INT)),
+                    ],
+                ),
             ],
             global_variable_lists=[
-                GlobalVariableList(name="Globals", variables=[
-                    Variable(name="x", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL)),
-                ]),
+                GlobalVariableList(
+                    name="Globals",
+                    variables=[
+                        Variable(name="x", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL)),
+                    ],
+                ),
             ],
             pous=[
                 POU(
@@ -2121,6 +2270,7 @@ class TestGenerateFiles:
 # Property export
 # ===========================================================================
 
+
 class TestPropertyExport:
     def test_property_getter_only(self):
         pou = POU(
@@ -2134,9 +2284,13 @@ class TestPropertyExport:
                     name="speed",
                     data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
                     getter=PropertyAccessor(
-                        networks=[Network(statements=[
-                            ReturnStatement(value=VariableRef(name="_speed")),
-                        ])],
+                        networks=[
+                            Network(
+                                statements=[
+                                    ReturnStatement(value=VariableRef(name="_speed")),
+                                ]
+                            )
+                        ],
                     ),
                 ),
             ],
@@ -2160,17 +2314,25 @@ class TestPropertyExport:
                     name="level",
                     data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
                     getter=PropertyAccessor(
-                        networks=[Network(statements=[
-                            ReturnStatement(value=VariableRef(name="_level")),
-                        ])],
+                        networks=[
+                            Network(
+                                statements=[
+                                    ReturnStatement(value=VariableRef(name="_level")),
+                                ]
+                            )
+                        ],
                     ),
                     setter=PropertyAccessor(
-                        networks=[Network(statements=[
-                            Assignment(
-                                target=VariableRef(name="_level"),
-                                value=VariableRef(name="level"),
-                            ),
-                        ])],
+                        networks=[
+                            Network(
+                                statements=[
+                                    Assignment(
+                                        target=VariableRef(name="_level"),
+                                        value=VariableRef(name="level"),
+                                    ),
+                                ]
+                            )
+                        ],
                     ),
                 ),
             ],
@@ -2214,9 +2376,13 @@ class TestPropertyExport:
                     access=AccessSpecifier.PROTECTED,
                     final=True,
                     getter=PropertyAccessor(
-                        networks=[Network(statements=[
-                            ReturnStatement(value=VariableRef(name="_val")),
-                        ])],
+                        networks=[
+                            Network(
+                                statements=[
+                                    ReturnStatement(value=VariableRef(name="_val")),
+                                ]
+                            )
+                        ],
                     ),
                 ),
             ],
@@ -2230,6 +2396,7 @@ class TestPropertyExport:
 # ===========================================================================
 # Interface export
 # ===========================================================================
+
 
 class TestInterfaceExport:
     def test_interface_export(self):
@@ -2305,15 +2472,24 @@ class TestInterfaceExport:
 # Type conversion export
 # ===========================================================================
 
+
 class TestTypeConversionExport:
     """Type conversions are implicit in Python — the py exporter strips them."""
 
     def test_primitive_cast_stripped(self):
         """Simple primitive cast REAL(x) exports as just x."""
         w = _make_writer()
-        for prim in [PrimitiveType.INT, PrimitiveType.SINT, PrimitiveType.LREAL,
-                      PrimitiveType.UINT, PrimitiveType.UDINT, PrimitiveType.LINT,
-                      PrimitiveType.BOOL, PrimitiveType.DINT, PrimitiveType.REAL]:
+        for prim in [
+            PrimitiveType.INT,
+            PrimitiveType.SINT,
+            PrimitiveType.LREAL,
+            PrimitiveType.UINT,
+            PrimitiveType.UDINT,
+            PrimitiveType.LINT,
+            PrimitiveType.BOOL,
+            PrimitiveType.DINT,
+            PrimitiveType.REAL,
+        ]:
             expr = TypeConversionExpr(
                 target_type=PrimitiveTypeRef(type=prim),
                 source=VariableRef(name="x"),
@@ -2380,6 +2556,7 @@ class TestTypeConversionExport:
 # Round-trip fidelity fixes
 # ===========================================================================
 
+
 class TestRoundTripFixes:
     def test_access_specifier_in_method_export(self):
         """AccessSpecifier.PRIVATE in method export produces importable code."""
@@ -2403,6 +2580,7 @@ class TestRoundTripFixes:
         assert "@fb_method(access=AccessSpecifier.PRIVATE)" in out
         # Verify AccessSpecifier is importable from framework
         from plx.framework import AccessSpecifier as AS
+
         assert AS.PRIVATE is not None
 
     def test_enum_auto_values(self):
@@ -2468,12 +2646,16 @@ class TestRoundTripFixes:
                     Variable(name="gCounter", data_type=PrimitiveTypeRef(type=PrimitiveType.DINT)),
                 ],
             ),
-            networks=[Network(statements=[
-                Assignment(
-                    target=VariableRef(name="gCounter"),
-                    value=LiteralExpr(value="42"),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="gCounter"),
+                            value=LiteralExpr(value="42"),
+                        ),
+                    ]
+                )
+            ],
         )
         w = _make_writer()
         w._write_pou(pou)
@@ -2484,6 +2666,7 @@ class TestRoundTripFixes:
 # ===========================================================================
 # Regression tests for Beckhoff import code generation fixes
 # ===========================================================================
+
 
 class TestPropertyGetterReturn:
     """Property getter: assignment to property name becomes return statement."""
@@ -2501,12 +2684,16 @@ class TestPropertyGetterReturn:
                     name="Speed",
                     data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
                     getter=PropertyAccessor(
-                        networks=[Network(statements=[
-                            Assignment(
-                                target=VariableRef(name="Speed"),
-                                value=VariableRef(name="_speed"),
-                            ),
-                        ])],
+                        networks=[
+                            Network(
+                                statements=[
+                                    Assignment(
+                                        target=VariableRef(name="Speed"),
+                                        value=VariableRef(name="_speed"),
+                                    ),
+                                ]
+                            )
+                        ],
                     ),
                 ),
             ],
@@ -2531,9 +2718,13 @@ class TestPropertyGetterReturn:
                     name="Speed",
                     data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
                     getter=PropertyAccessor(
-                        networks=[Network(statements=[
-                            ReturnStatement(value=VariableRef(name="_speed")),
-                        ])],
+                        networks=[
+                            Network(
+                                statements=[
+                                    ReturnStatement(value=VariableRef(name="_speed")),
+                                ]
+                            )
+                        ],
                     ),
                 ),
             ],
@@ -2557,20 +2748,28 @@ class TestPropertyGetterReturn:
                     name="Speed",
                     data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
                     getter=PropertyAccessor(
-                        networks=[Network(statements=[
-                            Assignment(
-                                target=VariableRef(name="Speed"),
-                                value=VariableRef(name="_speed"),
-                            ),
-                        ])],
+                        networks=[
+                            Network(
+                                statements=[
+                                    Assignment(
+                                        target=VariableRef(name="Speed"),
+                                        value=VariableRef(name="_speed"),
+                                    ),
+                                ]
+                            )
+                        ],
                     ),
                     setter=PropertyAccessor(
-                        networks=[Network(statements=[
-                            Assignment(
-                                target=VariableRef(name="_speed"),
-                                value=VariableRef(name="Speed"),
-                            ),
-                        ])],
+                        networks=[
+                            Network(
+                                statements=[
+                                    Assignment(
+                                        target=VariableRef(name="_speed"),
+                                        value=VariableRef(name="Speed"),
+                                    ),
+                                ]
+                            )
+                        ],
                     ),
                 ),
             ],
@@ -2652,9 +2851,12 @@ class TestSuperAndThisHandling:
     def test_normal_function_call_not_affected(self):
         """Regular function calls are not affected by SUPER^/THIS^ handling."""
         w = _make_writer()
-        stmt = FunctionCallStatement(function_name="ABS", args=[
-            CallArg(value=LiteralExpr(value="42")),
-        ])
+        stmt = FunctionCallStatement(
+            function_name="ABS",
+            args=[
+                CallArg(value=LiteralExpr(value="42")),
+            ],
+        )
         w._write_stmt(stmt)
         out = w.getvalue().strip()
         assert out == "abs(42)"
@@ -2811,6 +3013,7 @@ class TestInOutParamsInMethodSignature:
 # New statement types: latch assignment, TryCatch, Jump, Label
 # ===========================================================================
 
+
 class TestLatchAssignmentExport:
     def test_set_latch_emits_comment(self):
         w = _make_writer()
@@ -2945,9 +3148,10 @@ class TestNewStatementIRModel:
 
     def test_new_types_in_statement_union(self):
         """New types round-trip through the Statement discriminated union."""
-        import json
-        from plx.model.statements import Statement
         from pydantic import TypeAdapter
+
+        from plx.model.statements import Statement
+
         ta = TypeAdapter(Statement)
         for data in [
             {"kind": "jump", "label": "lbl"},
@@ -2962,6 +3166,7 @@ class TestNewStatementIRModel:
 # ===========================================================================
 # Membership reconstruction (in / not in)
 # ===========================================================================
+
 
 class TestMembershipReconstruction:
     """Test that OR/EQ chains are reconstructed as ``in`` and AND/NE as ``not in``."""
@@ -3136,6 +3341,7 @@ class TestMembershipReconstruction:
 # ===========================================================================
 # Ternary reconstruction (SEL → if/else)
 # ===========================================================================
+
 
 class TestTernaryReconstruction:
     """Test that SEL(cond, false_val, true_val) is reconstructed as ternary."""

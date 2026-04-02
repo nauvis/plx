@@ -10,9 +10,9 @@ from plx.model.expressions import (
     LiteralExpr,
     VariableRef,
 )
-from plx.model.pou import POU, POUInterface, POUType, Network
+from plx.model.pou import POU, Network, POUInterface, POUType
 from plx.model.project import GlobalVariableList, Project
-from plx.model.statements import Assignment, IfStatement, IfBranch
+from plx.model.statements import Assignment, IfBranch, IfStatement
 from plx.model.task import (
     ContinuousTask,
     EventTask,
@@ -21,7 +21,6 @@ from plx.model.task import (
 )
 from plx.model.types import PrimitiveType, PrimitiveTypeRef
 from plx.model.variables import Variable
-
 from plx.simulate import (
     ProjectSimulationContext,
     SimulationContext,
@@ -29,7 +28,6 @@ from plx.simulate import (
 )
 from plx.simulate._triggers import SimulationTimeout
 from plx.simulate._values import SimulationError
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -56,8 +54,7 @@ def _bool_var(name, initial=None, description=None):
     return _var(name, BOOL_REF, iv, description)
 
 
-def _program_pou(name, *, inputs=None, outputs=None, statics=None,
-                 externals=None, stmts=None):
+def _program_pou(name, *, inputs=None, outputs=None, statics=None, externals=None, stmts=None):
     return POU(
         name=name,
         pou_type=POUType.PROGRAM,
@@ -103,8 +100,8 @@ def _assign_literal(target, value):
 # TestProjectBasic
 # ---------------------------------------------------------------------------
 
-class TestProjectBasic:
 
+class TestProjectBasic:
     def test_single_program_no_tasks(self):
         """All programs run every scan when no tasks are defined."""
         prog = _program_pou(
@@ -147,7 +144,9 @@ class TestProjectBasic:
         )
         prog = _program_pou("Main", stmts=[])
         proj = Project(
-            name="Test", pous=[prog], global_variable_lists=[gvl],
+            name="Test",
+            pous=[prog],
+            global_variable_lists=[gvl],
         )
         ctx = simulate_project(proj)
         assert ctx.globals.Globals.speed == 42.0
@@ -193,8 +192,8 @@ class TestProjectBasic:
 # TestTaskScheduling
 # ---------------------------------------------------------------------------
 
-class TestTaskScheduling:
 
+class TestTaskScheduling:
     def test_periodic_different_rates(self):
         """Periodic tasks fire at their configured rates."""
         fast = _program_pou(
@@ -212,12 +211,16 @@ class TestTaskScheduling:
             pous=[fast, slow],
             tasks=[
                 PeriodicTask(
-                    name="FastTask", interval="T#10ms",
-                    assigned_pous=["Fast"], priority=1,
+                    name="FastTask",
+                    interval="T#10ms",
+                    assigned_pous=["Fast"],
+                    priority=1,
                 ),
                 PeriodicTask(
-                    name="SlowTask", interval="T#20ms",
-                    assigned_pous=["Slow"], priority=2,
+                    name="SlowTask",
+                    interval="T#20ms",
+                    assigned_pous=["Slow"],
+                    priority=2,
                 ),
             ],
         )
@@ -269,12 +272,16 @@ class TestTaskScheduling:
             global_variable_lists=[gvl],
             tasks=[
                 PeriodicTask(
-                    name="WriterTask", interval="T#10ms",
-                    assigned_pous=["Writer"], priority=1,
+                    name="WriterTask",
+                    interval="T#10ms",
+                    assigned_pous=["Writer"],
+                    priority=1,
                 ),
                 PeriodicTask(
-                    name="ReaderTask", interval="T#10ms",
-                    assigned_pous=["Reader"], priority=5,
+                    name="ReaderTask",
+                    interval="T#10ms",
+                    assigned_pous=["Reader"],
+                    priority=5,
                 ),
             ],
         )
@@ -319,7 +326,8 @@ class TestTaskScheduling:
             pous=[assigned, unassigned],
             tasks=[
                 PeriodicTask(
-                    name="Task1", interval="T#10ms",
+                    name="Task1",
+                    interval="T#10ms",
                     assigned_pous=["Assigned"],
                 ),
             ],
@@ -334,8 +342,8 @@ class TestTaskScheduling:
 # TestStartupTask
 # ---------------------------------------------------------------------------
 
-class TestStartupTask:
 
+class TestStartupTask:
     def test_fires_once(self):
         """Startup task fires exactly once on the first scan."""
         prog = _program_pou(
@@ -370,23 +378,24 @@ class TestStartupTask:
             tasks=[
                 StartupTask(name="InitTask", assigned_pous=["Init"]),
                 PeriodicTask(
-                    name="MainTask", interval="T#10ms",
+                    name="MainTask",
+                    interval="T#10ms",
                     assigned_pous=["Main"],
                 ),
             ],
         )
         ctx = simulate_project(proj)
         ctx.scan(n=5)
-        assert ctx.Init.init_count == 1   # once
-        assert ctx.Main.main_count == 5   # every scan
+        assert ctx.Init.init_count == 1  # once
+        assert ctx.Main.main_count == 5  # every scan
 
 
 # ---------------------------------------------------------------------------
 # TestEventTask
 # ---------------------------------------------------------------------------
 
-class TestEventTask:
 
+class TestEventTask:
     def test_fires_on_trigger_change(self):
         """Event task fires when trigger variable value changes."""
         gvl = GlobalVariableList(
@@ -466,8 +475,8 @@ class TestEventTask:
 # TestGVLSharing
 # ---------------------------------------------------------------------------
 
-class TestGVLSharing:
 
+class TestGVLSharing:
     def test_two_programs_share_gvl(self):
         """Two programs communicate through shared GVL state."""
         gvl = GlobalVariableList(
@@ -527,8 +536,8 @@ class TestGVLSharing:
 # TestProgramAccess
 # ---------------------------------------------------------------------------
 
-class TestProgramAccess:
 
+class TestProgramAccess:
     def test_attribute_access(self):
         """Programs are accessible as attributes."""
         prog = _program_pou(
@@ -560,7 +569,9 @@ class TestProgramAccess:
         )
         prog = _program_pou("Main", stmts=[])
         proj = Project(
-            name="Test", pous=[prog], global_variable_lists=[gvl],
+            name="Test",
+            pous=[prog],
+            global_variable_lists=[gvl],
         )
         ctx = simulate_project(proj)
         assert ctx.globals.IO.sensor is True
@@ -588,8 +599,8 @@ class TestProgramAccess:
 # TestScanUntil
 # ---------------------------------------------------------------------------
 
-class TestScanUntil:
 
+class TestScanUntil:
     def test_scan_until_condition(self):
         """scan_until waits for a condition across programs."""
         prog = _program_pou(
@@ -625,9 +636,7 @@ class TestScanUntil:
         )
         proj = Project(name="Test", pous=[prog])
         ctx = simulate_project(proj)
-        ctx.scans().until(
-            lambda c: c.Counter.count >= 5
-        ).timeout(seconds=1).run()
+        ctx.scans().until(lambda c: c.Counter.count >= 5).timeout(seconds=1).run()
         assert ctx.Counter.count >= 5
 
 
@@ -635,8 +644,8 @@ class TestScanUntil:
 # TestTickTrace
 # ---------------------------------------------------------------------------
 
-class TestTickTrace:
 
+class TestTickTrace:
     def test_tick_with_trace(self):
         """tick(trace=True) captures composite snapshots."""
         prog = _program_pou(
@@ -693,14 +702,18 @@ class TestTickTrace:
 # TestAcceptPlxProject
 # ---------------------------------------------------------------------------
 
-class TestAcceptPlxProject:
 
+class TestAcceptPlxProject:
     def test_accept_plx_project_builder(self):
         """simulate_project accepts an uncompiled PlxProject builder."""
         from plx.framework import (
             BOOL,
             Output,
+        )
+        from plx.framework import (
             program as program_deco,
+        )
+        from plx.framework import (
             project as project_builder,
         )
 
@@ -712,7 +725,8 @@ class TestAcceptPlxProject:
                 self.flag = True
 
         proj_builder = project_builder(
-            "AcceptTest", pous=[AcceptTestProgram],
+            "AcceptTest",
+            pous=[AcceptTestProgram],
         )
         ctx = simulate_project(proj_builder)
         ctx.scan()
@@ -728,8 +742,8 @@ class TestAcceptPlxProject:
 # TestEdgeCases
 # ---------------------------------------------------------------------------
 
-class TestEdgeCases:
 
+class TestEdgeCases:
     def test_no_programs_raises_error(self):
         """Project with no PROGRAM POUs raises SimulationError."""
         fb = POU(
@@ -760,11 +774,13 @@ class TestEdgeCases:
             pous=[prog],
             tasks=[
                 PeriodicTask(
-                    name="Task1", interval="T#10ms",
+                    name="Task1",
+                    interval="T#10ms",
                     assigned_pous=["Existing"],
                 ),
                 PeriodicTask(
-                    name="Task2", interval="T#10ms",
+                    name="Task2",
+                    interval="T#10ms",
                     assigned_pous=["NonExistent"],
                 ),
             ],

@@ -6,30 +6,32 @@ import math
 import pytest
 
 from plx.framework._plc_types import (
-    _PlcInt,
     _PlcFloat,
-    sint,
-    int as plc_int,
-    dint,
-    lint,
-    usint,
-    uint,
-    udint,
-    ulint,
-    real,
-    lreal,
+    _PlcInt,
     byte,
-    word,
+    dint,
     dword,
+    lint,
+    lreal,
     lword,
+    real,
+    sint,
+    udint,
+    uint,
+    ulint,
+    usint,
+    word,
+)
+from plx.framework._plc_types import (
+    int as plc_int,
 )
 from plx.framework._types import _resolve_type_ref
 from plx.model.types import PrimitiveType, PrimitiveTypeRef
 
-
 # ---------------------------------------------------------------------------
 # Construction and overflow wrapping
 # ---------------------------------------------------------------------------
+
 
 class TestSignedOverflow:
     def test_sint_positive_overflow(self):
@@ -134,6 +136,7 @@ class TestDefaults:
 # Float precision
 # ---------------------------------------------------------------------------
 
+
 class TestFloatPrecision:
     def test_real_32bit_truncation(self):
         """REAL loses precision compared to Python float."""
@@ -171,6 +174,7 @@ class TestFloatPrecision:
 # ---------------------------------------------------------------------------
 # Type preservation in arithmetic
 # ---------------------------------------------------------------------------
+
 
 class TestTypePreservation:
     def test_add_preserves_type(self):
@@ -244,6 +248,7 @@ class TestTypePreservation:
 # Repr and str
 # ---------------------------------------------------------------------------
 
+
 class TestRepr:
     def test_repr_dint(self):
         assert repr(dint(42)) == "dint(42)"
@@ -273,6 +278,7 @@ class TestRepr:
 # ---------------------------------------------------------------------------
 # isinstance compatibility
 # ---------------------------------------------------------------------------
+
 
 class TestIsinstance:
     def test_dint_is_int(self):
@@ -304,6 +310,7 @@ class TestIsinstance:
 # Hash compatibility
 # ---------------------------------------------------------------------------
 
+
 class TestHash:
     def test_dint_hash_matches_int(self):
         assert hash(dint(42)) == hash(42)
@@ -316,6 +323,7 @@ class TestHash:
 # ---------------------------------------------------------------------------
 # Type resolution (framework integration)
 # ---------------------------------------------------------------------------
+
 
 class TestResolveTypeRef:
     def test_dint_resolves(self):
@@ -363,7 +371,9 @@ class TestResolveTypeRef:
     def test_builtin_float_rejected(self):
         """float is ambiguous — must use real or lreal."""
         import pytest
+
         from plx.framework._errors import DeclarationError
+
         with pytest.raises(DeclarationError, match="float is ambiguous"):
             _resolve_type_ref(builtins.float)
 
@@ -376,27 +386,31 @@ class TestResolveTypeRef:
 # Compiler integration — lowercase type annotations in logic()
 # ---------------------------------------------------------------------------
 
+
 class TestCompilerAnnotations:
     def test_dint_annotation_in_logic(self):
         """x: dint = 0 inside logic() should compile."""
         from conftest import compile_stmts
         from plx.framework._compiler_core import CompileContext
+
         ctx = CompileContext()
-        stmts = compile_stmts("x: dint = 0", ctx)
+        compile_stmts("x: dint = 0", ctx)
         # Should produce an assignment and register the temp var
         assert any(v.name == "x" for v in ctx.generated_temp_vars)
 
     def test_real_annotation_in_logic(self):
         from conftest import compile_stmts
         from plx.framework._compiler_core import CompileContext
+
         ctx = CompileContext()
-        stmts = compile_stmts("x: real = 0.0", ctx)
+        compile_stmts("x: real = 0.0", ctx)
         assert any(v.name == "x" for v in ctx.generated_temp_vars)
 
     def test_lowercase_type_conversion(self):
         """dint(x) in logic() should compile to TypeConversionExpr."""
         from conftest import compile_expr
         from plx.model.expressions import TypeConversionExpr
+
         result = compile_expr("dint(x)")
         assert isinstance(result, TypeConversionExpr)
         assert isinstance(result.target_type, PrimitiveTypeRef)
@@ -405,6 +419,7 @@ class TestCompilerAnnotations:
     def test_lowercase_real_conversion(self):
         from conftest import compile_expr
         from plx.model.expressions import TypeConversionExpr
+
         result = compile_expr("real(x)")
         assert isinstance(result, TypeConversionExpr)
         assert result.target_type.type == PrimitiveType.REAL
@@ -414,26 +429,30 @@ class TestCompilerAnnotations:
 # Parametrized overflow tests across all types
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("cls,bits,signed", [
-    (sint, 8, True),
-    (plc_int, 16, True),
-    (dint, 32, True),
-    (lint, 64, True),
-    (usint, 8, False),
-    (uint, 16, False),
-    (udint, 32, False),
-    (ulint, 64, False),
-    (byte, 8, False),
-    (word, 16, False),
-    (dword, 32, False),
-    (lword, 64, False),
-])
+
+@pytest.mark.parametrize(
+    "cls,bits,signed",
+    [
+        (sint, 8, True),
+        (plc_int, 16, True),
+        (dint, 32, True),
+        (lint, 64, True),
+        (usint, 8, False),
+        (uint, 16, False),
+        (udint, 32, False),
+        (ulint, 64, False),
+        (byte, 8, False),
+        (word, 16, False),
+        (dword, 32, False),
+        (lword, 64, False),
+    ],
+)
 class TestParametrizedOverflow:
     def test_max_value(self, cls, bits, signed):
         if signed:
             max_val = 2 ** (bits - 1) - 1
         else:
-            max_val = 2 ** bits - 1
+            max_val = 2**bits - 1
         assert cls(max_val) == max_val
 
     def test_min_value(self, cls, bits, signed):
@@ -448,7 +467,7 @@ class TestParametrizedOverflow:
             max_val = 2 ** (bits - 1) - 1
             assert cls(max_val + 1) == -(2 ** (bits - 1))
         else:
-            max_val = 2 ** bits - 1
+            max_val = 2**bits - 1
             assert cls(max_val + 1) == 0
 
     def test_zero(self, cls, bits, signed):

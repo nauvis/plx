@@ -16,6 +16,5 @@ class OPCUABridge:
 
     def __init__(self) -> None:
         raise NotImplementedError(
-            "Inter-PLC OPC-UA bridge is not yet implemented. "
-            "This feature is planned for a future release."
+            "Inter-PLC OPC-UA bridge is not yet implemented. This feature is planned for a future release."
         )

@@ -16,21 +16,25 @@ from plx.model.types import (
     UnionType,
 )
 
-from ._writer import PyWriter
 from ._helpers import (
     _collect_library_imports,
     _collect_pou_deps,
-    _format_initial_value,
-    _parse_iec_time,
     _sanitize_folder,
     _topo_sort_data_types,
     _topo_sort_fbs,
 )
-
+from ._helpers import (
+    _format_initial_value as _format_initial_value,
+)
+from ._helpers import (
+    _parse_iec_time as _parse_iec_time,
+)
+from ._writer import PyWriter
 
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def generate(project: Project) -> str:
     """Generate Python framework code from a Universal IR Project as a single string.
@@ -71,7 +75,6 @@ def generate_files(project: Project) -> dict[str, str]:
         POU, data type, GVL, and a ``project.py`` assembly file.
     """
     files: dict[str, str] = {}
-    w = PyWriter(project)
 
     def _prefixed(folder: str, name: str) -> str:
         folder = _sanitize_folder(folder)

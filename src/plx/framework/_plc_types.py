@@ -19,10 +19,10 @@ need arbitrary-precision integers in a module that imports these types.
 import builtins
 import struct as _struct
 
-
 # ---------------------------------------------------------------------------
 # Integer base
 # ---------------------------------------------------------------------------
+
 
 class _PlcInt(builtins.int):
     """Base for PLC integer types with bit-width overflow wrapping."""
@@ -31,8 +31,9 @@ class _PlcInt(builtins.int):
     _signed: builtins.bool
     _iec_name: str
 
-    def __init_subclass__(cls, *, bits: builtins.int = 0, signed: builtins.bool = True,
-                          iec_name: str = "", **kw: object) -> None:
+    def __init_subclass__(
+        cls, *, bits: builtins.int = 0, signed: builtins.bool = True, iec_name: str = "", **kw: object
+    ) -> None:
         super().__init_subclass__(**kw)
         if bits:
             cls._bits = bits
@@ -172,6 +173,7 @@ class _PlcInt(builtins.int):
 # Float base
 # ---------------------------------------------------------------------------
 
+
 class _PlcFloat(builtins.float):
     """Base for PLC floating-point types with precision control."""
 
@@ -256,6 +258,7 @@ class _PlcFloat(builtins.float):
 # Signed integers
 # ---------------------------------------------------------------------------
 
+
 class sint(_PlcInt, bits=8, signed=True, iec_name="SINT"):
     """8-bit signed integer (-128 to 127)."""
 
@@ -275,6 +278,7 @@ class lint(_PlcInt, bits=64, signed=True, iec_name="LINT"):
 # ---------------------------------------------------------------------------
 # Unsigned integers
 # ---------------------------------------------------------------------------
+
 
 class usint(_PlcInt, bits=8, signed=False, iec_name="USINT"):
     """8-bit unsigned integer (0 to 255)."""
@@ -296,6 +300,7 @@ class ulint(_PlcInt, bits=64, signed=False, iec_name="ULINT"):
 # Bit-strings
 # ---------------------------------------------------------------------------
 
+
 class byte(_PlcInt, bits=8, signed=False, iec_name="BYTE"):
     """8-bit bit-string."""
 
@@ -315,6 +320,7 @@ class lword(_PlcInt, bits=64, signed=False, iec_name="LWORD"):
 # ---------------------------------------------------------------------------
 # Floating point
 # ---------------------------------------------------------------------------
+
 
 class real(_PlcFloat):
     """32-bit float (IEC REAL, IEEE 754 single precision)."""

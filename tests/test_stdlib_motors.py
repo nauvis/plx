@@ -2,12 +2,9 @@
 
 from plx.framework import (
     BOOL,
-    fb,
     Input,
-    Output,
     program,
     project,
-    Field,
 )
 from plx.model.pou import POUType
 from plx.simulate import simulate
@@ -34,10 +31,12 @@ class TestDOLStarterCompilation:
 
     def test_auto_included_in_project(self):
         """DOLStarter is auto-included when used as a static var."""
+
         @program
         class MotorMain:
             motor: DOLStarter
             start: Input[BOOL]
+
             def logic(self):
                 self.motor(run_cmd=self.start, e_stop=True)
 

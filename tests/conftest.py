@@ -25,14 +25,14 @@ settings.register_profile(
     deadline=None,
 )
 import os
+
 _profile = os.environ.get("HYPOTHESIS_PROFILE", "default")
 settings.load_profile(_profile)
 
 from plx.framework._compiler import ASTCompiler, CompileContext
-from plx.framework._registry import _snapshot_registries, _restore_registries
-from plx.model.pou import Network, POU, POUInterface, POUType
+from plx.framework._registry import _restore_registries, _snapshot_registries
+from plx.model.pou import POU, Network, POUInterface, POUType
 from plx.model.types import PrimitiveTypeRef
-from plx.model.variables import Variable
 
 
 @pytest.fixture(autouse=True)
@@ -52,7 +52,7 @@ def compile_stmts(source: str, ctx: CompileContext | None = None) -> list:
     if ctx is None:
         ctx = CompileContext()
     source = textwrap.dedent(source)
-    wrapped = f"def logic(self):\n" + textwrap.indent(source, "    ")
+    wrapped = "def logic(self):\n" + textwrap.indent(source, "    ")
     tree = ast.parse(wrapped)
     func_def = tree.body[0]
     compiler = ASTCompiler(ctx)

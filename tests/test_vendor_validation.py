@@ -1,30 +1,29 @@
 """Tests for vendor target validation."""
 
 import math
+from datetime import timedelta
 
 import pytest
 
 from plx.framework._compiler import CompileError
 from plx.framework._data_types import enumeration, struct
 from plx.framework._decorators import fb, fb_method, program
-from plx.framework._descriptors import Input, Field, Output, Static, Temp, TON, RTO, SR, RS, CTU, CTD, TP
-from plx.framework._library import LibraryFB, LibraryStruct, LibraryEnum
+from plx.framework._descriptors import CTD, CTU, RS, RTO, SR, TON, TP, Input, Output, Static, Temp
+from plx.framework._library import LibraryFB, LibraryStruct
 from plx.framework._project import project
-from datetime import timedelta
-from plx.framework._types import ARRAY, BOOL, BYTE, CHAR, DATE, DINT, INT, POINTER_TO, REAL, REFERENCE_TO, TIME, TOD
+from plx.framework._types import ARRAY, BOOL, BYTE, CHAR, DATE, DINT, POINTER_TO, REAL, REFERENCE_TO, TIME, TOD
 from plx.framework._vendor import (
     CompileResult,
-    PortabilityWarning,
     Vendor,
     VendorValidationError,
     validate_target,
 )
 from plx.model.project import Project
 
-
 # ---------------------------------------------------------------------------
 # Fixtures — simple POUs for testing
 # ---------------------------------------------------------------------------
+
 
 @fb
 class _SimpleFB:
@@ -89,6 +88,7 @@ class _TestStruct:
 # Backward compatibility — no target
 # ---------------------------------------------------------------------------
 
+
 class TestNoTarget:
     """compile() with no target must behave exactly as before."""
 
@@ -110,6 +110,7 @@ class TestNoTarget:
 # Beckhoff target — everything passes
 # ---------------------------------------------------------------------------
 
+
 class TestBeckhoff:
     """Beckhoff supports all current IR features."""
 
@@ -126,6 +127,7 @@ class TestBeckhoff:
 # ---------------------------------------------------------------------------
 # AB target — vendor-specific features rejected
 # ---------------------------------------------------------------------------
+
 
 class TestAB:
     def test_ab_allows_simple_project(self):
@@ -171,6 +173,7 @@ class TestAB:
 # Siemens target — same restrictions for now
 # ---------------------------------------------------------------------------
 
+
 class TestSiemens:
     def test_siemens_allows_simple_project(self):
         ir = project(
@@ -196,9 +199,11 @@ class TestSiemens:
 # Abstract / final / struct extends — Beckhoff-only
 # ---------------------------------------------------------------------------
 
+
 class TestAbstractFinal:
     def test_beckhoff_allows_abstract_pou(self):
-        from plx.model.pou import POU, POUType, POUInterface
+        from plx.model.pou import POU, POUInterface, POUType
+
         pou = POU(
             pou_type=POUType.FUNCTION_BLOCK,
             name="AbstractFB",
@@ -209,7 +214,8 @@ class TestAbstractFinal:
         validate_target(ir, Vendor.BECKHOFF)  # should not raise
 
     def test_ab_rejects_abstract_pou(self):
-        from plx.model.pou import POU, POUType, POUInterface
+        from plx.model.pou import POU, POUInterface, POUType
+
         pou = POU(
             pou_type=POUType.FUNCTION_BLOCK,
             name="AbstractFB",
@@ -221,7 +227,8 @@ class TestAbstractFinal:
             validate_target(ir, Vendor.AB)
 
     def test_siemens_rejects_abstract_pou(self):
-        from plx.model.pou import POU, POUType, POUInterface
+        from plx.model.pou import POU, POUInterface, POUType
+
         pou = POU(
             pou_type=POUType.FUNCTION_BLOCK,
             name="AbstractFB",
@@ -233,7 +240,8 @@ class TestAbstractFinal:
             validate_target(ir, Vendor.SIEMENS)
 
     def test_ab_rejects_abstract_method(self):
-        from plx.model.pou import POU, POUType, POUInterface, Method
+        from plx.model.pou import POU, Method, POUInterface, POUType
+
         pou = POU(
             pou_type=POUType.FUNCTION_BLOCK,
             name="FB1",
@@ -245,7 +253,8 @@ class TestAbstractFinal:
             validate_target(ir, Vendor.AB)
 
     def test_ab_rejects_final_method(self):
-        from plx.model.pou import POU, POUType, POUInterface, Method
+        from plx.model.pou import POU, Method, POUInterface, POUType
+
         pou = POU(
             pou_type=POUType.FUNCTION_BLOCK,
             name="FB1",
@@ -257,34 +266,40 @@ class TestAbstractFinal:
             validate_target(ir, Vendor.AB)
 
     def test_ab_rejects_abstract_property(self):
-        from plx.model.pou import POU, POUType, POUInterface, Property
-        from plx.model.types import PrimitiveTypeRef, PrimitiveType
+        from plx.model.pou import POU, POUInterface, POUType, Property
+        from plx.model.types import PrimitiveType, PrimitiveTypeRef
+
         pou = POU(
             pou_type=POUType.FUNCTION_BLOCK,
             name="FB1",
             interface=POUInterface(),
-            properties=[Property(
-                name="speed",
-                data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
-                abstract=True,
-            )],
+            properties=[
+                Property(
+                    name="speed",
+                    data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
+                    abstract=True,
+                )
+            ],
         )
         ir = Project(name="P", pous=[pou])
         with pytest.raises(VendorValidationError, match="ABSTRACT"):
             validate_target(ir, Vendor.AB)
 
     def test_ab_rejects_final_property(self):
-        from plx.model.pou import POU, POUType, POUInterface, Property
-        from plx.model.types import PrimitiveTypeRef, PrimitiveType
+        from plx.model.pou import POU, POUInterface, POUType, Property
+        from plx.model.types import PrimitiveType, PrimitiveTypeRef
+
         pou = POU(
             pou_type=POUType.FUNCTION_BLOCK,
             name="FB1",
             interface=POUInterface(),
-            properties=[Property(
-                name="speed",
-                data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
-                final=True,
-            )],
+            properties=[
+                Property(
+                    name="speed",
+                    data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
+                    final=True,
+                )
+            ],
         )
         ir = Project(name="P", pous=[pou])
         with pytest.raises(VendorValidationError, match="FINAL"):
@@ -293,8 +308,8 @@ class TestAbstractFinal:
 
 class TestStructExtends:
     def test_beckhoff_allows_struct_extends(self):
-        from plx.model.types import StructType, PrimitiveTypeRef, PrimitiveType
-        from plx.model.types import StructMember
+        from plx.model.types import PrimitiveType, PrimitiveTypeRef, StructMember, StructType
+
         dt = StructType(
             name="Derived",
             extends="Base",
@@ -304,8 +319,8 @@ class TestStructExtends:
         validate_target(ir, Vendor.BECKHOFF)  # should not raise
 
     def test_ab_rejects_struct_extends(self):
-        from plx.model.types import StructType, PrimitiveTypeRef, PrimitiveType
-        from plx.model.types import StructMember
+        from plx.model.types import PrimitiveType, PrimitiveTypeRef, StructMember, StructType
+
         dt = StructType(
             name="Derived",
             extends="Base",
@@ -316,8 +331,8 @@ class TestStructExtends:
             validate_target(ir, Vendor.AB)
 
     def test_siemens_rejects_struct_extends(self):
-        from plx.model.types import StructType, PrimitiveTypeRef, PrimitiveType
-        from plx.model.types import StructMember
+        from plx.model.types import PrimitiveType, PrimitiveTypeRef, StructMember, StructType
+
         dt = StructType(
             name="Derived",
             extends="Base",
@@ -328,8 +343,8 @@ class TestStructExtends:
             validate_target(ir, Vendor.SIEMENS)
 
     def test_struct_without_extends_passes(self):
-        from plx.model.types import StructType, PrimitiveTypeRef, PrimitiveType
-        from plx.model.types import StructMember
+        from plx.model.types import PrimitiveType, PrimitiveTypeRef, StructMember, StructType
+
         dt = StructType(
             name="Simple",
             members=[StructMember(name="x", data_type=PrimitiveTypeRef(type=PrimitiveType.REAL))],
@@ -341,6 +356,7 @@ class TestStructExtends:
 # ---------------------------------------------------------------------------
 # VendorValidationError is a CompileError
 # ---------------------------------------------------------------------------
+
 
 class TestErrorType:
     def test_is_compile_error(self):
@@ -359,6 +375,7 @@ class TestErrorType:
 # Vendor enum
 # ---------------------------------------------------------------------------
 
+
 class TestVendorEnum:
     def test_values(self):
         assert Vendor.BECKHOFF == "beckhoff"
@@ -374,6 +391,7 @@ class TestVendorEnum:
 # ---------------------------------------------------------------------------
 # Portability warnings
 # ---------------------------------------------------------------------------
+
 
 @fb
 class _BaseFB:
@@ -434,6 +452,7 @@ class _FBWithCTD:
 @fb
 class _FBWithTON:
     """Uses TON via delayed() — universal, should produce no warnings."""
+
     timer: TON
 
     def logic(self):
@@ -565,7 +584,8 @@ class TestPortabilityWarnings:
 
     def test_allow_lossy_permits_extends_ab(self):
         result = project("P", pous=[_DerivedFB]).compile(
-            target=Vendor.AB, allow_lossy=True,
+            target=Vendor.AB,
+            allow_lossy=True,
         )
         lossy = [w for w in result.warnings if w.category == "lossy_transform"]
         assert len(lossy) == 1
@@ -574,7 +594,8 @@ class TestPortabilityWarnings:
 
     def test_allow_lossy_permits_extends_siemens(self):
         result = project("P", pous=[_DerivedFB]).compile(
-            target=Vendor.SIEMENS, allow_lossy=True,
+            target=Vendor.SIEMENS,
+            allow_lossy=True,
         )
         lossy = [w for w in result.warnings if w.category == "lossy_transform"]
         assert len(lossy) == 1
@@ -584,7 +605,8 @@ class TestPortabilityWarnings:
         """allow_lossy only affects lossy checks, not structural impossibilities."""
         with pytest.raises(VendorValidationError, match="methods"):
             project("P", pous=[_FBWithMethod]).compile(
-                target=Vendor.AB, allow_lossy=True,
+                target=Vendor.AB,
+                allow_lossy=True,
             )
 
     # --- Hard errors still raise ---
@@ -611,7 +633,8 @@ class TestPortabilityWarnings:
         assert result.warnings[0].category == "fb_translation"
 
     def test_validate_target_rejects_extends_ab(self):
-        from plx.model.pou import POU, POUType, POUInterface
+        from plx.model.pou import POU, POUInterface, POUType
+
         pou = POU(
             pou_type=POUType.FUNCTION_BLOCK,
             name="Child",
@@ -624,7 +647,8 @@ class TestPortabilityWarnings:
         assert "round-trip" in str(exc_info.value).lower()
 
     def test_validate_target_rejects_extends_siemens(self):
-        from plx.model.pou import POU, POUType, POUInterface
+        from plx.model.pou import POU, POUInterface, POUType
+
         pou = POU(
             pou_type=POUType.FUNCTION_BLOCK,
             name="Child",
@@ -701,6 +725,7 @@ class TestPortabilityWarnings:
 
     def test_sqrt_no_math_warning(self):
         """SQRT is universal — no math_translation warning for any vendor."""
+
         @fb
         class _FBWithSqrt:
             x: Input[REAL]
@@ -722,16 +747,20 @@ class TestPortabilityWarnings:
 # Local stub definitions for testing — these register at class definition time.
 # Using unique names to avoid collisions with real vendor stubs.
 
+
 class _TestABOnlyFB(LibraryFB, vendor="ab", library="test_lib"):
     Enable: Input[BOOL]
     Done: Output[BOOL]
+
 
 class _TestBeckhoffOnlyFB(LibraryFB, vendor="beckhoff", library="test_lib"):
     Execute: Input[BOOL]
     Busy: Output[BOOL]
 
+
 class _TestABOnlyStruct(LibraryStruct, vendor="ab", library="test_lib"):
     Status: DINT
+
 
 class _TestBeckhoffOnlyStruct(LibraryStruct, vendor="beckhoff", library="test_lib"):
     State: DINT
@@ -742,9 +771,11 @@ class TestLibraryTypeValidation:
 
     def test_iec_universal_fb_passes_all_targets(self):
         """IEC standard FBs (TON, etc.) have no vendor — pass everywhere."""
+
         @fb
         class _UsesTon:
             timer: TON
+
             def logic(self):
                 self.timer(IN=True, PT=timedelta(milliseconds=100))
 
@@ -755,9 +786,11 @@ class TestLibraryTypeValidation:
 
     def test_ab_fb_passes_on_ab(self):
         """AB-vendor FB compiles fine when target is AB."""
+
         @fb
         class _UsesPIDE:
             pid: Static[_TestABOnlyFB]
+
             def logic(self):
                 self.pid(Enable=True)
 
@@ -766,9 +799,11 @@ class TestLibraryTypeValidation:
 
     def test_ab_fb_fails_on_beckhoff(self):
         """AB-vendor FB should fail when compiling for Beckhoff."""
+
         @fb
         class _UsesPIDE2:
             pid: Static[_TestABOnlyFB]
+
             def logic(self):
                 self.pid(Enable=True)
 
@@ -777,9 +812,11 @@ class TestLibraryTypeValidation:
 
     def test_ab_fb_fails_on_siemens(self):
         """AB-vendor FB should fail when compiling for Siemens."""
+
         @fb
         class _UsesPIDE3:
             pid: Static[_TestABOnlyFB]
+
             def logic(self):
                 self.pid(Enable=True)
 
@@ -788,9 +825,11 @@ class TestLibraryTypeValidation:
 
     def test_beckhoff_fb_fails_on_ab(self):
         """Beckhoff-vendor FB should fail when compiling for AB."""
+
         @fb
         class _UsesMCPower:
             mc: Static[_TestBeckhoffOnlyFB]
+
             def logic(self):
                 self.mc(Execute=True)
 
@@ -799,9 +838,11 @@ class TestLibraryTypeValidation:
 
     def test_beckhoff_fb_passes_on_beckhoff(self):
         """Beckhoff-vendor FB compiles fine when target is Beckhoff."""
+
         @fb
         class _UsesMCPower2:
             mc: Static[_TestBeckhoffOnlyFB]
+
             def logic(self):
                 self.mc(Execute=True)
 
@@ -810,9 +851,11 @@ class TestLibraryTypeValidation:
 
     def test_ab_variable_type_fails_on_beckhoff(self):
         """AB-vendor struct used as a variable type should fail on Beckhoff."""
+
         @fb
         class _UsesABStruct:
             axis: Static[_TestABOnlyStruct]
+
             def logic(self):
                 pass
 
@@ -821,9 +864,11 @@ class TestLibraryTypeValidation:
 
     def test_ab_type_inside_array_fails(self):
         """ARRAY(VendorStruct, N) should catch the vendor mismatch recursively."""
+
         @fb
         class _UsesABArray:
             axes: Static[ARRAY(_TestABOnlyStruct, 4)]
+
             def logic(self):
                 pass
 
@@ -832,10 +877,12 @@ class TestLibraryTypeValidation:
 
     def test_multiple_vendor_mismatches_collected(self):
         """Multiple vendor-mismatched types should all appear in errors."""
+
         @fb
         class _UsesBothVendors:
             ab_fb: Static[_TestABOnlyFB]
             bk_fb: Static[_TestBeckhoffOnlyFB]
+
             def logic(self):
                 self.ab_fb(Enable=True)
                 self.bk_fb(Execute=True)
@@ -851,9 +898,11 @@ class TestLibraryTypeValidation:
 
     def test_error_message_includes_pou_and_type(self):
         """Error message should include POU name, type name, and vendor."""
+
         @fb
         class _CheckMsg:
             mc: Static[_TestBeckhoffOnlyFB]
+
             def logic(self):
                 self.mc(Execute=True)
 
@@ -869,10 +918,12 @@ class TestLibraryTypeValidation:
 
     def test_no_target_skips_library_check(self):
         """compile() without target should not run library type checks."""
+
         @fb
         class _MixedNoTarget:
             ab_fb: Static[_TestABOnlyFB]
             bk_fb: Static[_TestBeckhoffOnlyFB]
+
             def logic(self):
                 self.ab_fb(Enable=True)
                 self.bk_fb(Execute=True)
@@ -886,6 +937,7 @@ class TestLibraryTypeValidation:
 # AB unsupported primitive types
 # ---------------------------------------------------------------------------
 
+
 class TestABUnsupportedPrimitives:
     """AB rejects CHAR, WCHAR, DATE, LDATE, TOD, LTOD, DT, LDT."""
 
@@ -893,6 +945,7 @@ class TestABUnsupportedPrimitives:
         @fb
         class _FBWithChar:
             c: Input[CHAR]
+
             def logic(self):
                 pass
 
@@ -903,6 +956,7 @@ class TestABUnsupportedPrimitives:
         @fb
         class _FBWithDate:
             d: Static[DATE]
+
             def logic(self):
                 pass
 
@@ -913,6 +967,7 @@ class TestABUnsupportedPrimitives:
         @fb
         class _FBWithTOD:
             t: Output[TOD]
+
             def logic(self):
                 pass
 
@@ -923,6 +978,7 @@ class TestABUnsupportedPrimitives:
         @fb
         class _FBWithCharArray:
             chars: Static[ARRAY(CHAR, 10)]
+
             def logic(self):
                 pass
 
@@ -943,6 +999,7 @@ class TestABUnsupportedPrimitives:
         @fb
         class _FBWithCharSiemens:
             c: Input[CHAR]
+
             def logic(self):
                 pass
 
@@ -953,6 +1010,7 @@ class TestABUnsupportedPrimitives:
         @fb
         class _FBWithCharBK:
             c: Input[CHAR]
+
             def logic(self):
                 pass
 
@@ -964,6 +1022,7 @@ class TestABUnsupportedPrimitives:
 # AB TP timer rejection
 # ---------------------------------------------------------------------------
 
+
 class TestABTPTimer:
     """AB rejects TP (pulse timer) — no native equivalent."""
 
@@ -971,6 +1030,7 @@ class TestABTPTimer:
         @fb
         class _FBWithTP:
             timer: TP
+
             def logic(self):
                 self.timer(IN=True, PT=timedelta(milliseconds=100))
 
@@ -981,6 +1041,7 @@ class TestABTPTimer:
         @fb
         class _FBWithTPSiemens:
             timer: TP
+
             def logic(self):
                 self.timer(IN=True, PT=timedelta(milliseconds=100))
 
@@ -991,6 +1052,7 @@ class TestABTPTimer:
         @fb
         class _FBWithTPBK:
             timer: TP
+
             def logic(self):
                 self.timer(IN=True, PT=timedelta(milliseconds=100))
 
@@ -1002,6 +1064,7 @@ class TestABTPTimer:
 # AB lossy type mapping warnings
 # ---------------------------------------------------------------------------
 
+
 class TestABLossyTypeMappings:
     """AB warns for BYTE→SINT, WORD→INT, TIME→DINT, etc."""
 
@@ -1009,6 +1072,7 @@ class TestABLossyTypeMappings:
         @fb
         class _FBWithByte:
             b: Input[BYTE]
+
             def logic(self):
                 pass
 
@@ -1023,6 +1087,7 @@ class TestABLossyTypeMappings:
         @fb
         class _FBWithTime:
             t: Static[TIME]
+
             def logic(self):
                 pass
 
@@ -1037,6 +1102,7 @@ class TestABLossyTypeMappings:
         @fb
         class _FBWithByteBK:
             b: Input[BYTE]
+
             def logic(self):
                 pass
 
@@ -1048,6 +1114,7 @@ class TestABLossyTypeMappings:
 # ---------------------------------------------------------------------------
 # AB temp var promotion warnings
 # ---------------------------------------------------------------------------
+
 
 class TestABTempVarPromotion:
     """AB warns when POU has temp vars — promoted to static."""

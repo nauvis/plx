@@ -1,14 +1,5 @@
 """Tests for the shared IR tree walker (plx.model.walk)."""
 
-from plx.model.walk import (
-    walk_expressions,
-    walk_statements,
-    walk_pou,
-    walk_project,
-    _expr_children,
-    _stmt_bodies,
-    _stmt_expressions,
-)
 from plx.model.expressions import (
     ArrayAccessExpr,
     BinaryExpr,
@@ -28,6 +19,17 @@ from plx.model.expressions import (
     UnaryOp,
     VariableRef,
 )
+from plx.model.pou import (
+    POU,
+    Method,
+    Network,
+    POUAction,
+    POUType,
+    Property,
+    PropertyAccessor,
+)
+from plx.model.project import Project
+from plx.model.sfc import Action, SFCBody, Step, Transition
 from plx.model.statements import (
     Assignment,
     CaseBranch,
@@ -49,24 +51,21 @@ from plx.model.statements import (
     TryCatchStatement,
     WhileStatement,
 )
-from plx.model.pou import (
-    Method,
-    Network,
-    POU,
-    POUAction,
-    POUInterface,
-    POUType,
-    Property,
-    PropertyAccessor,
-)
-from plx.model.project import Project
-from plx.model.sfc import Action, SFCBody, Step, Transition
 from plx.model.types import NamedTypeRef, PrimitiveType, PrimitiveTypeRef
-
+from plx.model.walk import (
+    _expr_children,
+    _stmt_bodies,
+    _stmt_expressions,
+    walk_expressions,
+    walk_pou,
+    walk_project,
+    walk_statements,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _lit(v: str = "0") -> LiteralExpr:
     return LiteralExpr(value=v)
@@ -100,6 +99,7 @@ def _collect_expr_kinds_from_stmts(stmts: list[Statement]) -> list[str]:
 # ===========================================================================
 # Expression walking
 # ===========================================================================
+
 
 class TestExprChildren:
     """Test _expr_children returns correct children for each type."""
@@ -223,6 +223,7 @@ class TestWalkExpressions:
 # Expression exhaustiveness
 # ===========================================================================
 
+
 class TestExpressionExhaustiveness:
     """Verify every Expression union member is handled by _expr_children."""
 
@@ -233,7 +234,7 @@ class TestExpressionExhaustiveness:
         # Get all types from the Expression union
         expr_union = get_args(Expression)
         # The Annotated wrapper: get_args returns (Union[...], Field(...))
-        if len(expr_union) == 2 and hasattr(expr_union[1], 'discriminator'):
+        if len(expr_union) == 2 and hasattr(expr_union[1], "discriminator"):
             expr_union = get_args(expr_union[0])
 
         # Build one instance of each
@@ -248,7 +249,8 @@ class TestExpressionExhaustiveness:
             "member_access": MemberAccessExpr(struct=_var(), member="m"),
             "bit_access": BitAccessExpr(target=_var(), bit_index=0),
             "type_conversion": TypeConversionExpr(
-                target_type=PrimitiveTypeRef(type=PrimitiveType.REAL), source=_var(),
+                target_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
+                source=_var(),
             ),
             "deref": DerefExpr(pointer=_var()),
             "substring": SubstringExpr(string=_var()),
@@ -270,6 +272,7 @@ class TestExpressionExhaustiveness:
 # ===========================================================================
 # Statement body/expression extraction
 # ===========================================================================
+
 
 class TestStmtBodies:
     """Test _stmt_bodies returns correct child body lists."""
@@ -312,7 +315,9 @@ class TestStmtBodies:
 
     def test_for(self):
         stmt = ForStatement(
-            loop_var="i", from_expr=_lit("0"), to_expr=_lit("10"),
+            loop_var="i",
+            from_expr=_lit("0"),
+            to_expr=_lit("10"),
             body=[EmptyStatement()],
         )
         assert len(_stmt_bodies(stmt)) == 1
@@ -459,6 +464,7 @@ class TestStmtExpressions:
 # Statement walking
 # ===========================================================================
 
+
 class TestWalkStatements:
     """Test walk_statements visits statements and recurses correctly."""
 
@@ -479,7 +485,9 @@ class TestWalkStatements:
         assign = Assignment(target=_var("x"), value=_lit("1"))
         while_stmt = WhileStatement(condition=_lit("TRUE"), body=[assign])
         for_stmt = ForStatement(
-            loop_var="i", from_expr=_lit("0"), to_expr=_lit("10"),
+            loop_var="i",
+            from_expr=_lit("0"),
+            to_expr=_lit("10"),
             body=[while_stmt],
         )
         kinds = _collect_stmt_kinds([for_stmt])
@@ -547,6 +555,7 @@ class TestWalkStatements:
 # Statement exhaustiveness
 # ===========================================================================
 
+
 class TestStatementExhaustiveness:
     """Verify every Statement union member is handled by the walker."""
 
@@ -555,7 +564,7 @@ class TestStatementExhaustiveness:
         from typing import get_args
 
         stmt_union = get_args(Statement)
-        if len(stmt_union) == 2 and hasattr(stmt_union[1], 'discriminator'):
+        if len(stmt_union) == 2 and hasattr(stmt_union[1], "discriminator"):
             stmt_union = get_args(stmt_union[0])
 
         instances = {
@@ -592,6 +601,7 @@ class TestStatementExhaustiveness:
 # POU walking
 # ===========================================================================
 
+
 class TestWalkPOU:
     """Test walk_pou visits all code locations."""
 
@@ -626,11 +636,13 @@ class TestWalkPOU:
 
     def test_walks_property_getter(self):
         pou = self._make_pou(
-            properties=[Property(
-                name="speed",
-                data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
-                getter=PropertyAccessor(networks=[Network(statements=[EmptyStatement()])]),
-            )],
+            properties=[
+                Property(
+                    name="speed",
+                    data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
+                    getter=PropertyAccessor(networks=[Network(statements=[EmptyStatement()])]),
+                )
+            ],
         )
         kinds = []
         walk_pou(pou, on_stmt=lambda s: kinds.append(s.kind))
@@ -638,11 +650,13 @@ class TestWalkPOU:
 
     def test_walks_property_setter(self):
         pou = self._make_pou(
-            properties=[Property(
-                name="speed",
-                data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
-                setter=PropertyAccessor(networks=[Network(statements=[EmptyStatement()])]),
-            )],
+            properties=[
+                Property(
+                    name="speed",
+                    data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
+                    setter=PropertyAccessor(networks=[Network(statements=[EmptyStatement()])]),
+                )
+            ],
         )
         kinds = []
         walk_pou(pou, on_stmt=lambda s: kinds.append(s.kind))
@@ -652,9 +666,13 @@ class TestWalkPOU:
         pou = self._make_pou(
             sfc_body=SFCBody(
                 steps=[
-                    Step(name="S0", is_initial=True, actions=[
-                        Action(name="A0", body=[EmptyStatement()]),
-                    ]),
+                    Step(
+                        name="S0",
+                        is_initial=True,
+                        actions=[
+                            Action(name="A0", body=[EmptyStatement()]),
+                        ],
+                    ),
                 ],
                 transitions=[
                     Transition(
@@ -667,8 +685,7 @@ class TestWalkPOU:
         )
         stmt_kinds = []
         expr_kinds = []
-        walk_pou(pou, on_stmt=lambda s: stmt_kinds.append(s.kind),
-                 on_expr=lambda e: expr_kinds.append(e.kind))
+        walk_pou(pou, on_stmt=lambda s: stmt_kinds.append(s.kind), on_expr=lambda e: expr_kinds.append(e.kind))
         assert "empty" in stmt_kinds
         assert "variable_ref" in expr_kinds  # transition condition
 
@@ -694,22 +711,54 @@ class TestWalkPOU:
         """POU with code in every possible location."""
         pou = self._make_pou(
             networks=[Network(statements=[Assignment(target=_var("a"), value=_lit("1"))])],
-            methods=[Method(name="m", networks=[Network(statements=[
-                Assignment(target=_var("b"), value=_lit("2")),
-            ])])],
-            actions=[POUAction(name="act", body=[Network(statements=[
-                Assignment(target=_var("c"), value=_lit("3")),
-            ])])],
-            properties=[Property(
-                name="prop",
-                data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
-                getter=PropertyAccessor(networks=[Network(statements=[
-                    ReturnStatement(value=_lit("4")),
-                ])]),
-                setter=PropertyAccessor(networks=[Network(statements=[
-                    Assignment(target=_var("d"), value=_lit("5")),
-                ])]),
-            )],
+            methods=[
+                Method(
+                    name="m",
+                    networks=[
+                        Network(
+                            statements=[
+                                Assignment(target=_var("b"), value=_lit("2")),
+                            ]
+                        )
+                    ],
+                )
+            ],
+            actions=[
+                POUAction(
+                    name="act",
+                    body=[
+                        Network(
+                            statements=[
+                                Assignment(target=_var("c"), value=_lit("3")),
+                            ]
+                        )
+                    ],
+                )
+            ],
+            properties=[
+                Property(
+                    name="prop",
+                    data_type=PrimitiveTypeRef(type=PrimitiveType.REAL),
+                    getter=PropertyAccessor(
+                        networks=[
+                            Network(
+                                statements=[
+                                    ReturnStatement(value=_lit("4")),
+                                ]
+                            )
+                        ]
+                    ),
+                    setter=PropertyAccessor(
+                        networks=[
+                            Network(
+                                statements=[
+                                    Assignment(target=_var("d"), value=_lit("5")),
+                                ]
+                            )
+                        ]
+                    ),
+                )
+            ],
         )
         stmt_kinds = []
         walk_pou(pou, on_stmt=lambda s: stmt_kinds.append(s.kind))
@@ -721,17 +770,20 @@ class TestWalkPOU:
 # Project walking
 # ===========================================================================
 
+
 class TestWalkProject:
     def test_walks_all_pous(self):
         proj = Project(
             name="Test",
             pous=[
                 POU(
-                    pou_type=POUType.PROGRAM, name="Main",
+                    pou_type=POUType.PROGRAM,
+                    name="Main",
                     networks=[Network(statements=[EmptyStatement()])],
                 ),
                 POU(
-                    pou_type=POUType.FUNCTION_BLOCK, name="FB1",
+                    pou_type=POUType.FUNCTION_BLOCK,
+                    name="FB1",
                     networks=[Network(statements=[ExitStatement()])],
                 ),
             ],

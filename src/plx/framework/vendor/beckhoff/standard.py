@@ -19,10 +19,10 @@ from plx.framework._descriptors import Input, Output
 from plx.framework._library import LibraryFB
 from plx.framework._types import BOOL, LTIME
 
-
 # ---------------------------------------------------------------------------
 # LTIME timer variants (64-bit time resolution)
 # ---------------------------------------------------------------------------
+
 
 class LTON(LibraryFB, vendor="beckhoff", library="Tc2_Standard"):
     """On-delay timer with LTIME precision.

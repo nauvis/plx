@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import warnings
 
-
 _pou_registry: dict[str, type] = {}
 _type_registry: dict[str, type] = {}
 

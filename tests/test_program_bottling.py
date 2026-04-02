@@ -4,31 +4,29 @@ falling() edge detection, match/case state machines, and multiple @struct types.
 ~50 I/O: 18 DI, 12 DO, 6 AI, 4 AO across filler, capper, reject, conveyors.
 """
 
-import pytest
-
 from datetime import timedelta
+
+import pytest
 
 from plx.framework import (
     BOOL,
     DINT,
     INT,
     REAL,
+    Input,
+    Output,
     delayed,
     falling,
     fb,
-    Input,
     fb_method,
-    Output,
     program,
     project,
     pulse,
     rising,
     struct,
     task,
-    Field,
 )
 from plx.simulate import simulate
-
 
 # ==========================================================================
 # Data Types (3 structs)

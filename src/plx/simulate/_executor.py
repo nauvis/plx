@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from plx.framework._library import get_library_fb
 from plx.model.expressions import (
     ArrayAccessExpr,
     BinaryExpr,
@@ -28,8 +29,7 @@ from plx.model.expressions import (
     VariableRef,
 )
 from plx.model.pou import POU, Property
-from plx.model.sfc import Action, ActionQualifier, SFCBody, Step, Transition
-from plx.model.types import NamedTypeRef, PrimitiveTypeRef
+from plx.model.sfc import Action, ActionQualifier, Step
 from plx.model.statements import (
     Assignment,
     CaseStatement,
@@ -42,16 +42,16 @@ from plx.model.statements import (
     Statement,
     WhileStatement,
 )
+from plx.model.types import NamedTypeRef, PrimitiveTypeRef
 
 from ._builtins import STDLIB_FUNCTIONS
 from ._pointers import NULL_PTR, PointerTable, _RefBinding
-from plx.framework._library import get_library_fb
 from ._values import SimulationError, coerce_type, parse_literal, type_default
-
 
 # ---------------------------------------------------------------------------
 # Private signal exceptions for EXIT/CONTINUE/RETURN
 # ---------------------------------------------------------------------------
+
 
 class _ExitSignal(Exception):
     """Raised by EXIT statement, caught by loop handlers."""
@@ -71,6 +71,7 @@ class _ReturnSignal(Exception):
 # ---------------------------------------------------------------------------
 # ExecutionEngine
 # ---------------------------------------------------------------------------
+
 
 class ExecutionEngine:
     """Tree-walking interpreter for a single POU scan cycle.
@@ -357,9 +358,7 @@ class ExecutionEngine:
                 except _ReturnSignal:
                     pass
                 return
-            raise SimulationError(
-                f"POUAction '{action.action_name}' not found on POU '{self.pou.name}'"
-            )
+            raise SimulationError(f"POUAction '{action.action_name}' not found on POU '{self.pou.name}'")
         try:
             self._exec_body(action.body)
         except _ReturnSignal:
@@ -378,6 +377,7 @@ class ExecutionEngine:
         if action.duration is None:
             return None
         from ._values import _parse_time_literal
+
         return _parse_time_literal(action.duration)
 
     # -----------------------------------------------------------------------
@@ -411,8 +411,7 @@ class ExecutionEngine:
         """Handle REF= assignment: bind a reference to a variable."""
         if self.pointer_table is None:
             raise SimulationError(
-                "REF= assignment requires pointer support "
-                "(use simulate() instead of raw ExecutionEngine)"
+                "REF= assignment requires pointer support (use simulate() instead of raw ExecutionEngine)"
             )
         container, key, path = self._resolve_binding(stmt.value)
         addr = self.pointer_table.get_or_assign(path, container, key)
@@ -478,9 +477,7 @@ class ExecutionEngine:
 
             iterations += 1
             if iterations > self.MAX_LOOP_ITERATIONS:
-                raise SimulationError(
-                    f"FOR loop exceeded {self.MAX_LOOP_ITERATIONS} iterations"
-                )
+                raise SimulationError(f"FOR loop exceeded {self.MAX_LOOP_ITERATIONS} iterations")
 
             self.state[stmt.loop_var] = i
             try:
@@ -500,8 +497,7 @@ class ExecutionEngine:
             iterations += 1
             if iterations > self.MAX_LOOP_ITERATIONS:
                 raise SimulationError(
-                    f"WHILE loop exceeded {self.MAX_LOOP_ITERATIONS} iterations "
-                    f"(possible infinite loop)"
+                    f"WHILE loop exceeded {self.MAX_LOOP_ITERATIONS} iterations (possible infinite loop)"
                 )
             try:
                 self._exec_body(stmt.body)
@@ -516,8 +512,7 @@ class ExecutionEngine:
             iterations += 1
             if iterations > self.MAX_LOOP_ITERATIONS:
                 raise SimulationError(
-                    f"REPEAT loop exceeded {self.MAX_LOOP_ITERATIONS} iterations "
-                    f"(possible infinite loop)"
+                    f"REPEAT loop exceeded {self.MAX_LOOP_ITERATIONS} iterations (possible infinite loop)"
                 )
             try:
                 self._exec_body(stmt.body)
@@ -544,15 +539,11 @@ class ExecutionEngine:
                 obj = self.state
                 for part in parts:
                     if not isinstance(obj, dict) or part not in obj:
-                        raise SimulationError(
-                            f"FB instance '{instance_name}' not found in state"
-                        )
+                        raise SimulationError(f"FB instance '{instance_name}' not found in state")
                     obj = obj[part]
                 instance_state = obj
             elif instance_name not in self.state:
-                raise SimulationError(
-                    f"FB instance '{instance_name}' not found in state"
-                )
+                raise SimulationError(f"FB instance '{instance_name}' not found in state")
             else:
                 instance_state = self.state[instance_name]
             display_name = instance_name
@@ -562,9 +553,7 @@ class ExecutionEngine:
             display_name = "<array element>"
 
         if not isinstance(instance_state, dict):
-            raise SimulationError(
-                f"FB instance '{display_name}' is not a dict (got {type(instance_state).__name__})"
-            )
+            raise SimulationError(f"FB instance '{display_name}' is not a dict (got {type(instance_state).__name__})")
 
         # 2. Map inputs
         for param_name, expr in stmt.inputs.items():
@@ -577,9 +566,7 @@ class ExecutionEngine:
         elif fb_type and fb_type in self.pou_registry:
             self._exec_user_fb(self.pou_registry[fb_type], instance_state)
         else:
-            raise SimulationError(
-                f"Unknown FB type '{fb_type}' for instance '{display_name}'"
-            )
+            raise SimulationError(f"Unknown FB type '{fb_type}' for instance '{display_name}'")
 
         # 4. Map outputs
         for param_name, target_expr in stmt.outputs.items():
@@ -606,8 +593,7 @@ class ExecutionEngine:
         if name.upper() == "__DELETE":
             if self.pointer_table is None:
                 raise SimulationError(
-                    "__DELETE() requires pointer support "
-                    "(use simulate() instead of raw ExecutionEngine)"
+                    "__DELETE() requires pointer support (use simulate() instead of raw ExecutionEngine)"
                 )
             if len(stmt.args) != 1:
                 raise SimulationError("__DELETE() requires exactly 1 argument")
@@ -740,9 +726,7 @@ class ExecutionEngine:
         # Transparently follow reference bindings
         if isinstance(value, _RefBinding):
             if self.pointer_table is None:
-                raise SimulationError(
-                    f"Variable '{name}' is a reference binding but no pointer table available"
-                )
+                raise SimulationError(f"Variable '{name}' is a reference binding but no pointer table available")
             return self.pointer_table.read(value.target_addr)
         return value
 
@@ -774,7 +758,7 @@ class ExecutionEngine:
         if op == BinaryOp.MOD:
             return left % right
         if op == BinaryOp.EXPT:
-            return left ** right
+            return left**right
 
         # Logical / bitwise
         if op == BinaryOp.AND:
@@ -859,7 +843,9 @@ class ExecutionEngine:
         raise SimulationError(f"Unknown function: {name}")
 
     def _try_pointer_intrinsic(
-        self, name: str, expr: FunctionCallExpr,
+        self,
+        name: str,
+        expr: FunctionCallExpr,
     ) -> tuple[object] | None:
         """Handle pointer intrinsic functions. Returns (value,) or None."""
         upper = name.upper()
@@ -867,8 +853,7 @@ class ExecutionEngine:
         if upper == "ADR" or upper == "ADRINST":
             if self.pointer_table is None:
                 raise SimulationError(
-                    f"{name}() requires pointer support "
-                    f"(use simulate() instead of raw ExecutionEngine)"
+                    f"{name}() requires pointer support (use simulate() instead of raw ExecutionEngine)"
                 )
             if len(expr.args) != 1:
                 raise SimulationError(f"{name}() requires exactly 1 argument")
@@ -883,8 +868,7 @@ class ExecutionEngine:
         if upper == "__NEW":
             if self.pointer_table is None:
                 raise SimulationError(
-                    "__NEW() requires pointer support "
-                    "(use simulate() instead of raw ExecutionEngine)"
+                    "__NEW() requires pointer support (use simulate() instead of raw ExecutionEngine)"
                 )
             return (self._eval_new(expr),)
 
@@ -896,7 +880,8 @@ class ExecutionEngine:
         return None
 
     def _resolve_binding(
-        self, expr: Expression,
+        self,
+        expr: Expression,
     ) -> tuple[dict | list, str | int, str]:
         """Resolve an expression to (container, key, canonical_path).
 
@@ -910,10 +895,7 @@ class ExecutionEngine:
         if isinstance(expr, MemberAccessExpr):
             struct = self._eval(expr.struct)
             if not isinstance(struct, dict):
-                raise SimulationError(
-                    f"Cannot take address of member '{expr.member}' "
-                    f"on {type(struct).__name__}"
-                )
+                raise SimulationError(f"Cannot take address of member '{expr.member}' on {type(struct).__name__}")
             # Build path for stable addressing
             if isinstance(expr.struct, VariableRef):
                 path = f"{expr.struct.name}.{expr.member}"
@@ -924,9 +906,7 @@ class ExecutionEngine:
         if isinstance(expr, ArrayAccessExpr):
             array = self._eval(expr.array)
             if not isinstance(array, list):
-                raise SimulationError(
-                    f"Cannot take address of element in {type(array).__name__}"
-                )
+                raise SimulationError(f"Cannot take address of element in {type(array).__name__}")
             idx = int(self._eval(expr.indices[0]))
             if isinstance(expr.array, VariableRef):
                 path = f"{expr.array.name}[{idx}]"
@@ -941,21 +921,32 @@ class ExecutionEngine:
             addr = self._eval(expr.pointer)
             binding = self.pointer_table._addr_to_binding.get(int(addr))
             if binding is None:
-                raise SimulationError(f"Cannot take address of dereferenced invalid pointer")
+                raise SimulationError("Cannot take address of dereferenced invalid pointer")
             container, key = binding
             return (container, key, f"<deref@0x{int(addr):08X}>")
 
-        raise SimulationError(
-            f"Cannot take address of expression kind: {expr.kind}"
-        )
+        raise SimulationError(f"Cannot take address of expression kind: {expr.kind}")
 
     def _eval_sizeof(self, expr: Expression) -> int:
         """Evaluate SIZEOF() — return byte size based on type."""
         _PRIM_SIZES = {
-            "BOOL": 1, "BYTE": 1, "SINT": 1, "USINT": 1,
-            "WORD": 2, "INT": 2, "UINT": 2,
-            "DWORD": 4, "DINT": 4, "UDINT": 4, "REAL": 4, "TIME": 4,
-            "LWORD": 8, "LINT": 8, "ULINT": 8, "LREAL": 8, "LTIME": 8,
+            "BOOL": 1,
+            "BYTE": 1,
+            "SINT": 1,
+            "USINT": 1,
+            "WORD": 2,
+            "INT": 2,
+            "UINT": 2,
+            "DWORD": 4,
+            "DINT": 4,
+            "UDINT": 4,
+            "REAL": 4,
+            "TIME": 4,
+            "LWORD": 8,
+            "LINT": 8,
+            "ULINT": 8,
+            "LREAL": 8,
+            "LTIME": 8,
         }
         # Try to find the variable's declared type
         if isinstance(expr, VariableRef):
@@ -967,7 +958,8 @@ class ExecutionEngine:
                 + self.pou.interface.temp_vars
             ):
                 if var.name == expr.name:
-                    from plx.model.types import PrimitiveTypeRef, ArrayTypeRef, StringTypeRef
+                    from plx.model.types import ArrayTypeRef, PrimitiveTypeRef, StringTypeRef
+
                     dt = var.data_type
                     if isinstance(dt, PrimitiveTypeRef):
                         return _PRIM_SIZES.get(dt.type.value, 4)
@@ -980,7 +972,7 @@ class ExecutionEngine:
                         count = 1
                         for dim in dt.dimensions:
                             if isinstance(dim.lower, int) and isinstance(dim.upper, int):
-                                count *= (dim.upper - dim.lower + 1)
+                                count *= dim.upper - dim.lower + 1
                         return elem_size * count
                     break
         # Fallback: guess from runtime value
@@ -1017,6 +1009,7 @@ class ExecutionEngine:
             type_name = type_name[11:]
         # Determine default value
         from plx.model.types import PrimitiveType, StructType
+
         try:
             prim = PrimitiveType(type_name.upper())
             default = type_default(PrimitiveTypeRef(type=prim))
@@ -1143,13 +1136,8 @@ class ExecutionEngine:
                 prop, fb_pou = result
                 if prop.getter is not None:
                     return self._exec_property_getter(prop, fb_pou, struct)
-            raise SimulationError(
-                f"Member '{expr.member}' not found in struct. "
-                f"Available: {list(struct.keys())}"
-            )
-        raise SimulationError(
-            f"Cannot access member '{expr.member}' on {type(struct).__name__}"
-        )
+            raise SimulationError(f"Member '{expr.member}' not found in struct. Available: {list(struct.keys())}")
+        raise SimulationError(f"Cannot access member '{expr.member}' on {type(struct).__name__}")
 
     def _exec_property_getter(self, prop: Property, fb_pou: POU, instance_state: dict) -> object:
         """Execute a property getter body and return the result."""
@@ -1211,18 +1199,14 @@ class ExecutionEngine:
     def _eval_array_access(self, expr: ArrayAccessExpr) -> object:
         array = self._eval(expr.array)
         if not isinstance(array, list):
-            raise SimulationError(
-                f"Cannot index into {type(array).__name__}"
-            )
+            raise SimulationError(f"Cannot index into {type(array).__name__}")
         indices = [int(self._eval(idx)) for idx in expr.indices]
         result = array
         for idx in indices:
             if not isinstance(result, list):
                 raise SimulationError("Too many indices for array dimensions")
             if idx < 0 or idx >= len(result):
-                raise SimulationError(
-                    f"Array index {idx} out of bounds (0..{len(result) - 1})"
-                )
+                raise SimulationError(f"Array index {idx} out of bounds (0..{len(result) - 1})")
             result = result[idx]
         return result
 
@@ -1237,14 +1221,10 @@ class ExecutionEngine:
 
     def _eval_deref(self, expr: DerefExpr) -> object:
         if self.pointer_table is None:
-            raise SimulationError(
-                "Pointer dereference is not supported in simulation"
-            )
+            raise SimulationError("Pointer dereference is not supported in simulation")
         addr = self._eval(expr.pointer)
         if not isinstance(addr, (int, float)):
-            raise SimulationError(
-                f"Cannot dereference non-integer value: {type(addr).__name__}"
-            )
+            raise SimulationError(f"Cannot dereference non-integer value: {type(addr).__name__}")
         return self.pointer_table.read(int(addr))
 
     def _eval_substring(self, expr: SubstringExpr) -> object:
@@ -1286,8 +1266,7 @@ class ExecutionEngine:
             if isinstance(current, _RefBinding) and not isinstance(value, _RefBinding):
                 if self.pointer_table is None:
                     raise SimulationError(
-                        f"Variable '{target.name}' is a reference binding "
-                        f"but no pointer table available"
+                        f"Variable '{target.name}' is a reference binding but no pointer table available"
                     )
                 self.pointer_table.write(current.target_addr, value)
             else:
@@ -1295,8 +1274,7 @@ class ExecutionEngine:
         elif target.kind == "deref":
             if self.pointer_table is None:
                 raise SimulationError(
-                    "Pointer write requires pointer support "
-                    "(use simulate() instead of raw ExecutionEngine)"
+                    "Pointer write requires pointer support (use simulate() instead of raw ExecutionEngine)"
                 )
             addr = self._eval(target.pointer)
             self.pointer_table.write(int(addr), value)
@@ -1310,9 +1288,7 @@ class ExecutionEngine:
                 else:
                     struct[target.member] = value
             else:
-                raise SimulationError(
-                    f"Cannot write member '{target.member}' on {type(struct).__name__}"
-                )
+                raise SimulationError(f"Cannot write member '{target.member}' on {type(struct).__name__}")
         elif target.kind == "bit_access":
             current = int(self._eval(target.target))
             bit_index = target.bit_index
@@ -1333,6 +1309,4 @@ class ExecutionEngine:
                 container = container[idx]
             container[indices[-1]] = value
         else:
-            raise SimulationError(
-                f"Unsupported assignment target kind: {target.kind}"
-            )
+            raise SimulationError(f"Unsupported assignment target kind: {target.kind}")

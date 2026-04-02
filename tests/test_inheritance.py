@@ -1,18 +1,19 @@
 """Tests for FB inheritance and super().logic()."""
 
+from datetime import timedelta
+
 import pytest
 
 from plx.framework._compiler import CompileError
 from plx.framework._decorators import fb
-from plx.framework._descriptors import Input, Field, Output
-from datetime import timedelta
-from plx.framework._types import BOOL, DINT, REAL, TIME
-from plx.model.pou import POU, POUType
-from plx.model.statements import Assignment, FBInvocation, IfStatement
+from plx.framework._descriptors import Input, Output
+from plx.framework._types import BOOL, REAL, TIME
+from plx.model.pou import POUType
+from plx.model.statements import Assignment, FBInvocation
 from plx.model.types import NamedTypeRef
 
-
 # -- Fixtures: define base and derived FBs --------------------------------
+
 
 @fb
 class _Base:
@@ -36,6 +37,7 @@ class _Derived(_Base):
 # extends field
 # ---------------------------------------------------------------------------
 
+
 class TestExtends:
     def test_base_has_no_extends(self):
         assert _Base.compile().extends is None
@@ -50,6 +52,7 @@ class TestExtends:
 # ---------------------------------------------------------------------------
 # Variable inheritance
 # ---------------------------------------------------------------------------
+
 
 class TestVariableInheritance:
     def test_derived_inherits_inputs(self):
@@ -116,6 +119,7 @@ class TestVariableOverride:
 # super().logic() inlining
 # ---------------------------------------------------------------------------
 
+
 class TestSuperLogic:
     def test_inlines_parent_statements(self):
         pou = _Derived.compile()
@@ -181,8 +185,9 @@ class TestSuperLogic:
 
         pou = TimedChild.compile()
         # Should have 2 TON static vars with unique names
-        ton_vars = [v for v in pou.interface.static_vars
-                     if isinstance(v.data_type, NamedTypeRef) and v.data_type.name == "TON"]
+        ton_vars = [
+            v for v in pou.interface.static_vars if isinstance(v.data_type, NamedTypeRef) and v.data_type.name == "TON"
+        ]
         assert len(ton_vars) == 2
         assert ton_vars[0].name != ton_vars[1].name
 
@@ -196,6 +201,7 @@ class TestSuperLogic:
 # ---------------------------------------------------------------------------
 # Three-level inheritance
 # ---------------------------------------------------------------------------
+
 
 class TestThreeLevel:
     def test_three_level_chain(self):
@@ -239,6 +245,7 @@ class TestThreeLevel:
         @fb
         class L1:
             a: Input[BOOL]
+
             def logic(self):
                 pass
 
@@ -261,9 +268,11 @@ class TestThreeLevel:
 # Inheriting logic without override
 # ---------------------------------------------------------------------------
 
+
 class TestInheritedLogic:
     def test_child_inherits_logic_without_override(self):
         """Child without its own logic() uses parent's."""
+
         @fb
         class Parent:
             a: Input[BOOL]
@@ -288,10 +297,12 @@ class TestInheritedLogic:
 # Error cases
 # ---------------------------------------------------------------------------
 
+
 class TestSuperErrors:
     def test_super_logic_on_base_class(self):
         """Calling super().logic() on a class with no parent logic raises."""
         with pytest.raises(CompileError, match="no parent class"):
+
             @fb
             class Orphan:
                 x: Input[BOOL]

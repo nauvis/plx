@@ -12,22 +12,21 @@ test_property_coverage.py:
 - Mixed direction variable override
 """
 
-import pytest
 from datetime import timedelta
 
-from plx.framework._compiler import CompileError, delayed, rising
-from plx.framework._decorators import fb, fb_method, function, program
-from plx.framework._descriptors import Input, Output, Static, Temp, Field
+from plx.framework._compiler import delayed, rising
+from plx.framework._decorators import fb, fb_method, program
+from plx.framework._descriptors import Input, Output, Static
 from plx.framework._properties import fb_property
-from plx.framework._types import BOOL, DINT, INT, REAL, TIME
+from plx.framework._types import BOOL, DINT, INT, REAL
 from plx.model.pou import POUType
-from plx.model.statements import Assignment, FBInvocation, IfStatement
+from plx.model.statements import IfStatement
 from plx.model.types import NamedTypeRef, PrimitiveType, PrimitiveTypeRef
-
 
 # ===========================================================================
 # Deep inheritance chains (4+ levels)
 # ===========================================================================
+
 
 class TestDeepInheritance:
     """Test 4 and 5 level inheritance chains."""
@@ -126,9 +125,11 @@ class TestDeepInheritance:
 
     def test_deep_chain_extends_only_immediate_parent(self):
         """Each level only extends its immediate parent, not grandparent."""
+
         @fb
         class Root:
             x: Input[BOOL]
+
             def logic(self):
                 pass
 
@@ -151,11 +152,13 @@ class TestDeepInheritance:
 # Methods across inheritance levels
 # ===========================================================================
 
+
 class TestMethodInheritanceDeep:
     """Test methods inherited, overridden, and added across multiple levels."""
 
     def test_method_inherited_through_two_levels(self):
         """Method defined on grandparent should appear on grandchild."""
+
         @fb
         class GP:
             x: REAL
@@ -183,6 +186,7 @@ class TestMethodInheritanceDeep:
 
     def test_method_override_at_middle_level(self):
         """Override a method at middle level — child gets the override."""
+
         @fb
         class GP:
             x: REAL
@@ -218,6 +222,7 @@ class TestMethodInheritanceDeep:
 
     def test_methods_accumulated_across_levels(self):
         """Each level adds a method — child gets all of them."""
+
         @fb
         class L1:
             x: REAL
@@ -259,6 +264,7 @@ class TestMethodInheritanceDeep:
 # Properties across inheritance levels
 # ===========================================================================
 
+
 class TestPropertyInheritanceDeep:
     """Test properties inherited and overridden across multiple levels."""
 
@@ -290,6 +296,7 @@ class TestPropertyInheritanceDeep:
 
     def test_property_override_at_leaf(self):
         """Override a grandparent's property at the leaf level."""
+
         @fb
         class GP:
             _val: REAL
@@ -327,11 +334,13 @@ class TestPropertyInheritanceDeep:
 # Combined: methods + properties + variables across levels
 # ===========================================================================
 
+
 class TestCombinedOOPInheritance:
     """Test methods, properties, and variables interacting across inheritance."""
 
     def test_full_oop_chain(self):
         """FB with vars + method + property at each level."""
+
         @fb
         class Base:
             speed: Input[REAL]
@@ -392,11 +401,13 @@ class TestCombinedOOPInheritance:
 # Sentinel inheritance
 # ===========================================================================
 
+
 class TestSentinelInheritanceDeep:
     """Test sentinel functions (delayed, rising) across inheritance levels."""
 
     def test_sentinels_at_each_level(self):
         """Each level uses its own sentinel — all get unique instances."""
+
         @fb
         class L1:
             sig: Input[BOOL]
@@ -424,16 +435,14 @@ class TestSentinelInheritanceDeep:
         pou = L3.compile()
 
         # Should have 2 TON instances + 1 R_TRIG instance
-        static_types = {v.name: v.data_type for v in pou.interface.static_vars
-                        if isinstance(v.data_type, NamedTypeRef)}
+        static_types = {v.name: v.data_type for v in pou.interface.static_vars if isinstance(v.data_type, NamedTypeRef)}
         ton_count = sum(1 for dt in static_types.values() if dt.name == "TON")
         rtrig_count = sum(1 for dt in static_types.values() if dt.name == "R_TRIG")
         assert ton_count == 2
         assert rtrig_count == 1
 
         # All instance names should be unique
-        names = [v.name for v in pou.interface.static_vars
-                 if isinstance(v.data_type, NamedTypeRef)]
+        names = [v.name for v in pou.interface.static_vars if isinstance(v.data_type, NamedTypeRef)]
         assert len(names) == len(set(names))
 
 
@@ -441,10 +450,11 @@ class TestSentinelInheritanceDeep:
 # Edge cases: no logic, empty bodies, variable direction
 # ===========================================================================
 
-class TestInheritanceEdgeCases:
 
+class TestInheritanceEdgeCases:
     def test_child_no_logic_inherits_parent_logic(self):
         """Child with no logic() method uses parent's."""
+
         @fb
         class Parent:
             x: Input[BOOL]
@@ -463,6 +473,7 @@ class TestInheritanceEdgeCases:
 
     def test_child_empty_logic_with_super(self):
         """Child with only super().logic() produces same output as parent."""
+
         @fb
         class Parent:
             x: Input[BOOL]
@@ -483,6 +494,7 @@ class TestInheritanceEdgeCases:
 
     def test_child_adds_vars_only(self):
         """Child adds variables without any logic."""
+
         @fb
         class Parent:
             x: Input[BOOL]
@@ -500,6 +512,7 @@ class TestInheritanceEdgeCases:
 
     def test_variable_override_changes_type(self):
         """Child can override parent variable with a different type."""
+
         @fb
         class Parent:
             val: Input[INT]
@@ -523,6 +536,7 @@ class TestInheritanceEdgeCases:
 
     def test_variable_override_changes_initial_value(self):
         """Child can override parent variable's initial value."""
+
         @fb
         class Parent:
             timeout: Input[REAL] = 5.0
@@ -544,6 +558,7 @@ class TestInheritanceEdgeCases:
 
     def test_multiple_super_calls_inline_twice(self):
         """Calling super().logic() twice inlines parent logic twice."""
+
         @fb
         class Parent:
             x: Input[BOOL]
@@ -567,6 +582,7 @@ class TestInheritanceEdgeCases:
 
     def test_child_with_if_around_super(self):
         """super().logic() inside an if block should work."""
+
         @fb
         class Parent:
             x: Input[BOOL]
@@ -595,10 +611,11 @@ class TestInheritanceEdgeCases:
 # Program and function inheritance restrictions
 # ===========================================================================
 
-class TestInheritanceRestrictions:
 
+class TestInheritanceRestrictions:
     def test_program_cannot_inherit_fb(self):
         """@program inheriting from @fb should still compile (extends detected)."""
+
         @fb
         class BaseFB:
             x: Input[BOOL]
@@ -619,6 +636,7 @@ class TestInheritanceRestrictions:
 
     def test_fb_inheriting_non_fb_base_ignored(self):
         """Base class without _compiled_pou is silently skipped."""
+
         class PlainPython:
             pass
 
@@ -634,6 +652,7 @@ class TestInheritanceRestrictions:
 
     def test_method_not_confused_with_logic(self):
         """@fb_method functions should NOT be compiled as logic()."""
+
         @fb
         class MyFB:
             x: REAL

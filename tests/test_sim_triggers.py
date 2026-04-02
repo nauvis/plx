@@ -2,13 +2,12 @@
 
 import pytest
 
-from plx.model.expressions import LiteralExpr, VariableRef, BinaryExpr, BinaryOp
-from plx.model.pou import POU, POUType, POUInterface, Network
-from plx.model.statements import Assignment, IfStatement, IfBranch
+from plx.model.expressions import BinaryExpr, BinaryOp, LiteralExpr, VariableRef
+from plx.model.pou import POU, Network, POUInterface, POUType
+from plx.model.statements import Assignment
 from plx.model.types import PrimitiveType, PrimitiveTypeRef
 from plx.model.variables import Variable
-from plx.simulate import simulate, SimulationTimeout
-from plx.simulate._triggers import ScanTrigger
+from plx.simulate import SimulationTimeout, simulate
 
 
 def _int_type():
@@ -32,16 +31,18 @@ def make_counter_pou():
             output_vars=[Variable(name="count", data_type=_int_type())],
         ),
         networks=[
-            Network(statements=[
-                Assignment(
-                    target=VariableRef(name="count"),
-                    value=BinaryExpr(
-                        op=BinaryOp.ADD,
-                        left=VariableRef(name="count"),
-                        right=LiteralExpr(value="1", data_type=_int_type()),
+            Network(
+                statements=[
+                    Assignment(
+                        target=VariableRef(name="count"),
+                        value=BinaryExpr(
+                            op=BinaryOp.ADD,
+                            left=VariableRef(name="count"),
+                            right=LiteralExpr(value="1", data_type=_int_type()),
+                        ),
                     ),
-                ),
-            ]),
+                ]
+            ),
         ],
     )
 
@@ -58,24 +59,26 @@ def make_threshold_pou():
             ],
         ),
         networks=[
-            Network(statements=[
-                Assignment(
-                    target=VariableRef(name="count"),
-                    value=BinaryExpr(
-                        op=BinaryOp.ADD,
-                        left=VariableRef(name="count"),
-                        right=LiteralExpr(value="1", data_type=_int_type()),
+            Network(
+                statements=[
+                    Assignment(
+                        target=VariableRef(name="count"),
+                        value=BinaryExpr(
+                            op=BinaryOp.ADD,
+                            left=VariableRef(name="count"),
+                            right=LiteralExpr(value="1", data_type=_int_type()),
+                        ),
                     ),
-                ),
-                Assignment(
-                    target=VariableRef(name="done"),
-                    value=BinaryExpr(
-                        op=BinaryOp.GE,
-                        left=VariableRef(name="count"),
-                        right=LiteralExpr(value="5", data_type=_int_type()),
+                    Assignment(
+                        target=VariableRef(name="done"),
+                        value=BinaryExpr(
+                            op=BinaryOp.GE,
+                            left=VariableRef(name="count"),
+                            right=LiteralExpr(value="5", data_type=_int_type()),
+                        ),
                     ),
-                ),
-            ]),
+                ]
+            ),
         ],
     )
 

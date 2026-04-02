@@ -52,12 +52,12 @@ annotations must be live objects for interface parsing.
 
 from plx.framework._descriptors import InOut, Input, Output
 from plx.framework._library import LibraryEnum, LibraryFB, LibraryStruct
-from plx.framework._types import BOOL, DINT, DWORD, LREAL, UDINT, WORD
-
+from plx.framework._types import BOOL, DINT, LREAL, UDINT, WORD
 
 # ===================================================================
 # Enums (defined first — FBs reference these as parameter types)
 # ===================================================================
+
 
 class MC_BufferMode(LibraryEnum, vendor="beckhoff", library="Tc2_MC2"):
     """PLCopen buffer mode for queuing motion commands.
@@ -123,6 +123,7 @@ class E_JogMode(LibraryEnum, vendor="beckhoff", library="Tc2_MC2"):
 # Structs (defined before FBs that reference them)
 # ===================================================================
 
+
 class AXIS_REF(LibraryStruct, vendor="beckhoff", library="Tc2_MC2"):
     """Central axis reference handle passed to all MC function blocks.
 
@@ -174,8 +175,6 @@ class ST_MoveOptions(LibraryStruct, vendor="beckhoff", library="Tc2_MC2"):
     settings. Most applications use the default (zero-initialized) values.
     """
 
-    pass
-
 
 class ST_HomingOptions(LibraryStruct, vendor="beckhoff", library="Tc2_MC2"):
     """Additional homing command options. Usually left at defaults.
@@ -184,12 +183,11 @@ class ST_HomingOptions(LibraryStruct, vendor="beckhoff", library="Tc2_MC2"):
     direction. Most applications rely on the axis's configured defaults.
     """
 
-    pass
-
 
 # ===================================================================
 # Function Blocks — Axis Administration
 # ===================================================================
+
 
 class MC_Power(LibraryFB, vendor="beckhoff", library="Tc2_MC2"):
     """Enable or disable the servo drive (power stage) of an axis.
@@ -260,6 +258,7 @@ class MC_SetPosition(LibraryFB, vendor="beckhoff", library="Tc2_MC2"):
 # ===================================================================
 # Function Blocks — Status / Parameter
 # ===================================================================
+
 
 class MC_ReadActualPosition(LibraryFB, vendor="beckhoff", library="Tc2_MC2"):
     """Continuously read the actual (encoder) position of an axis.
@@ -359,6 +358,7 @@ class MC_SetOverride(LibraryFB, vendor="beckhoff", library="Tc2_MC2"):
 # ===================================================================
 # Function Blocks — Point-to-Point Motion
 # ===================================================================
+
 
 class MC_MoveAbsolute(LibraryFB, vendor="beckhoff", library="Tc2_MC2"):
     """Move axis to an absolute target position.
@@ -549,6 +549,7 @@ class MC_MoveContinuousRelative(LibraryFB, vendor="beckhoff", library="Tc2_MC2")
 # Function Blocks — Stop / Halt
 # ===================================================================
 
+
 class MC_Halt(LibraryFB, vendor="beckhoff", library="Tc2_MC2"):
     """Controlled halt — decelerates axis to zero velocity.
 
@@ -597,6 +598,7 @@ class MC_Stop(LibraryFB, vendor="beckhoff", library="Tc2_MC2"):
 # Function Blocks — Homing
 # ===================================================================
 
+
 class MC_Home(LibraryFB, vendor="beckhoff", library="Tc2_MC2"):
     """Execute a homing (reference) sequence on an axis.
 
@@ -624,6 +626,7 @@ class MC_Home(LibraryFB, vendor="beckhoff", library="Tc2_MC2"):
 # ===================================================================
 # Function Blocks — Manual
 # ===================================================================
+
 
 class MC_Jog(LibraryFB, vendor="beckhoff", library="Tc2_MC2"):
     """Manual jog control for commissioning and setup.
@@ -654,6 +657,7 @@ class MC_Jog(LibraryFB, vendor="beckhoff", library="Tc2_MC2"):
 # ===================================================================
 # Function Blocks — Coupling
 # ===================================================================
+
 
 class MC_GearIn(LibraryFB, vendor="beckhoff", library="Tc2_MC2"):
     """Activate electronic gear coupling between master and slave axes.
@@ -725,6 +729,7 @@ class MC_GearOut(LibraryFB, vendor="beckhoff", library="Tc2_MC2"):
 # Function Blocks — Touch Probe
 # ===================================================================
 
+
 class MC_TouchProbe(LibraryFB, vendor="beckhoff", library="Tc2_MC2"):
     """Latch axis position on a hardware trigger event.
 
@@ -768,6 +773,7 @@ class MC_AbortTrigger(LibraryFB, vendor="beckhoff", library="Tc2_MC2"):
 # ===================================================================
 # Function Blocks — Advanced
 # ===================================================================
+
 
 class MC_MoveSuperImposed(LibraryFB, vendor="beckhoff", library="Tc2_MC2"):
     """Superimpose a relative move on top of an active motion command.
@@ -820,6 +826,7 @@ class MC_TorqueControl(LibraryFB, vendor="beckhoff", library="Tc2_MC2"):
 # ===================================================================
 # Function Blocks — Parameter Read / Write
 # ===================================================================
+
 
 class MC_ReadParameter(LibraryFB, vendor="beckhoff", library="Tc2_MC2"):
     """Read a single NC axis parameter by number.

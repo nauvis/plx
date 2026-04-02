@@ -14,26 +14,25 @@ represented as LibraryFB stubs and require method/property support first.
 """
 
 from .mc2 import (
-    # Enums
-    E_JogMode,
-    MC_BufferMode,
-    MC_Direction,
-    MC_HomingMode,
     # Structs
     AXIS_REF,
-    ST_AxisStatus,
-    ST_HomingOptions,
-    ST_MoveOptions,
-    # Axis Administration
-    MC_Power,
-    MC_Reset,
-    MC_SetPosition,
-    # Status / Parameter
-    MC_ReadActualPosition,
-    MC_ReadActualVelocity,
-    MC_ReadAxisError,
-    MC_ReadStatus,
-    MC_SetOverride,
+    # Enums
+    E_JogMode,
+    # Touch Probe
+    MC_AbortTrigger,
+    MC_BufferMode,
+    MC_Direction,
+    # Coupling
+    MC_GearIn,
+    MC_GearInDyn,
+    MC_GearOut,
+    # Stop / Halt
+    MC_Halt,
+    # Homing
+    MC_Home,
+    MC_HomingMode,
+    # Manual
+    MC_Jog,
     # Point-to-Point Motion
     MC_MoveAbsolute,
     MC_MoveAdditive,
@@ -41,36 +40,37 @@ from .mc2 import (
     MC_MoveContinuousRelative,
     MC_MoveModulo,
     MC_MoveRelative,
-    MC_MoveVelocity,
-    # Stop / Halt
-    MC_Halt,
-    MC_Stop,
-    # Homing
-    MC_Home,
-    # Manual
-    MC_Jog,
-    # Coupling
-    MC_GearIn,
-    MC_GearInDyn,
-    MC_GearOut,
-    # Touch Probe
-    MC_AbortTrigger,
-    MC_TouchProbe,
     # Advanced
     MC_MoveSuperImposed,
-    MC_TorqueControl,
+    MC_MoveVelocity,
+    # Axis Administration
+    MC_Power,
+    # Status / Parameter
+    MC_ReadActualPosition,
+    MC_ReadActualVelocity,
+    MC_ReadAxisError,
     # Parameter Read / Write
     MC_ReadBoolParameter,
     MC_ReadParameter,
     MC_ReadParameterSet,
+    MC_ReadStatus,
+    MC_Reset,
+    MC_SetOverride,
+    MC_SetPosition,
+    MC_Stop,
+    MC_TorqueControl,
+    MC_TouchProbe,
     MC_WriteBoolParameter,
     MC_WriteBoolParameterPersistent,
     MC_WriteParameter,
     MC_WriteParameterPersistent,
+    ST_AxisStatus,
+    ST_HomingOptions,
+    ST_MoveOptions,
 )
 from .standard import (
-    LTON,
     LTOF,
+    LTON,
     LTP,
 )
 from .system import (
@@ -90,6 +90,9 @@ from .system import (
     T_AmsNetId,
 )
 from .utilities import (
+    RTC,
+    RTC_EX,
+    TIMESTRUCT,
     FB_BasicPID,
     FB_CSVMemBufferWriter,
     FB_FormatString,
@@ -98,10 +101,7 @@ from .utilities import (
     FB_StringRingBuffer,
     NT_GetTime,
     Profiler,
-    RTC,
-    RTC_EX,
     T_Arg,
-    TIMESTRUCT,
 )
 
 __all__ = [

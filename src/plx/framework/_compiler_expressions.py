@@ -29,14 +29,12 @@ from plx.model.expressions import (
     UnaryOp,
     VariableRef,
 )
-from plx.model.types import ArrayTypeRef, NamedTypeRef, PrimitiveType, PrimitiveTypeRef, StringTypeRef, TypeRef
+from plx.model.types import NamedTypeRef, PrimitiveType, PrimitiveTypeRef, StringTypeRef, TypeRef
 
 from ._compiler_core import (
-    CompileError,
-    SENTINEL_REGISTRY,
+    _BINOP_MAP,
     _BIT_ACCESS_RE,
     _BIT_ACCESSIBLE_WIDTHS,
-    _BINOP_MAP,
     _BUILTIN_FUNCS,
     _CMPOP_MAP,
     _MATH_CONSTANTS,
@@ -47,6 +45,8 @@ from ._compiler_core import (
     _REJECTED_BUILTINS,
     _REJECTED_CMPOP_MESSAGES,
     _TYPE_CONV_RE,
+    SENTINEL_REGISTRY,
+    CompileError,
     _infer_type,
 )
 
@@ -58,6 +58,7 @@ if TYPE_CHECKING:
 # Expression mixin
 # ---------------------------------------------------------------------------
 
+
 class _ExpressionMixin:
     """Mixin providing expression compilation methods for ASTCompiler."""
 
@@ -66,8 +67,7 @@ class _ExpressionMixin:
         value = node.value
         # bool check before int (bool is subclass of int)
         if isinstance(value, bool):
-            return LiteralExpr(value="TRUE" if value else "FALSE",
-                               data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL))
+            return LiteralExpr(value="TRUE" if value else "FALSE", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL))
         if isinstance(value, int):
             return LiteralExpr(value=str(value))
         if isinstance(value, float):
@@ -77,12 +77,14 @@ class _ExpressionMixin:
         if value is None:
             raise CompileError(
                 "None does not exist in PLC logic. Use 0, 0.0, FALSE, or '' depending on type.",
-                node, self.ctx,
+                node,
+                self.ctx,
             )
         raise CompileError(
             f"Unsupported constant type: {type(value).__name__}. "
             f"PLC logic supports bool, int, float, and str literals.",
-            node, self.ctx,
+            node,
+            self.ctx,
         )
 
     def _compile_name(self, node: ast.Name) -> Expression:
@@ -96,8 +98,9 @@ class _ExpressionMixin:
         if name not in self.ctx.declared_vars and name in self.ctx.known_constants:
             value = self.ctx.known_constants[name]
             if isinstance(value, bool):
-                return LiteralExpr(value="TRUE" if value else "FALSE",
-                                   data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL))
+                return LiteralExpr(
+                    value="TRUE" if value else "FALSE", data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL)
+                )
             if isinstance(value, int):
                 return LiteralExpr(value=str(value))
             if isinstance(value, float):
@@ -119,7 +122,8 @@ class _ExpressionMixin:
             if member_name not in members:
                 raise CompileError(
                     f"'{member_name}' is not a member of enum '{enum_name}'",
-                    node, self.ctx,
+                    node,
+                    self.ctx,
                 )
             return LiteralExpr(
                 value=f"{enum_name}#{member_name}",
@@ -132,7 +136,8 @@ class _ExpressionMixin:
             raise CompileError(
                 f"math.{node.attr} is not supported in PLC logic. "
                 f"Supported: {', '.join(f'math.{k}' for k in sorted(_MATH_CONSTANTS))}",
-                node, self.ctx,
+                node,
+                self.ctx,
             )
         # Pointer dereference: expr.deref → DerefExpr(pointer=expr)
         if node.attr == "deref":
@@ -153,26 +158,29 @@ class _ExpressionMixin:
                             f"Bit access is not supported on {target_type.type.value}. "
                             f"Bit access requires an integer or bit-string type "
                             f"(BYTE, WORD, DWORD, LWORD, SINT, INT, DINT, LINT, etc.).",
-                            node, self.ctx,
+                            node,
+                            self.ctx,
                         )
                     if bit_index >= width:
                         raise CompileError(
                             f"bit{bit_index} is out of range for {target_type.type.value} "
                             f"(valid range: bit0..bit{width - 1}).",
-                            node, self.ctx,
+                            node,
+                            self.ctx,
                         )
                 elif isinstance(target_type, StringTypeRef):
                     kind = "WSTRING" if target_type.wide else "STRING"
                     raise CompileError(
-                        f"Bit access is not supported on {kind}. "
-                        f"Bit access requires an integer or bit-string type.",
-                        node, self.ctx,
+                        f"Bit access is not supported on {kind}. Bit access requires an integer or bit-string type.",
+                        node,
+                        self.ctx,
                     )
                 elif isinstance(target_type, NamedTypeRef):
                     raise CompileError(
                         f"Bit access is not supported on '{target_type.name}'. "
                         f"Bit access requires an integer or bit-string type.",
-                        node, self.ctx,
+                        node,
+                        self.ctx,
                     )
             return BitAccessExpr(target=target, bit_index=bit_index)
         # self.a.b → MemberAccessExpr
@@ -190,9 +198,9 @@ class _ExpressionMixin:
             right_type = _infer_type(node.right, self.ctx)
             if isinstance(left_type, StringTypeRef) or isinstance(right_type, StringTypeRef):
                 raise CompileError(
-                    "String concatenation with + is not supported. "
-                    'Use an f-string instead: f"text {self.var}"',
-                    node, self.ctx,
+                    'String concatenation with + is not supported. Use an f-string instead: f"text {self.var}"',
+                    node,
+                    self.ctx,
                 )
         # Floor division: a // b → TRUNC(a / b)
         if isinstance(node.op, ast.FloorDiv):
@@ -206,7 +214,8 @@ class _ExpressionMixin:
         if op is None:
             raise CompileError(
                 f"Unsupported binary operator: {type(node.op).__name__}",
-                node, self.ctx,
+                node,
+                self.ctx,
             )
         left = self.compile_expression(node.left)
         right = self.compile_expression(node.right)
@@ -228,13 +237,14 @@ class _ExpressionMixin:
         parts: list[Expression] = []
         left = self.compile_expression(node.left)
 
-        for i, (cmp_op, comparator) in enumerate(zip(node.ops, node.comparators)):
+        for i, (cmp_op, comparator) in enumerate(zip(node.ops, node.comparators, strict=True)):
             # in / not in → membership test expansion
             if isinstance(cmp_op, (ast.In, ast.NotIn)):
                 if i != len(node.ops) - 1:
                     raise CompileError(
                         "'in' / 'not in' must be the last operator in a chained comparison",
-                        node, self.ctx,
+                        node,
+                        self.ctx,
                     )
                 negate = isinstance(cmp_op, ast.NotIn)
                 parts.append(self._compile_membership_test(left, comparator, node, negate))
@@ -247,7 +257,8 @@ class _ExpressionMixin:
                     raise CompileError(rejected, node, self.ctx)
                 raise CompileError(
                     f"Unsupported comparison operator: {type(cmp_op).__name__}",
-                    node, self.ctx,
+                    node,
+                    self.ctx,
                 )
             right = self.compile_expression(comparator)
             parts.append(BinaryExpr(op=op, left=left, right=right))
@@ -273,7 +284,8 @@ class _ExpressionMixin:
             raise CompileError(
                 "'in' / 'not in' requires a tuple, list, or set of values "
                 "(e.g. x in (1, 2, 3)), not a variable or expression",
-                node, self.ctx,
+                node,
+                self.ctx,
             )
 
         elements = comparator.elts
@@ -314,7 +326,8 @@ class _ExpressionMixin:
             return operand  # +x → x
         raise CompileError(
             f"Unsupported unary operator: {type(node.op).__name__}",
-            node, self.ctx,
+            node,
+            self.ctx,
         )
 
     # Sentinel category → compile method, built once at class level
@@ -341,7 +354,8 @@ class _ExpressionMixin:
         raise CompileError(
             f"Unsupported call target: {type(func).__name__}. "
             f"Call a function by name, self.fb_instance(), or self.method().",
-            node, self.ctx,
+            node,
+            self.ctx,
         )
 
     # ------------------------------------------------------------------
@@ -369,7 +383,8 @@ class _ExpressionMixin:
         if name == "range":
             raise CompileError(
                 "range() can only be used in a for loop",
-                node, self.ctx,
+                node,
+                self.ctx,
             )
 
         # Python type conversions: int(x), float(x), bool(x)
@@ -392,7 +407,8 @@ class _ExpressionMixin:
                     f"which is invalid structured-text syntax. "
                     f"Declare the variable as {enum_name} and compare to "
                     f"{enum_name}.{member_name} directly, or compare against the raw integer value.",
-                    node, self.ctx,
+                    node,
+                    self.ctx,
                 )
             source = self.compile_expression(node.args[0])
             return TypeConversionExpr(target_type=_PYTHON_TYPE_CONV_MAP[name], source=source)
@@ -434,7 +450,8 @@ class _ExpressionMixin:
         if len(node.args) != 2 or node.keywords:
             raise CompileError(
                 "pow() requires exactly 2 arguments in PLC logic (no modular exponentiation)",
-                node, self.ctx,
+                node,
+                self.ctx,
             )
         left = self.compile_expression(node.args[0])
         right = self.compile_expression(node.args[1])
@@ -450,7 +467,8 @@ class _ExpressionMixin:
         if len(node.args) != 1:
             raise CompileError(
                 f"Type conversion {name}() takes exactly 1 argument",
-                node, self.ctx,
+                node,
+                self.ctx,
             )
         source = self.compile_expression(node.args[0])
         try:
@@ -517,7 +535,7 @@ class _ExpressionMixin:
         args = self._compile_call_args(node)
         return FunctionCallExpr(
             function_name=func.attr,
-            args=[CallArg(value=struct)] + args,
+            args=[CallArg(value=struct), *args],
         )
 
     def _compile_call_self_attr(self, attr_name: str, node: ast.Call) -> Expression:
@@ -531,7 +549,8 @@ class _ExpressionMixin:
             return FunctionCallExpr(function_name=attr_name, args=args)
         raise CompileError(
             f"'{attr_name}' is not a known FB instance or method on this POU",
-            node, self.ctx,
+            node,
+            self.ctx,
         )
 
     def _compile_call_math(self, func_name: str, node: ast.Call) -> Expression:
@@ -539,9 +558,9 @@ class _ExpressionMixin:
         if func_name == "clamp":
             if len(node.args) != 3 or node.keywords:
                 raise CompileError(
-                    "math.clamp() requires exactly 3 positional arguments: "
-                    "math.clamp(value, min, max)",
-                    node, self.ctx,
+                    "math.clamp() requires exactly 3 positional arguments: math.clamp(value, min, max)",
+                    node,
+                    self.ctx,
                 )
             value = self.compile_expression(node.args[0])
             mn = self.compile_expression(node.args[1])
@@ -555,7 +574,8 @@ class _ExpressionMixin:
             raise CompileError(
                 f"math.{func_name}() is not supported in PLC logic. "
                 f"Supported: {', '.join(f'math.{k}()' for k in sorted({**_MATH_FUNC_MAP, 'clamp': 'LIMIT'}))}",
-                node, self.ctx,
+                node,
+                self.ctx,
             )
         args = self._compile_call_args(node)
         return FunctionCallExpr(function_name=iec_name, args=args)
@@ -567,15 +587,14 @@ class _ExpressionMixin:
             return self._compile_slice(node, node.slice)
 
         # Dynamic bit access: self.status.bit[idx] → BitAccessExpr(target, bit_index=expr)
-        if (isinstance(node.value, ast.Attribute)
-                and node.value.attr == "bit"
-                and not isinstance(node.slice, ast.Tuple)):
+        if isinstance(node.value, ast.Attribute) and node.value.attr == "bit" and not isinstance(node.slice, ast.Tuple):
             target = self.compile_expression(node.value.value)
             bit_index = self.compile_expression(node.slice)
             return BitAccessExpr(target=target, bit_index=bit_index)
 
         # Single index — check if this is string indexing
         from ._compiler_core import _infer_type
+
         value_type = _infer_type(node.value, self.ctx)
         if isinstance(value_type, StringTypeRef):
             return self._compile_string_index(node)
@@ -601,20 +620,23 @@ class _ExpressionMixin:
                     "String slicing requires a declared STRING variable. "
                     "If this is an array, access elements individually "
                     "with a single index: arr[i].",
-                    node, self.ctx,
+                    node,
+                    self.ctx,
                 )
             raise CompileError(
                 "Slice operations are not supported on this type. "
                 "Only STRING variables support slicing. "
                 "Access array elements individually with a single index: arr[i].",
-                node, self.ctx,
+                node,
+                self.ctx,
             )
 
         # Reject step slicing: s[::2], s[1:3:2]
         if slc.step is not None:
             raise CompileError(
                 "Step slicing (e.g. s[::2]) is not supported on strings.",
-                node, self.ctx,
+                node,
+                self.ctx,
             )
 
         # Reject negative indices
@@ -639,7 +661,10 @@ class _ExpressionMixin:
         return SubstringExpr(string=string_expr, start=index, single_char=True)
 
     def _reject_negative_index(
-        self, node: ast.expr | None, label: str, parent: ast.AST,
+        self,
+        node: ast.expr | None,
+        label: str,
+        parent: ast.AST,
     ) -> None:
         """Raise CompileError if node is a negative literal."""
         if node is None:
@@ -651,9 +676,9 @@ class _ExpressionMixin:
             and isinstance(node.operand.value, (int, float))
         ):
             raise CompileError(
-                f"Negative {label} in string slicing is not supported. "
-                f"Use LEN() to compute the position explicitly.",
-                parent, self.ctx,
+                f"Negative {label} in string slicing is not supported. Use LEN() to compute the position explicitly.",
+                parent,
+                self.ctx,
             )
 
     def _compile_ifexp(self, node: ast.IfExp) -> Expression:
@@ -673,11 +698,13 @@ class _ExpressionMixin:
     def _compile_timedelta(self, node: ast.Call) -> LiteralExpr:
         """Compile ``timedelta(...)`` to a TIME LiteralExpr at compile time."""
         from ._types import timedelta_to_ir
+
         if node.args:
             raise CompileError(
                 "timedelta() in logic must use keyword arguments only "
                 "(e.g. timedelta(seconds=5), timedelta(milliseconds=500))",
-                node, self.ctx,
+                node,
+                self.ctx,
             )
         _VALID_KWARGS = {"weeks", "days", "hours", "minutes", "seconds", "milliseconds", "microseconds"}
         kwargs: dict[str, int | float] = {}
@@ -688,14 +715,16 @@ class _ExpressionMixin:
                 raise CompileError(
                     f"timedelta() got unexpected keyword argument '{kw.arg}'. "
                     f"Supported: {', '.join(sorted(_VALID_KWARGS))}",
-                    node, self.ctx,
+                    node,
+                    self.ctx,
                 )
             if not isinstance(kw.value, ast.Constant) or not isinstance(kw.value.value, (int, float)):
                 raise CompileError(
                     f"timedelta({kw.arg}=...) must be a numeric literal. "
                     f"For variable durations, use the duration= keyword: "
                     f"delayed(signal, duration=self.cfg_timeout)",
-                    node, self.ctx,
+                    node,
+                    self.ctx,
                 )
             kwargs[kw.arg] = kw.value.value
         if not kwargs:
@@ -723,7 +752,8 @@ class _ExpressionMixin:
         if node.args:
             raise CompileError(
                 "FB invocations only accept keyword arguments (e.g. self.timer(IN=signal, PT=duration))",
-                node, self.ctx,
+                node,
+                self.ctx,
             )
         return inputs
 
@@ -744,7 +774,8 @@ class _ExpressionMixin:
             else:
                 raise CompileError(
                     f"Unsupported f-string element: {type(value).__name__}",
-                    node, self.ctx,
+                    node,
+                    self.ctx,
                 )
 
         # Empty f-string → empty string literal
@@ -767,9 +798,9 @@ class _ExpressionMixin:
         if node.conversion and node.conversion != -1:
             flag = chr(node.conversion)
             raise CompileError(
-                f"Conversion flag !{flag} is not supported in PLC f-strings. "
-                f"Type conversion is applied automatically.",
-                node, self.ctx,
+                f"Conversion flag !{flag} is not supported in PLC f-strings. Type conversion is applied automatically.",
+                node,
+                self.ctx,
             )
 
         # Reject format specs ({x:.2f}, {x:05d}, etc.)
@@ -777,7 +808,8 @@ class _ExpressionMixin:
             raise CompileError(
                 "Format specifiers (e.g. :.2f, :05d) are not supported in PLC f-strings. "
                 "Use IEC string functions for custom formatting.",
-                node, self.ctx,
+                node,
+                self.ctx,
             )
 
         expr = self.compile_expression(node.value)
@@ -806,14 +838,16 @@ class _ExpressionMixin:
             raise CompileError(
                 f"Cannot automatically convert '{inferred.name}' to STRING in f-string. "
                 f"Convert the value to a string explicitly before interpolation.",
-                node, self.ctx,
+                node,
+                self.ctx,
             )
 
         # Type unknown → error with guidance
         raise CompileError(
             "Cannot determine the type of this expression in the f-string. "
             "Use an explicit type conversion (e.g. DINT_TO_STRING(expr)) instead.",
-            node, self.ctx,
+            node,
+            self.ctx,
         )
 
     # Expression handler dispatch table

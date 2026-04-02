@@ -6,22 +6,21 @@ and ST exporter) and calls hook methods that rule subclasses override.
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 from plx.model.expressions import (
     ArrayAccessExpr,
     BinaryExpr,
+    BitAccessExpr,
     DerefExpr,
     Expression,
     FunctionCallExpr,
     LiteralExpr,
     MemberAccessExpr,
-    BitAccessExpr,
     SubstringExpr,
     TypeConversionExpr,
     UnaryExpr,
     VariableRef,
-    SystemFlagExpr,
 )
 from plx.model.pou import POU, Method, Network, Property
 from plx.model.project import Project
@@ -366,11 +365,14 @@ class AnalysisVisitor:
 
     @staticmethod
     def _make_property_context(
-        pou: POU, prop: Property, accessor_name: str,
+        pou: POU,
+        prop: Property,
+        accessor_name: str,
     ) -> AnalysisContext:
-        from ._types import TypeEnvironment
         from plx.model.pou import POUInterface
         from plx.model.variables import Variable
+
+        from ._types import TypeEnvironment
 
         # Build a minimal interface for type resolution
         accessor = prop.getter if accessor_name == "getter" else prop.setter
@@ -548,7 +550,7 @@ class AnalysisVisitor:
             self._collect_reads(ctx, expr)
 
         # Record output targets as writes
-        for _param_name, target_expr in stmt.outputs.items():
+        for target_expr in stmt.outputs.values():
             target_name = self._extract_target_name(target_expr)
             if target_name is not None:
                 info = WriteInfo(
@@ -562,9 +564,7 @@ class AnalysisVisitor:
 
         self.on_fb_invocation(ctx, stmt)
 
-    def _visit_function_call_stmt(
-        self, ctx: AnalysisContext, stmt: FunctionCallStatement
-    ) -> None:
+    def _visit_function_call_stmt(self, ctx: AnalysisContext, stmt: FunctionCallStatement) -> None:
         for arg in stmt.args:
             self._collect_reads(ctx, arg.value)
 
@@ -596,9 +596,7 @@ class AnalysisVisitor:
     def _visit_noop(self, ctx: AnalysisContext, stmt: Statement) -> None:
         pass
 
-    _STMT_VISITORS: dict[
-        str, Callable[[AnalysisVisitor, AnalysisContext, Statement], None]
-    ] = {
+    _STMT_VISITORS: dict[str, Callable[[AnalysisVisitor, AnalysisContext, Statement], None]] = {
         "assignment": _visit_assignment,
         "if": _visit_if,
         "case": _visit_case,

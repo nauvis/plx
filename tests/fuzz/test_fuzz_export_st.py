@@ -9,30 +9,23 @@ Properties tested:
 from __future__ import annotations
 
 import pytest
-from hypothesis import given, settings, HealthCheck
+from hypothesis import HealthCheck, given, settings
 
 pytestmark = pytest.mark.fuzz
 
-from plx.model import (
-    POU,
-    POUType,
-    Network,
-    POUInterface,
-    Variable,
-    PrimitiveTypeRef,
-    PrimitiveType,
-    Project,
-    PeriodicTask,
-)
-from plx.export.st import to_structured_text
-
 from tests.fuzz.strategies import (
     expressions,
-    statements,
-    statement_lists,
     pous,
     projects,
-    pou_interfaces,
+    statement_lists,
+    statements,
+)
+
+from plx.export.st import to_structured_text
+from plx.model import (
+    POU,
+    Network,
+    POUType,
 )
 
 
@@ -49,13 +42,14 @@ def _wrap_in_pou(stmts) -> POU:
 # Expression export
 # ---------------------------------------------------------------------------
 
-class TestExpressionExport:
 
+class TestExpressionExport:
     @given(expr=expressions(max_depth=4))
     @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_never_crashes(self, expr):
         """ST exporter handles any valid expression without crashing."""
         from plx.model import Assignment, VariableRef
+
         stmt = Assignment(target=VariableRef(name="x"), value=expr)
         pou = _wrap_in_pou(stmt)
         result = to_structured_text(pou)
@@ -67,6 +61,7 @@ class TestExpressionExport:
     def test_deep_nesting(self, expr):
         """Deeply nested expressions don't cause stack overflow."""
         from plx.model import Assignment, VariableRef
+
         stmt = Assignment(target=VariableRef(name="result"), value=expr)
         pou = _wrap_in_pou(stmt)
         result = to_structured_text(pou)
@@ -77,8 +72,8 @@ class TestExpressionExport:
 # Statement export
 # ---------------------------------------------------------------------------
 
-class TestStatementExport:
 
+class TestStatementExport:
     @given(stmt=statements(max_depth=3))
     @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_never_crashes(self, stmt):
@@ -101,8 +96,8 @@ class TestStatementExport:
 # POU export
 # ---------------------------------------------------------------------------
 
-class TestPOUExport:
 
+class TestPOUExport:
     @given(pou=pous(max_networks=3, max_depth=2))
     @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_never_crashes(self, pou):
@@ -141,8 +136,8 @@ class TestPOUExport:
 # Project export
 # ---------------------------------------------------------------------------
 
-class TestProjectExport:
 
+class TestProjectExport:
     @given(proj=projects(max_pous=3, max_depth=2))
     @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_never_crashes(self, proj):
@@ -164,8 +159,8 @@ class TestProjectExport:
 # Source map generation
 # ---------------------------------------------------------------------------
 
-class TestSourceMap:
 
+class TestSourceMap:
     @given(pou=pous(max_networks=2, max_depth=2))
     @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_source_map_never_crashes(self, pou):

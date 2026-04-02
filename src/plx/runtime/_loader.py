@@ -48,10 +48,7 @@ def load_project(path: str) -> tuple[Project, Path]:
     elif p.suffix == ".py":
         return _load_python_file(p), p
     else:
-        raise RuntimeError(
-            f"Cannot load project from '{path}': "
-            f"expected a directory, .py file, or .plx.json file"
-        )
+        raise RuntimeError(f"Cannot load project from '{path}': expected a directory, .py file, or .plx.json file")
 
 
 def _load_directory(directory: Path) -> Project:
@@ -147,10 +144,7 @@ def reload_project(path: str) -> Project:
     if p.is_dir():
         package_name = p.name
         # Clear all cached modules for this package
-        to_remove = [
-            key for key in sys.modules
-            if key == package_name or key.startswith(package_name + ".")
-        ]
+        to_remove = [key for key in sys.modules if key == package_name or key.startswith(package_name + ".")]
         for key in to_remove:
             del sys.modules[key]
         return _load_directory(p)

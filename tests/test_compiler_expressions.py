@@ -3,14 +3,12 @@
 import pytest
 
 from conftest import compile_expr, compile_stmts
-
 from plx.framework._compiler import CompileContext, CompileError
 from plx.model.expressions import (
     ArrayAccessExpr,
     BinaryExpr,
     BinaryOp,
     BitAccessExpr,
-    CallArg,
     FunctionCallExpr,
     LiteralExpr,
     MemberAccessExpr,
@@ -20,12 +18,12 @@ from plx.model.expressions import (
     UnaryOp,
     VariableRef,
 )
-from plx.model.types import PrimitiveType, PrimitiveTypeRef, NamedTypeRef, StringTypeRef
-
+from plx.model.types import NamedTypeRef, PrimitiveType, PrimitiveTypeRef, StringTypeRef
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
+
 
 class TestConstant:
     def test_int(self):
@@ -76,6 +74,7 @@ class TestConstant:
 # Variable references
 # ---------------------------------------------------------------------------
 
+
 class TestVariableRef:
     def test_simple_name(self):
         result = compile_expr("x")
@@ -105,6 +104,7 @@ class TestVariableRef:
 # ---------------------------------------------------------------------------
 # Binary operators
 # ---------------------------------------------------------------------------
+
 
 class TestBinaryOp:
     def test_add(self):
@@ -173,8 +173,9 @@ class TestBinaryOp:
 
     def test_floordiv_augassign(self):
         """a //= b → a := TRUNC(a / b)"""
-        from plx.model.statements import Assignment
         from plx.framework._descriptors import VarDirection
+        from plx.model.statements import Assignment
+
         ctx = CompileContext(declared_vars={"a": VarDirection.TEMP})
         stmts = compile_stmts("a //= b", ctx)
         assert len(stmts) == 1
@@ -184,8 +185,9 @@ class TestBinaryOp:
         assert stmt.value.function_name == "TRUNC"
 
     def test_bitand_augassign(self):
-        from plx.model.statements import Assignment
         from plx.framework._descriptors import VarDirection
+        from plx.model.statements import Assignment
+
         ctx = CompileContext(declared_vars={"x": VarDirection.STATIC})
         stmts = compile_stmts("self.x &= b", ctx)
         assert len(stmts) == 1
@@ -195,8 +197,9 @@ class TestBinaryOp:
         assert stmt.value.op == BinaryOp.BAND
 
     def test_bitor_augassign(self):
-        from plx.model.statements import Assignment
         from plx.framework._descriptors import VarDirection
+        from plx.model.statements import Assignment
+
         ctx = CompileContext(declared_vars={"x": VarDirection.STATIC})
         stmts = compile_stmts("self.x |= b", ctx)
         assert len(stmts) == 1
@@ -209,6 +212,7 @@ class TestBinaryOp:
 # ---------------------------------------------------------------------------
 # Boolean operators
 # ---------------------------------------------------------------------------
+
 
 class TestBoolOp:
     def test_and(self):
@@ -238,6 +242,7 @@ class TestBoolOp:
 # ---------------------------------------------------------------------------
 # Comparisons
 # ---------------------------------------------------------------------------
+
 
 class TestCompare:
     def test_eq(self):
@@ -279,6 +284,7 @@ class TestCompare:
 # Unary operators
 # ---------------------------------------------------------------------------
 
+
 class TestUnaryOp:
     def test_not(self):
         result = compile_expr("not a")
@@ -304,6 +310,7 @@ class TestUnaryOp:
 # ---------------------------------------------------------------------------
 # Function calls
 # ---------------------------------------------------------------------------
+
 
 class TestFunctionCall:
     def test_simple_call(self):
@@ -362,6 +369,7 @@ class TestFunctionCall:
 # Type conversion
 # ---------------------------------------------------------------------------
 
+
 class TestTypeConversion:
     def test_int_to_real(self):
         result = compile_expr("INT_TO_REAL(x)")
@@ -383,6 +391,7 @@ class TestTypeConversion:
 # ---------------------------------------------------------------------------
 # Array access
 # ---------------------------------------------------------------------------
+
 
 class TestArrayAccess:
     def test_single_dim(self):
@@ -407,6 +416,7 @@ class TestArrayAccess:
 # Ternary (if expression)
 # ---------------------------------------------------------------------------
 
+
 class TestIfExp:
     def test_basic(self):
         result = compile_expr("a if cond else b")
@@ -425,6 +435,7 @@ class TestIfExp:
 # ---------------------------------------------------------------------------
 # Bit access
 # ---------------------------------------------------------------------------
+
 
 class TestBitAccess:
     def test_self_attr_bit5(self):
@@ -529,12 +540,14 @@ class TestBitAccess:
 
     def test_string_rejects_bit_access(self):
         from plx.model.types import StringTypeRef
+
         ctx = CompileContext(static_var_types={"s": StringTypeRef()})
         with pytest.raises(CompileError, match="not supported on STRING"):
             compile_expr("self.s.bit0", ctx)
 
     def test_wstring_rejects_bit_access(self):
         from plx.model.types import StringTypeRef
+
         ctx = CompileContext(static_var_types={"s": StringTypeRef(wide=True)})
         with pytest.raises(CompileError, match="not supported on WSTRING"):
             compile_expr("self.s.bit0", ctx)
@@ -548,22 +561,22 @@ class TestBitAccess:
 
     def test_byte_bit8_out_of_range(self):
         ctx = CompileContext(static_var_types={"b": PrimitiveTypeRef(type=PrimitiveType.BYTE)})
-        with pytest.raises(CompileError, match="bit8 is out of range for BYTE.*bit0..bit7"):
+        with pytest.raises(CompileError, match=r"bit8 is out of range for BYTE.*bit0\.\.bit7"):
             compile_expr("self.b.bit8", ctx)
 
     def test_word_bit16_out_of_range(self):
         ctx = CompileContext(static_var_types={"w": PrimitiveTypeRef(type=PrimitiveType.WORD)})
-        with pytest.raises(CompileError, match="bit16 is out of range for WORD.*bit0..bit15"):
+        with pytest.raises(CompileError, match=r"bit16 is out of range for WORD.*bit0\.\.bit15"):
             compile_expr("self.w.bit16", ctx)
 
     def test_dint_bit32_out_of_range(self):
         ctx = CompileContext(static_var_types={"d": PrimitiveTypeRef(type=PrimitiveType.DINT)})
-        with pytest.raises(CompileError, match="bit32 is out of range for DINT.*bit0..bit31"):
+        with pytest.raises(CompileError, match=r"bit32 is out of range for DINT.*bit0\.\.bit31"):
             compile_expr("self.d.bit32", ctx)
 
     def test_sint_bit8_out_of_range(self):
         ctx = CompileContext(static_var_types={"s": PrimitiveTypeRef(type=PrimitiveType.SINT)})
-        with pytest.raises(CompileError, match="bit8 is out of range for SINT.*bit0..bit7"):
+        with pytest.raises(CompileError, match=r"bit8 is out of range for SINT.*bit0\.\.bit7"):
             compile_expr("self.s.bit8", ctx)
 
     # --- Nested access (unknown type) passes through ---
@@ -607,6 +620,7 @@ class TestBitAccess:
 # IEC type name as type conversion
 # ---------------------------------------------------------------------------
 
+
 class TestIECTypeNameConversion:
     def test_iec_type_name_conversion(self):
         """INT(x), SINT(x), LREAL(x) → TypeConversionExpr."""
@@ -628,6 +642,7 @@ class TestIECTypeNameConversion:
 # ---------------------------------------------------------------------------
 # Membership operators (in / not in)
 # ---------------------------------------------------------------------------
+
 
 class TestMembershipOperators:
     def test_in_basic(self):
@@ -725,6 +740,7 @@ class TestMembershipOperators:
 # ---------------------------------------------------------------------------
 # String slicing
 # ---------------------------------------------------------------------------
+
 
 class TestStringSlicing:
     """String slicing: s[:n] → LEFT, s[n:] → RIGHT, s[i:j] → MID, s[i] → MID."""
@@ -825,6 +841,7 @@ class TestStringSlicing:
 # Module-level constant resolution
 # ---------------------------------------------------------------------------
 
+
 class TestModuleLevelConstants:
     def test_int_constant_resolves_to_literal(self):
         """Module-level int constant → LiteralExpr."""
@@ -855,6 +872,7 @@ class TestModuleLevelConstants:
     def test_declared_var_shadows_constant(self):
         """Declared variables take priority over known constants."""
         from plx.framework._descriptors import VarDirection
+
         ctx = CompileContext(
             declared_vars={"FILLING": VarDirection.STATIC},
             known_constants={"FILLING": 10},
@@ -876,6 +894,7 @@ class TestModuleLevelConstants:
         stmts = compile_stmts("self.step = RUNNING", ctx)
         assert len(stmts) == 1
         from plx.model.statements import Assignment
+
         assert isinstance(stmts[0], Assignment)
         assert isinstance(stmts[0].value, LiteralExpr)
         assert stmts[0].value.value == "10"

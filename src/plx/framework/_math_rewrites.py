@@ -7,7 +7,9 @@ live in the public package so the private AB raise pass can import them.
 Usage in the AB raise pass::
 
     from plx.framework._math_rewrites import (
-        rewrite_exp_to_expt, rewrite_ceil, rewrite_floor,
+        rewrite_exp_to_expt,
+        rewrite_ceil,
+        rewrite_floor,
         make_ab_name_rewriter,
     )
 
@@ -109,7 +111,8 @@ _AB_NAME_REMAP: dict[str, str] = {
 
 
 def rewrite_function_name(
-    expr: Expression, remap: dict[str, str] | None = None,
+    expr: Expression,
+    remap: dict[str, str] | None = None,
 ) -> Expression | None:
     """Rename function calls according to *remap* mapping.
 
@@ -128,6 +131,8 @@ def rewrite_function_name(
 
 def make_ab_name_rewriter():
     """Return a rewrite function using the default AB name remap."""
+
     def _rewrite(expr: Expression) -> Expression | None:
         return rewrite_function_name(expr)
+
     return _rewrite

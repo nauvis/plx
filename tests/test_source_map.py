@@ -1,13 +1,10 @@
 """Tests for the ST source map module."""
 
-import pytest
-
-from plx.export.st._source_map import _collect_variable_names, _build_source_map
-from plx.model.pou import POU, POUType, POUInterface, Network
-from plx.model.variables import Variable
-from plx.model.types import PrimitiveTypeRef, PrimitiveType
+from plx.export.st._source_map import _build_source_map, _collect_variable_names
+from plx.model.pou import POU, POUInterface, POUType
 from plx.model.project import Project
-
+from plx.model.types import PrimitiveType, PrimitiveTypeRef
+from plx.model.variables import Variable
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -34,7 +31,6 @@ def _make_pou(name: str, **var_lists) -> POU:
 
 
 class TestCollectVariableNames:
-
     def test_single_pou_input_output_static(self):
         """Single POU with input/output/static vars returns all names."""
         pou = _make_pou(
@@ -74,8 +70,13 @@ class TestCollectVariableNames:
         )
         names = _collect_variable_names(pou)
         assert names == {
-            "v_input", "v_output", "v_inout", "v_static",
-            "v_temp", "v_constant", "v_external",
+            "v_input",
+            "v_output",
+            "v_inout",
+            "v_static",
+            "v_temp",
+            "v_constant",
+            "v_external",
         }
 
     def test_project_overlapping_var_names(self):
@@ -99,7 +100,6 @@ class TestCollectVariableNames:
 
 
 class TestBuildSourceMap:
-
     def test_simple_variable_references(self):
         """Simple ST text with variable references produces correct line/column."""
         st = "valve := sensor AND enable;"
@@ -117,12 +117,7 @@ class TestBuildSourceMap:
 
     def test_var_block_lines_skipped(self):
         """Lines inside VAR blocks are not mapped."""
-        st = "\n".join([
-            "VAR_INPUT",
-            "    sensor : BOOL;",
-            "END_VAR",
-            "valve := sensor;",
-        ])
+        st = "VAR_INPUT\n    sensor : BOOL;\nEND_VAR\nvalve := sensor;"
         names = {"sensor", "valve"}
         entries = _build_source_map(st, names)
         # Only line 4 should be present (the logic line), not VAR block lines
@@ -135,23 +130,22 @@ class TestBuildSourceMap:
     def test_var_block_keyword_variants(self):
         """All VAR block keyword variants are correctly skipped."""
         keywords = [
-            "VAR_INPUT", "VAR_OUTPUT", "VAR_IN_OUT", "VAR",
-            "VAR_TEMP", "VAR CONSTANT", "VAR_GLOBAL", "VAR_EXTERNAL",
+            "VAR_INPUT",
+            "VAR_OUTPUT",
+            "VAR_IN_OUT",
+            "VAR",
+            "VAR_TEMP",
+            "VAR CONSTANT",
+            "VAR_GLOBAL",
+            "VAR_EXTERNAL",
         ]
         for kw in keywords:
-            st = "\n".join([
-                kw,
-                "    x : BOOL;",
-                "END_VAR",
-                "y := x;",
-            ])
+            st = f"{kw}\n    x : BOOL;\nEND_VAR\ny := x;"
             names = {"x", "y"}
             entries = _build_source_map(st, names)
             lines = [e["line"] for e in entries]
             # x and y should only appear on line 4 (after END_VAR)
-            assert all(ln == 4 for ln in lines), (
-                f"VAR keyword '{kw}' did not skip block: lines={lines}"
-            )
+            assert all(ln == 4 for ln in lines), f"VAR keyword '{kw}' did not skip block: lines={lines}"
 
     def test_line_comment_stripped(self):
         """// comments are stripped before matching."""
@@ -225,11 +219,7 @@ class TestBuildSourceMap:
 
     def test_multiline_text(self):
         """Variables on different lines have correct line numbers."""
-        st = "\n".join([
-            "IF sensor THEN",
-            "    valve := TRUE;",
-            "END_IF;",
-        ])
+        st = "IF sensor THEN\n    valve := TRUE;\nEND_IF;"
         names = {"sensor", "valve"}
         entries = _build_source_map(st, names)
         by_name = {e["name"]: e for e in entries}
@@ -238,18 +228,12 @@ class TestBuildSourceMap:
 
     def test_var_block_then_logic(self):
         """Full POU structure with VAR blocks followed by logic."""
-        st = "\n".join([
-            "VAR_INPUT",
-            "    sensor : BOOL;",
-            "END_VAR",
-            "VAR_OUTPUT",
-            "    valve : BOOL;",
-            "END_VAR",
-            "VAR",
-            "    temp : INT;",
-            "END_VAR",
-            "valve := sensor AND NOT temp;",
-        ])
+        st = (
+            "VAR_INPUT\n    sensor : BOOL;\nEND_VAR\n"
+            "VAR_OUTPUT\n    valve : BOOL;\nEND_VAR\n"
+            "VAR\n    temp : INT;\nEND_VAR\n"
+            "valve := sensor AND NOT temp;"
+        )
         names = {"sensor", "valve", "temp"}
         entries = _build_source_map(st, names)
         # All entries should come from line 10 only
@@ -258,15 +242,7 @@ class TestBuildSourceMap:
 
     def test_nested_var_blocks(self):
         """Multiple VAR blocks are all correctly skipped."""
-        st = "\n".join([
-            "VAR_INPUT",
-            "    a : BOOL;",
-            "END_VAR",
-            "VAR_OUTPUT",
-            "    b : BOOL;",
-            "END_VAR",
-            "b := a;",
-        ])
+        st = "VAR_INPUT\n    a : BOOL;\nEND_VAR\nVAR_OUTPUT\n    b : BOOL;\nEND_VAR\nb := a;"
         names = {"a", "b"}
         entries = _build_source_map(st, names)
         # Only line 7 should have entries
@@ -291,11 +267,7 @@ class TestBuildSourceMap:
 
     def test_multiple_variables_on_multiple_lines(self):
         """Multiple variables across multiple lines produce correct entries."""
-        st = "\n".join([
-            "x := 1;",
-            "y := x + 2;",
-            "z := x + y;",
-        ])
+        st = "x := 1;\ny := x + 2;\nz := x + y;"
         names = {"x", "y", "z"}
         entries = _build_source_map(st, names)
         # Line 1: x
@@ -320,12 +292,7 @@ class TestBuildSourceMap:
 
     def test_end_var_exits_block(self):
         """END_VAR correctly ends the skip region."""
-        st = "\n".join([
-            "VAR",
-            "    x : BOOL;",
-            "END_VAR",
-            "x := TRUE;",
-        ])
+        st = "VAR\n    x : BOOL;\nEND_VAR\nx := TRUE;"
         names = {"x"}
         entries = _build_source_map(st, names)
         assert len(entries) == 1

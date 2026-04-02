@@ -7,10 +7,10 @@ clamping and fault detection for out-of-range signals.
 from plx.framework import (
     BOOL,
     REAL,
-    fb,
+    Field,
     Input,
     Output,
-    Field,
+    fb,
 )
 
 
@@ -32,6 +32,7 @@ class AnalogScaler:
         scaled: Scaled output in engineering units (clamped)
         out_of_range: True if raw input is outside raw_lo..raw_hi
     """
+
     raw_in: Input[REAL] = Field(description="Raw analog input")
     raw_lo: Input[REAL] = Field(initial=0.0, description="Raw range low")
     raw_hi: Input[REAL] = Field(initial=27648.0, description="Raw range high")
@@ -51,4 +52,6 @@ class AnalogScaler:
         elif self.raw_in >= self.raw_hi:
             self.scaled = self.eng_hi
         else:
-            self.scaled = self.eng_lo + (self.raw_in - self.raw_lo) * (self.eng_hi - self.eng_lo) / (self.raw_hi - self.raw_lo)
+            self.scaled = self.eng_lo + (self.raw_in - self.raw_lo) * (self.eng_hi - self.eng_lo) / (
+                self.raw_hi - self.raw_lo
+            )

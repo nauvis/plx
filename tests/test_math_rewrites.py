@@ -3,12 +3,11 @@
 import pytest
 
 from plx.framework._math_rewrites import (
-    rewrite_exp_to_expt,
+    make_ab_name_rewriter,
     rewrite_ceil,
+    rewrite_exp_to_expt,
     rewrite_floor,
     rewrite_function_name,
-    make_ab_name_rewriter,
-    _AB_NAME_REMAP,
 )
 from plx.model.expressions import (
     BinaryExpr,
@@ -31,6 +30,7 @@ def _make_call(name: str, *args: str) -> FunctionCallExpr:
 # ---------------------------------------------------------------------------
 # rewrite_exp_to_expt
 # ---------------------------------------------------------------------------
+
 
 class TestRewriteExp:
     def test_exp_to_expt(self):
@@ -55,6 +55,7 @@ class TestRewriteExp:
 # ---------------------------------------------------------------------------
 # rewrite_ceil
 # ---------------------------------------------------------------------------
+
 
 class TestRewriteCeil:
     def test_ceil_structure(self):
@@ -88,6 +89,7 @@ class TestRewriteCeil:
 # rewrite_floor
 # ---------------------------------------------------------------------------
 
+
 class TestRewriteFloor:
     def test_floor_structure(self):
         expr = _make_call("FLOOR", "x")
@@ -120,14 +122,18 @@ class TestRewriteFloor:
 # rewrite_function_name
 # ---------------------------------------------------------------------------
 
+
 class TestRewriteFunctionName:
-    @pytest.mark.parametrize("iec_name,ab_name", [
-        ("SQRT", "SQR"),
-        ("ASIN", "ASN"),
-        ("ACOS", "ACS"),
-        ("ATAN", "ATN"),
-        ("TRUNC", "TRN"),
-    ])
+    @pytest.mark.parametrize(
+        "iec_name,ab_name",
+        [
+            ("SQRT", "SQR"),
+            ("ASIN", "ASN"),
+            ("ACOS", "ACS"),
+            ("ATAN", "ATN"),
+            ("TRUNC", "TRN"),
+        ],
+    )
     def test_ab_remap(self, iec_name, ab_name):
         expr = _make_call(iec_name, "x")
         result = rewrite_function_name(expr)

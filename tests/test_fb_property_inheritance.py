@@ -5,19 +5,18 @@ single inheritance, multi-level chains, property overrides, and mixed
 property/logic inheritance.
 """
 
-import pytest
-
-from plx.framework import fb, fb_property, Input, Output, Static, BOOL, DINT, REAL
+from plx.framework import BOOL, DINT, REAL, fb, fb_property
 from plx.model.pou import AccessSpecifier
-
 
 # ---------------------------------------------------------------------------
 # TestPropertyInheritance — basic MRO property propagation
 # ---------------------------------------------------------------------------
 
+
 class TestPropertyInheritance:
     def test_child_inherits_parent_property(self):
         """A child FB with no properties of its own should inherit the parent's."""
+
         @fb
         class PropParent1:
             _speed: REAL
@@ -43,6 +42,7 @@ class TestPropertyInheritance:
 
     def test_child_overrides_parent_property(self):
         """Child replaces parent getter with different logic."""
+
         @fb
         class PropParent2:
             _speed: REAL
@@ -74,6 +74,7 @@ class TestPropertyInheritance:
 
     def test_child_adds_setter_to_inherited_property(self):
         """Parent has getter-only property; child redefines with getter + setter."""
+
         @fb
         class PropParent3:
             _level: REAL
@@ -109,6 +110,7 @@ class TestPropertyInheritance:
 
     def test_multi_level_inheritance(self):
         """Grandparent -> Parent -> Child: property flows through the chain."""
+
         @fb
         class PropGrandparent:
             _temp: REAL
@@ -141,9 +143,11 @@ class TestPropertyInheritance:
 # TestPropertyOnDerivedFB — property + logic interaction
 # ---------------------------------------------------------------------------
 
+
 class TestPropertyOnDerivedFB:
     def test_property_alongside_inherited_logic(self):
         """Child has its own property AND overrides logic() with super()."""
+
         @fb
         class PropBaseLogic:
             _running: BOOL
@@ -171,6 +175,7 @@ class TestPropertyOnDerivedFB:
 
     def test_multiple_properties_with_inheritance(self):
         """Parent has prop1; child adds prop2. Both should appear."""
+
         @fb
         class PropParentMulti:
             _pressure: REAL
@@ -205,6 +210,7 @@ class TestPropertyOnDerivedFB:
         Both properties should appear, with prop_a from child and prop_b
         from parent.
         """
+
         @fb
         class PropParentTwo:
             _a: DINT
@@ -240,6 +246,7 @@ class TestPropertyOnDerivedFB:
 
     def test_abstract_property_inherited_and_implemented(self):
         """Parent has abstract property; child provides concrete implementation."""
+
         @fb
         class PropAbstractBase:
             @fb_property(REAL, abstract=True)
@@ -270,6 +277,7 @@ class TestPropertyOnDerivedFB:
 
     def test_access_specifier_inherited(self):
         """Property access specifier propagates through inheritance."""
+
         @fb
         class PropProtectedBase:
             _data: DINT

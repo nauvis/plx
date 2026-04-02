@@ -3,10 +3,8 @@
 import pytest
 
 from conftest import compile_expr, compile_stmts
-
 from plx.framework._compiler import CompileContext
-from plx.framework._descriptors import Input, Output, Static, VarDirection
-from plx.framework._types import BOOL, DINT, POINTER_TO, REAL, REFERENCE_TO
+from plx.framework._descriptors import VarDirection
 from plx.model.expressions import (
     DerefExpr,
     FunctionCallExpr,
@@ -14,17 +12,11 @@ from plx.model.expressions import (
     VariableRef,
 )
 from plx.model.statements import Assignment
-from plx.model.types import (
-    PointerTypeRef,
-    PrimitiveType,
-    PrimitiveTypeRef,
-    ReferenceTypeRef,
-)
-
 
 # ---------------------------------------------------------------------------
 # DerefExpr — IR model
 # ---------------------------------------------------------------------------
+
 
 class TestDerefExprModel:
     def test_create(self):
@@ -49,6 +41,7 @@ class TestDerefExprModel:
 # ---------------------------------------------------------------------------
 # Compiler — .deref syntax
 # ---------------------------------------------------------------------------
+
 
 class TestCompilerDeref:
     def test_self_deref(self):
@@ -82,6 +75,7 @@ class TestCompilerDeref:
 # Compiler — ADR / SIZEOF
 # ---------------------------------------------------------------------------
 
+
 class TestCompilerADR:
     def test_adr_call(self):
         """ADR(self.x) → FunctionCallExpr('ADR', ...)"""
@@ -105,13 +99,16 @@ class TestCompilerADR:
 # Compiler — @= (REF= assignment)
 # ---------------------------------------------------------------------------
 
+
 class TestCompilerRefAssign:
     def test_ref_assign(self):
         """self.ref @= self.x → Assignment(ref_assign=True)"""
-        ctx = CompileContext(declared_vars={
-            "ref": VarDirection.STATIC,
-            "x": VarDirection.STATIC,
-        })
+        ctx = CompileContext(
+            declared_vars={
+                "ref": VarDirection.STATIC,
+                "x": VarDirection.STATIC,
+            }
+        )
         stmts = compile_stmts("self.ref @= self.x", ctx)
         assert len(stmts) == 1
         stmt = stmts[0]
@@ -127,20 +124,24 @@ class TestCompilerRefAssign:
 # ST exporter
 # ---------------------------------------------------------------------------
 
+
 class TestSTExport:
     def test_deref(self):
-        from plx.export.st import format_expression, format_statement
+        from plx.export.st import format_expression
+
         d = DerefExpr(pointer=VariableRef(name="ptr"))
         assert format_expression(d) == "ptr^"
 
     def test_deref_member(self):
         from plx.export.st import format_expression
+
         d = DerefExpr(pointer=VariableRef(name="ptr"))
         m = MemberAccessExpr(struct=d, member="field")
         assert format_expression(m) == "ptr^.field"
 
     def test_ref_assign(self):
         from plx.export.st import format_statement
+
         stmt = Assignment(
             target=VariableRef(name="ref"),
             value=VariableRef(name="x"),
@@ -153,15 +154,18 @@ class TestSTExport:
 # Python exporter
 # ---------------------------------------------------------------------------
 
+
 class TestPyExport:
     def _expr(self, expr):
         # Import via framework to avoid circular import
         from plx.export.py import PyWriter
+
         w = PyWriter()
         return w._expr(expr)
 
     def _stmt(self, stmt):
         from plx.export.py import PyWriter
+
         w = PyWriter()
         w._write_assignment(stmt)
         return w.getvalue().strip()
@@ -189,91 +193,112 @@ class TestPyExport:
 # Vendor validation
 # ---------------------------------------------------------------------------
 
+
 class TestVendorValidation:
     def test_deref_rejected_for_ab(self):
         from plx.framework._vendor import Vendor, VendorValidationError, validate_target
-        from plx.model.pou import POU, POUType, POUInterface, Network
+        from plx.model.pou import POU, Network, POUInterface, POUType
 
         pou = POU(
             pou_type=POUType.FUNCTION_BLOCK,
             name="TestFB",
             interface=POUInterface(),
-            networks=[Network(statements=[
-                Assignment(
-                    target=DerefExpr(pointer=VariableRef(name="ptr")),
-                    value=VariableRef(name="x"),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=DerefExpr(pointer=VariableRef(name="ptr")),
+                            value=VariableRef(name="x"),
+                        ),
+                    ]
+                )
+            ],
         )
         from plx.model.project import Project
+
         proj = Project(name="Test", pous=[pou])
         with pytest.raises(VendorValidationError, match="pointer dereference"):
             validate_target(proj, Vendor.AB)
 
     def test_ref_assign_rejected_for_siemens(self):
         from plx.framework._vendor import Vendor, VendorValidationError, validate_target
-        from plx.model.pou import POU, POUType, POUInterface, Network
+        from plx.model.pou import POU, Network, POUInterface, POUType
 
         pou = POU(
             pou_type=POUType.FUNCTION_BLOCK,
             name="TestFB",
             interface=POUInterface(),
-            networks=[Network(statements=[
-                Assignment(
-                    target=VariableRef(name="ref"),
-                    value=VariableRef(name="x"),
-                    ref_assign=True,
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="ref"),
+                            value=VariableRef(name="x"),
+                            ref_assign=True,
+                        ),
+                    ]
+                )
+            ],
         )
         from plx.model.project import Project
+
         proj = Project(name="Test", pous=[pou])
         with pytest.raises(VendorValidationError, match="REF="):
             validate_target(proj, Vendor.SIEMENS)
 
     def test_adr_rejected_for_ab(self):
         from plx.framework._vendor import Vendor, VendorValidationError, validate_target
-        from plx.model.pou import POU, POUType, POUInterface, Network
-        from plx.model.statements import FunctionCallStatement
         from plx.model.expressions import CallArg
+        from plx.model.pou import POU, Network, POUInterface, POUType
+        from plx.model.statements import FunctionCallStatement
 
         pou = POU(
             pou_type=POUType.FUNCTION_BLOCK,
             name="TestFB",
             interface=POUInterface(),
-            networks=[Network(statements=[
-                FunctionCallStatement(
-                    function_name="ADR",
-                    args=[CallArg(value=VariableRef(name="x"))],
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        FunctionCallStatement(
+                            function_name="ADR",
+                            args=[CallArg(value=VariableRef(name="x"))],
+                        ),
+                    ]
+                )
+            ],
         )
         from plx.model.project import Project
+
         proj = Project(name="Test", pous=[pou])
         with pytest.raises(VendorValidationError, match="ADR"):
             validate_target(proj, Vendor.AB)
 
     def test_beckhoff_allows_all(self):
         from plx.framework._vendor import Vendor, validate_target
-        from plx.model.pou import POU, POUType, POUInterface, Network
+        from plx.model.pou import POU, Network, POUInterface, POUType
 
         pou = POU(
             pou_type=POUType.FUNCTION_BLOCK,
             name="TestFB",
             interface=POUInterface(),
-            networks=[Network(statements=[
-                Assignment(
-                    target=DerefExpr(pointer=VariableRef(name="ptr")),
-                    value=VariableRef(name="x"),
-                ),
-                Assignment(
-                    target=VariableRef(name="ref"),
-                    value=VariableRef(name="x"),
-                    ref_assign=True,
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=DerefExpr(pointer=VariableRef(name="ptr")),
+                            value=VariableRef(name="x"),
+                        ),
+                        Assignment(
+                            target=VariableRef(name="ref"),
+                            value=VariableRef(name="x"),
+                            ref_assign=True,
+                        ),
+                    ]
+                )
+            ],
         )
         from plx.model.project import Project
+
         proj = Project(name="Test", pous=[pou])
         # Should not raise — Beckhoff supports all pointer operations
         validate_target(proj, Vendor.BECKHOFF)
@@ -282,6 +307,7 @@ class TestVendorValidation:
 # ---------------------------------------------------------------------------
 # Simulation — pointer ops raise SimulationError
 # ---------------------------------------------------------------------------
+
 
 class TestSimulationDeref:
     def test_deref_raises_without_pointer_table(self):

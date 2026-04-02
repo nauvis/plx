@@ -9,7 +9,7 @@ from __future__ import annotations
 import warnings
 from typing import overload
 
-from plx.model.pou import POU, POUType
+from plx.model.pou import POU
 from plx.model.project import Project
 from plx.model.types import ArrayTypeRef, NamedTypeRef, PointerTypeRef, ReferenceTypeRef
 from plx.model.variables import Variable
@@ -17,9 +17,8 @@ from plx.model.variables import Variable
 from ._errors import ProjectAssemblyError
 from ._protocols import CompiledDataType, CompiledGlobalVarList, CompiledPOU
 from ._registry import lookup_pou, lookup_type
-from ._task import PlxTask, _format_interval, task
+from ._task import PlxTask
 from ._vendor import CompileResult, Vendor, validate_target
-
 
 # ---------------------------------------------------------------------------
 # Transitive dependency resolution
@@ -80,8 +79,12 @@ def _resolve_transitive_deps(
         # Interface vars (all sections)
         iface = pou.interface
         for var_list in (
-            iface.input_vars, iface.output_vars, iface.inout_vars,
-            iface.static_vars, iface.temp_vars, iface.constant_vars,
+            iface.input_vars,
+            iface.output_vars,
+            iface.inout_vars,
+            iface.static_vars,
+            iface.temp_vars,
+            iface.constant_vars,
             iface.external_vars,
         ):
             names |= _collect_named_refs(var_list)
@@ -90,8 +93,12 @@ def _resolve_transitive_deps(
         for m in pou.methods:
             mi = m.interface
             for var_list in (
-                mi.input_vars, mi.output_vars, mi.inout_vars,
-                mi.static_vars, mi.temp_vars, mi.constant_vars,
+                mi.input_vars,
+                mi.output_vars,
+                mi.inout_vars,
+                mi.static_vars,
+                mi.temp_vars,
+                mi.constant_vars,
                 mi.external_vars,
             ):
                 names |= _collect_named_refs(var_list)
@@ -111,8 +118,7 @@ def _resolve_transitive_deps(
                 dep_pou_name = dep_pou._compiled_pou.name
                 if dep_pou_name in pou_names:
                     warnings.warn(
-                        f"plx: duplicate POU name '{dep_pou_name}' — "
-                        f"second definition ignored",
+                        f"plx: duplicate POU name '{dep_pou_name}' — second definition ignored",
                         stacklevel=3,
                     )
                 else:
@@ -130,23 +136,21 @@ def _resolve_transitive_deps(
 # Duplicate name checks
 # ---------------------------------------------------------------------------
 
-def _check_duplicates(
-    items: list[object], attr: str, label: str, project_name: str
-) -> None:
+
+def _check_duplicates(items: list[object], attr: str, label: str, project_name: str) -> None:
     """Raise ``ProjectAssemblyError`` if any two items share the same name."""
     seen: set[str] = set()
     for item in items:
         name = getattr(item, attr)
         if name in seen:
-            raise ProjectAssemblyError(
-                f"Duplicate {label} name '{name}' in project '{project_name}'"
-            )
+            raise ProjectAssemblyError(f"Duplicate {label} name '{name}' in project '{project_name}'")
         seen.add(name)
 
 
 # ---------------------------------------------------------------------------
 # Project builder
 # ---------------------------------------------------------------------------
+
 
 class PlxProject:
     """Builder for assembling a Project IR from compiled POU classes."""
@@ -201,6 +205,7 @@ class PlxProject:
         # Merge discovered items from packages (if any)
         if self._packages:
             from ._discover import discover
+
             discovered = discover(*self._packages)
             # Dedup by compiled name — explicit entries take priority
             explicit_pou_names = {c._compiled_pou.name for c in pou_classes if hasattr(c, "_compiled_pou")}
@@ -233,13 +238,14 @@ class PlxProject:
         for cls in data_type_classes:
             # Auto-compile IntEnum types
             from enum import IntEnum
+
             if isinstance(cls, type) and issubclass(cls, IntEnum) and cls is not IntEnum:
                 from ._data_types import _ensure_enum_compiled
+
                 _ensure_enum_compiled(cls)
             if not isinstance(cls, CompiledDataType):
                 raise ProjectAssemblyError(
-                    f"{cls.__name__} is not a data type "
-                    f"(missing @struct or @enumeration decorator)"
+                    f"{cls.__name__} is not a data type (missing @struct or @enumeration decorator)"
                 )
             compiled_data_types.append(cls.compile())
         _check_duplicates(compiled_data_types, "name", "data type", self.name)
@@ -249,8 +255,7 @@ class PlxProject:
         for cls in gvl_classes:
             if not isinstance(cls, CompiledGlobalVarList):
                 raise ProjectAssemblyError(
-                    f"{cls.__name__} is not a global variable list "
-                    f"(missing @global_vars decorator)"
+                    f"{cls.__name__} is not a global variable list (missing @global_vars decorator)"
                 )
             compiled_gvls.append(cls.compile())
         _check_duplicates(compiled_gvls, "name", "global variable list", self.name)
@@ -260,8 +265,7 @@ class PlxProject:
         for cls in pou_classes:
             if not isinstance(cls, CompiledPOU):
                 raise ProjectAssemblyError(
-                    f"{cls.__name__} is not a compiled POU class "
-                    f"(missing @fb, @program, or @function decorator)"
+                    f"{cls.__name__} is not a compiled POU class (missing @fb, @program, or @function decorator)"
                 )
             compiled_pous.append(cls.compile())
 
@@ -341,14 +345,15 @@ def project(
     --------
     ::
 
-        proj = project("MyProject",
+        proj = project(
+            "MyProject",
             pous=[Controller],
             data_types=[MotorData, MachineState],
             global_var_lists=[SystemIO, Constants],
             tasks=[
                 task("MainTask", periodic=T(ms=10), pous=[FastLoop], priority=1),
                 task("SlowTask", periodic=T(ms=100), pous=[SlowLoop]),
-            ]
+            ],
         )
         ir = proj.compile()
 

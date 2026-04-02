@@ -49,10 +49,10 @@ from plx.framework._descriptors import Input, Output
 from plx.framework._library import LibraryFB
 from plx.framework._types import BOOL, DINT, REAL
 
-
 # ===================================================================
 # PID
 # ===================================================================
+
 
 class PIDE(LibraryFB, vendor="ab", library="ab_process"):
     """Enhanced PID controller (PIDE) -- the core Rockwell process control FB.
@@ -107,10 +107,17 @@ class PIDE(LibraryFB, vendor="ab", library="ab_process"):
             cv: Output[REAL]
 
             def logic(self):
-                self.pid(PV=self.pv, SPProg=self.sp,
-                         PGain=1.2, IGain=0.5, DGain=0.1,
-                         CVHLimit=100.0, CVLLimit=0.0,
-                         ProgAutoReq=True, ProgProgReq=True)
+                self.pid(
+                    PV=self.pv,
+                    SPProg=self.sp,
+                    PGain=1.2,
+                    IGain=0.5,
+                    DGain=0.1,
+                    CVHLimit=100.0,
+                    CVLLimit=0.0,
+                    ProgAutoReq=True,
+                    ProgProgReq=True,
+                )
                 self.cv = self.pid.CV
     """
 
@@ -166,6 +173,7 @@ class PIDE(LibraryFB, vendor="ab", library="ab_process"):
 # Scaling
 # ===================================================================
 
+
 class SCL(LibraryFB, vendor="ab", library="ab_process"):
     """Linear analog scaling (SCL).
 
@@ -187,9 +195,7 @@ class SCL(LibraryFB, vendor="ab", library="ab_process"):
             pressure_psi: Output[REAL]
 
             def logic(self):
-                self.scaler(In=self.raw_counts,
-                            InMin=0.0, InMax=32767.0,
-                            OutMin=0.0, OutMax=100.0)
+                self.scaler(In=self.raw_counts, InMin=0.0, InMax=32767.0, OutMin=0.0, OutMax=100.0)
                 self.pressure_psi = self.scaler.Out
     """
 
@@ -210,17 +216,15 @@ class SCL(LibraryFB, vendor="ab", library="ab_process"):
         if in_range == 0.0:
             state["Out"] = state["OutMin"]
         else:
-            state["Out"] = (
-                (state["In"] - state["InMin"])
-                * (state["OutMax"] - state["OutMin"])
-                / in_range
-                + state["OutMin"]
-            )
+            state["Out"] = (state["In"] - state["InMin"]) * (state["OutMax"] - state["OutMin"]) / in_range + state[
+                "OutMin"
+            ]
 
 
 # ===================================================================
 # Alarms
 # ===================================================================
+
 
 class ALMD(LibraryFB, vendor="ab", library="ab_process"):
     """Digital alarm (ALMD) -- discrete condition monitoring.
@@ -298,12 +302,18 @@ class ALMA(LibraryFB, vendor="ab", library="ab_process"):
             level: Input[REAL]
 
             def logic(self):
-                self.alarm(In=self.level,
-                           HHLimit=95.0, HLimit=85.0,
-                           LLimit=15.0, LLLimit=5.0,
-                           Deadband=2.0,
-                           HHSeverity=1000, HSeverity=500,
-                           LSeverity=500, LLSeverity=1000)
+                self.alarm(
+                    In=self.level,
+                    HHLimit=95.0,
+                    HLimit=85.0,
+                    LLimit=15.0,
+                    LLLimit=5.0,
+                    Deadband=2.0,
+                    HHSeverity=1000,
+                    HSeverity=500,
+                    LSeverity=500,
+                    LLSeverity=1000,
+                )
     """
 
     # --- Inputs ---
@@ -342,6 +352,7 @@ class ALMA(LibraryFB, vendor="ab", library="ab_process"):
 # Profile
 # ===================================================================
 
+
 class RMPS(LibraryFB, vendor="ab", library="ab_process"):
     """Ramp/Soak profile controller (RMPS).
 
@@ -376,9 +387,7 @@ class RMPS(LibraryFB, vendor="ab", library="ab_process"):
             sp_out: Output[REAL]
 
             def logic(self):
-                self.ramp_soak(In=self.kiln_temp,
-                               ProgStart=True, ProgProgReq=True,
-                               NumberOfSegs=4, GuarSetpoint=5.0)
+                self.ramp_soak(In=self.kiln_temp, ProgStart=True, ProgProgReq=True, NumberOfSegs=4, GuarSetpoint=5.0)
                 self.sp_out = self.ramp_soak.Out
     """
 
@@ -407,6 +416,7 @@ class RMPS(LibraryFB, vendor="ab", library="ab_process"):
 # ===================================================================
 # Valve / Actuator
 # ===================================================================
+
 
 class POSP(LibraryFB, vendor="ab", library="ab_process"):
     """Position proportional valve control (POSP).
@@ -440,9 +450,7 @@ class POSP(LibraryFB, vendor="ab", library="ab_process"):
             lower_cmd: Output[BOOL]
 
             def logic(self):
-                self.positioner(In=self.demand,
-                                PositionFdbk=self.position_fdbk,
-                                DeadBand=2.0, StrokeTime=30.0)
+                self.positioner(In=self.demand, PositionFdbk=self.position_fdbk, DeadBand=2.0, StrokeTime=30.0)
                 self.raise_cmd = self.positioner.Raise
                 self.lower_cmd = self.positioner.Lower
     """
@@ -490,8 +498,7 @@ class SRTP(LibraryFB, vendor="ab", library="ab_process"):
             cooler: Output[BOOL]
 
             def logic(self):
-                self.srtp(In=self.pid_output, CyclePeriod=10.0,
-                          SplitRangeHL=50.0, SplitRangeLL=50.0)
+                self.srtp(In=self.pid_output, CyclePeriod=10.0, SplitRangeHL=50.0, SplitRangeLL=50.0)
                 self.heater = self.srtp.Out1
                 self.cooler = self.srtp.Out2
     """
@@ -540,8 +547,7 @@ class D2SD(LibraryFB, vendor="ab", library="ab_process"):
             pump_fault: Output[BOOL]
 
             def logic(self):
-                self.pump(Cmd=self.start_cmd, Fdbk=self.running_fdbk,
-                          CmdTime=5.0, FaultTime=10.0, ProgProgReq=True)
+                self.pump(Cmd=self.start_cmd, Fdbk=self.running_fdbk, CmdTime=5.0, FaultTime=10.0, ProgProgReq=True)
                 self.pump_output = self.pump.Out
                 self.pump_fault = self.pump.Fault
     """
@@ -597,9 +603,14 @@ class D3SD(LibraryFB, vendor="ab", library="ab_process"):
             close_out: Output[BOOL]
 
             def logic(self):
-                self.valve(OpenCmd=self.open_cmd, CloseCmd=self.close_cmd,
-                           OpenFdbk=self.open_ls, ClosedFdbk=self.closed_ls,
-                           CmdTime=5.0, FaultTime=60.0)
+                self.valve(
+                    OpenCmd=self.open_cmd,
+                    CloseCmd=self.close_cmd,
+                    OpenFdbk=self.open_ls,
+                    ClosedFdbk=self.closed_ls,
+                    CmdTime=5.0,
+                    FaultTime=60.0,
+                )
                 self.open_out = self.valve.OpenOut
                 self.close_out = self.valve.CloseOut
     """
@@ -623,6 +634,7 @@ class D3SD(LibraryFB, vendor="ab", library="ab_process"):
 # ===================================================================
 # Dynamic Compensation
 # ===================================================================
+
 
 class LDLG(LibraryFB, vendor="ab", library="ab_process"):
     """Lead-Lag dynamic compensator (LDLG).
@@ -648,8 +660,7 @@ class LDLG(LibraryFB, vendor="ab", library="ab_process"):
             ff_output: Output[REAL]
 
             def logic(self):
-                self.compensator(In=self.ff_signal,
-                                 LeadTime=5.0, LagTime=10.0, Gain=1.0)
+                self.compensator(In=self.ff_signal, LeadTime=5.0, LagTime=10.0, Gain=1.0)
                 self.ff_output = self.compensator.Out
     """
 
@@ -700,6 +711,7 @@ class DEDT(LibraryFB, vendor="ab", library="ab_process"):
 # Function Generator
 # ===================================================================
 
+
 class FGEN(LibraryFB, vendor="ab", library="ab_process"):
     """Piecewise-linear function generator (FGEN).
 
@@ -726,12 +738,19 @@ class FGEN(LibraryFB, vendor="ab", library="ab_process"):
             characterized_output: Output[REAL]
 
             def logic(self):
-                self.fgen(In=self.demand,
-                          X1=0.0,  Y1=0.0,
-                          X2=25.0, Y2=10.0,
-                          X3=50.0, Y3=35.0,
-                          X4=75.0, Y4=70.0,
-                          X5=100.0, Y5=100.0)
+                self.fgen(
+                    In=self.demand,
+                    X1=0.0,
+                    Y1=0.0,
+                    X2=25.0,
+                    Y2=10.0,
+                    X3=50.0,
+                    Y3=35.0,
+                    X4=75.0,
+                    Y4=70.0,
+                    X5=100.0,
+                    Y5=100.0,
+                )
                 self.characterized_output = self.fgen.Out
     """
 
@@ -755,6 +774,7 @@ class FGEN(LibraryFB, vendor="ab", library="ab_process"):
 # ===================================================================
 # Totalizer
 # ===================================================================
+
 
 class TOT(LibraryFB, vendor="ab", library="ab_process"):
     """Flow totalizer (TOT).
@@ -786,8 +806,7 @@ class TOT(LibraryFB, vendor="ab", library="ab_process"):
             total_gallons: Output[REAL]
 
             def logic(self):
-                self.totalizer(In=self.flow_rate,
-                               ProgProgReq=True)
+                self.totalizer(In=self.flow_rate, ProgProgReq=True)
                 self.total_gallons = self.totalizer.Total
     """
 
@@ -806,6 +825,7 @@ class TOT(LibraryFB, vendor="ab", library="ab_process"):
 # ===================================================================
 # Select / Mux
 # ===================================================================
+
 
 class SEL(LibraryFB, vendor="ab", library="ab_process"):
     """Two-input selector (SEL).
@@ -828,8 +848,7 @@ class SEL(LibraryFB, vendor="ab", library="ab_process"):
             selected: Output[REAL]
 
             def logic(self):
-                self.selector(SelectorIn=self.use_b,
-                              In1=self.sensor_a, In2=self.sensor_b)
+                self.selector(SelectorIn=self.use_b, In1=self.sensor_a, In2=self.sensor_b)
                 self.selected = self.selector.Out
     """
 
@@ -869,8 +888,7 @@ class MUX(LibraryFB, vendor="ab", library="ab_process"):
             setpoint: Output[REAL]
 
             def logic(self):
-                self.mux(Selector=self.recipe_number,
-                         In1=self.sp1, In2=self.sp2, In3=self.sp3)
+                self.mux(Selector=self.recipe_number, In1=self.sp1, In2=self.sp2, In3=self.sp3)
                 self.setpoint = self.mux.Out
     """
 
@@ -923,9 +941,7 @@ class ESEL(LibraryFB, vendor="ab", library="ab_process"):
             selected: Output[REAL]
 
             def logic(self):
-                self.esel(In1=self.sensor1, In2=self.sensor2,
-                          In3=self.sensor3, SelectorMode=3,
-                          ProgProgReq=True)
+                self.esel(In1=self.sensor1, In2=self.sensor2, In3=self.sensor3, SelectorMode=3, ProgProgReq=True)
                 self.selected = self.esel.Out
     """
 
@@ -946,6 +962,7 @@ class ESEL(LibraryFB, vendor="ab", library="ab_process"):
 # ===================================================================
 # Limit / Clamp
 # ===================================================================
+
 
 class HLL(LibraryFB, vendor="ab", library="ab_process"):
     """High/Low limit clamp (HLL).
@@ -970,8 +987,7 @@ class HLL(LibraryFB, vendor="ab", library="ab_process"):
             limited_speed: Output[REAL]
 
             def logic(self):
-                self.limiter(In=self.speed_demand,
-                             HLimit=1800.0, LLimit=0.0)
+                self.limiter(In=self.speed_demand, HLimit=1800.0, LLimit=0.0)
                 self.limited_speed = self.limiter.Out
     """
 
@@ -1029,8 +1045,7 @@ class RLIM(LibraryFB, vendor="ab", library="ab_process"):
             sp_ramped: Output[REAL]
 
             def logic(self):
-                self.ramp(In=self.sp_target,
-                          ROCPosLimit=5.0, ROCNegLimit=5.0)
+                self.ramp(In=self.sp_target, ROCPosLimit=5.0, ROCNegLimit=5.0)
                 self.sp_ramped = self.ramp.Out
     """
 
@@ -1046,6 +1061,7 @@ class RLIM(LibraryFB, vendor="ab", library="ab_process"):
 # ===================================================================
 # Math
 # ===================================================================
+
 
 class SNEG(LibraryFB, vendor="ab", library="ab_process"):
     """Selected negate (SNEG).
@@ -1112,9 +1128,7 @@ class SSUM(LibraryFB, vendor="ab", library="ab_process"):
             setpoint: Output[REAL]
 
             def logic(self):
-                self.summer(In1=self.base_sp, Select1=1,
-                            In2=self.bias, Select2=1,
-                            In3=self.correction, Select3=2)
+                self.summer(In1=self.base_sp, Select1=1, In2=self.bias, Select2=1, In3=self.correction, Select3=2)
                 self.setpoint = self.summer.Out
     """
 

@@ -19,10 +19,10 @@ from plx.framework._iec_builtins import (
 )
 from plx.simulate._builtins import STDLIB_FUNCTIONS
 
-
 # ---------------------------------------------------------------------------
 # TON
 # ---------------------------------------------------------------------------
+
 
 class TestTON:
     def test_delays_output(self):
@@ -73,6 +73,7 @@ class TestTON:
 # TOF
 # ---------------------------------------------------------------------------
 
+
 class TestTOF:
     def test_stays_true_after_falling(self):
         s = TOF.initial_state()
@@ -110,6 +111,7 @@ class TestTOF:
 # ---------------------------------------------------------------------------
 # TP
 # ---------------------------------------------------------------------------
+
 
 class TestTP:
     def test_pulse_on_rising_edge(self):
@@ -151,6 +153,7 @@ class TestTP:
 # ---------------------------------------------------------------------------
 # RTO
 # ---------------------------------------------------------------------------
+
 
 class TestRTO:
     def test_delays_output(self):
@@ -228,12 +231,14 @@ class TestRTO:
 
     def test_registered_in_builtins(self):
         from plx.framework._library import get_library_fb
+
         assert get_library_fb("RTO") is not None
 
 
 # ---------------------------------------------------------------------------
 # R_TRIG
 # ---------------------------------------------------------------------------
+
 
 class TestRTRIG:
     def test_rising_edge(self):
@@ -262,6 +267,7 @@ class TestRTRIG:
 # F_TRIG
 # ---------------------------------------------------------------------------
 
+
 class TestFTRIG:
     def test_falling_edge(self):
         s = F_TRIG.initial_state()
@@ -286,6 +292,7 @@ class TestFTRIG:
 # ---------------------------------------------------------------------------
 # STDLIB_FUNCTIONS
 # ---------------------------------------------------------------------------
+
 
 class TestStdlib:
     def test_abs(self):
@@ -429,6 +436,7 @@ class TestStdlib:
 # CTU
 # ---------------------------------------------------------------------------
 
+
 class TestCTU:
     def test_counts_on_rising_edge(self):
         s = CTU.initial_state()
@@ -475,12 +483,14 @@ class TestCTU:
 
     def test_registered(self):
         from plx.framework._library import get_library_fb
+
         assert get_library_fb("CTU") is not None
 
 
 # ---------------------------------------------------------------------------
 # CTD
 # ---------------------------------------------------------------------------
+
 
 class TestCTD:
     def test_counts_down_on_rising_edge(self):
@@ -517,12 +527,14 @@ class TestCTD:
 
     def test_registered(self):
         from plx.framework._library import get_library_fb
+
         assert get_library_fb("CTD") is not None
 
 
 # ---------------------------------------------------------------------------
 # SR
 # ---------------------------------------------------------------------------
+
 
 class TestSR:
     def test_set_dominant(self):
@@ -551,12 +563,14 @@ class TestSR:
 
     def test_registered(self):
         from plx.framework._library import get_library_fb
+
         assert get_library_fb("SR") is not None
 
 
 # ---------------------------------------------------------------------------
 # RS
 # ---------------------------------------------------------------------------
+
 
 class TestRS:
     def test_reset_dominant(self):
@@ -584,12 +598,14 @@ class TestRS:
 
     def test_registered(self):
         from plx.framework._library import get_library_fb
+
         assert get_library_fb("RS") is not None
 
 
 # ---------------------------------------------------------------------------
 # CTUD
 # ---------------------------------------------------------------------------
+
 
 class TestCTUD:
     def test_count_up(self):
@@ -672,4 +688,5 @@ class TestCTUD:
 
     def test_registered(self):
         from plx.framework._library import get_library_fb
+
         assert get_library_fb("CTUD") is not None

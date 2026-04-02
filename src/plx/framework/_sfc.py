@@ -37,23 +37,22 @@ from plx.model.sfc import (
 from plx.model.types import TypeRef
 from plx.model.variables import Variable
 
-from ._compiler import ASTCompiler
-from ._compiler_core import CompileError
 from ._compilation_helpers import (
     _build_compile_context,
     _build_var_context,
     _detect_parent_pou,
-    _discover_enums,
     _parse_function_source,
 )
+from ._compiler import ASTCompiler
+from ._compiler_core import CompileError
 from ._decorators import _compile_all_methods, _compile_all_properties
 from ._descriptors import VarDirection
 from ._registry import register_pou
 
-
 # ---------------------------------------------------------------------------
 # TransitionPath — data holder for >> operator results
 # ---------------------------------------------------------------------------
+
 
 class TransitionPath:
     """Source/target step descriptors for a transition, created by ``>>``."""
@@ -72,14 +71,12 @@ class TransitionPath:
 
     def __and__(self, other: Any) -> Any:
         raise CompileError(
-            "Operator precedence error: `A >> B & C` binds as `(A >> B) & C`. "
-            "Use parentheses: `A >> (B & C)`"
+            "Operator precedence error: `A >> B & C` binds as `(A >> B) & C`. Use parentheses: `A >> (B & C)`"
         )
 
     def __rand__(self, other: Any) -> Any:
         raise CompileError(
-            "Operator precedence error: `A & B >> C` binds as `A & (B >> C)`. "
-            "Use parentheses: `(A & B) >> C`"
+            "Operator precedence error: `A & B >> C` binds as `A & (B >> C)`. Use parentheses: `(A & B) >> C`"
         )
 
     def __rshift__(self, other: Any) -> Any:
@@ -99,6 +96,7 @@ class TransitionPath:
 # StepGroup — for AND-fork / AND-join via & operator
 # ---------------------------------------------------------------------------
 
+
 class StepGroup:
     """Multiple steps combined with ``&`` for simultaneous divergence/convergence."""
 
@@ -109,9 +107,9 @@ class StepGroup:
 
     def __and__(self, other: StepGroup | StepDescriptor) -> StepGroup:
         if isinstance(other, StepDescriptor):
-            return StepGroup(self.descs + [other])
+            return StepGroup([*self.descs, other])
         if isinstance(other, StepGroup):
-            return StepGroup(self.descs + other.descs)
+            return StepGroup([*self.descs, *other.descs])
         return NotImplemented
 
     def __rshift__(self, other: StepDescriptor | StepGroup) -> TransitionPath:
@@ -126,9 +124,11 @@ class StepGroup:
 # Marker dataclasses
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class _ActionMarker:
     """Stored as ``func._plx_marker`` on step action methods."""
+
     step_desc: StepDescriptor
     qualifier: ActionQualifier
     slot: str  # "action" | "entry" | "exit"
@@ -139,12 +139,14 @@ class _ActionMarker:
 @dataclass(frozen=True)
 class _TransitionMarker:
     """Stored as ``func._plx_marker`` on transition methods."""
+
     path: TransitionPath
 
 
 # ---------------------------------------------------------------------------
 # _StepActionDecorator — dual-mode decorator for step actions
 # ---------------------------------------------------------------------------
+
 
 class _StepActionDecorator:
     """Callable returned by ``StepDescriptor.action``.
@@ -192,12 +194,14 @@ class _StepActionDecorator:
                 action_name=resets,
             )
             return fn
+
         return decorator
 
 
 # ---------------------------------------------------------------------------
 # StepDescriptor — class-attribute descriptor for SFC steps
 # ---------------------------------------------------------------------------
+
 
 class StepDescriptor:
     """Marker for SFC steps. Created by ``step(initial=True)``.
@@ -230,7 +234,7 @@ class StepDescriptor:
         if isinstance(other, StepDescriptor):
             return StepGroup([self, other])
         if isinstance(other, StepGroup):
-            return StepGroup([self] + other.descs)
+            return StepGroup([self, *other.descs])
         return NotImplemented
 
     # -- Action decorators --
@@ -263,6 +267,7 @@ class StepDescriptor:
 # Public constructors
 # ---------------------------------------------------------------------------
 
+
 def step(*, initial: bool = False) -> StepDescriptor:
     """Declare an SFC step.
 
@@ -290,9 +295,11 @@ def transition(path: TransitionPath) -> Any:
         def start(self):
             return self.start_cmd
     """
+
     def decorator(func: Any) -> Any:
         func._plx_marker = _TransitionMarker(path=path)
         return func
+
     return decorator
 
 
@@ -300,23 +307,24 @@ def transition(path: TransitionPath) -> Any:
 # Duration formatting
 # ---------------------------------------------------------------------------
 
+
 def _format_duration(duration: Any) -> str:
     """Convert a duration value to an IEC duration string."""
     from datetime import timedelta
+
     from ._types import timedelta_to_iec
+
     if isinstance(duration, timedelta):
         return timedelta_to_iec(duration)
     if isinstance(duration, str):
         return duration
-    raise CompileError(
-        f"Duration must be a timedelta or IEC duration string, "
-        f"got {type(duration).__name__}"
-    )
+    raise CompileError(f"Duration must be a timedelta or IEC duration string, got {type(duration).__name__}")
 
 
 # ---------------------------------------------------------------------------
 # SFC compilation helpers
 # ---------------------------------------------------------------------------
+
 
 def _get_source_file(cls: type) -> str | None:
     """Get source file for a class, or None if unavailable."""
@@ -344,23 +352,23 @@ def _collect_and_validate_steps(
 
     if not step_descriptors:
         raise CompileError(
-            f"@sfc class '{cls.__name__}' must define at least one step "
-            f"(e.g. IDLE = step(initial=True))",
-            source_file=source_file, pou_name=cls.__name__,
+            f"@sfc class '{cls.__name__}' must define at least one step (e.g. IDLE = step(initial=True))",
+            source_file=source_file,
+            pou_name=cls.__name__,
         )
 
     initial_steps = [n for n, s in step_descriptors.items() if s.initial]
     if len(initial_steps) == 0:
         raise CompileError(
-            f"@sfc class '{cls.__name__}' must have exactly one initial step "
-            f"(use step(initial=True))",
-            source_file=source_file, pou_name=cls.__name__,
+            f"@sfc class '{cls.__name__}' must have exactly one initial step (use step(initial=True))",
+            source_file=source_file,
+            pou_name=cls.__name__,
         )
     if len(initial_steps) > 1:
         raise CompileError(
-            f"@sfc class '{cls.__name__}' has multiple initial steps: "
-            f"{initial_steps}. Only one is allowed.",
-            source_file=source_file, pou_name=cls.__name__,
+            f"@sfc class '{cls.__name__}' has multiple initial steps: {initial_steps}. Only one is allowed.",
+            source_file=source_file,
+            pou_name=cls.__name__,
         )
 
     return step_descriptors, desc_to_name
@@ -381,15 +389,16 @@ def _categorize_sfc_methods(
     - *action_infos*: ``(name, func, step_name, qualifier, slot, duration, action_name)``
     - *transition_infos*: ``(name, func, source_names, target_names)``
     """
+
     def _resolve_desc(desc: StepDescriptor) -> str:
         name = desc_to_name.get(id(desc))
         if name is None:
             name = desc.name
         if name is None or name not in step_names:
             raise CompileError(
-                f"Step descriptor could not be resolved to a step name "
-                f"in @sfc class '{cls.__name__}'",
-                source_file=_get_source_file(cls), pou_name=cls.__name__,
+                f"Step descriptor could not be resolved to a step name in @sfc class '{cls.__name__}'",
+                source_file=_get_source_file(cls),
+                pou_name=cls.__name__,
             )
         return name
 
@@ -399,16 +408,20 @@ def _categorize_sfc_methods(
     for attr_name, value in cls.__dict__.items():
         if not callable(value):
             continue
-        marker = getattr(value, '_plx_marker', None)
+        marker = getattr(value, "_plx_marker", None)
         if isinstance(marker, _ActionMarker):
             step_name = _resolve_desc(marker.step_desc)
-            action_infos.append((
-                attr_name, value, step_name,
-                marker.qualifier,
-                marker.slot,
-                marker.duration,
-                marker.action_name,
-            ))
+            action_infos.append(
+                (
+                    attr_name,
+                    value,
+                    step_name,
+                    marker.qualifier,
+                    marker.slot,
+                    marker.duration,
+                    marker.action_name,
+                )
+            )
         elif isinstance(marker, _TransitionMarker):
             source_names = [_resolve_desc(d) for d in marker.path.source_descs]
             target_names = [_resolve_desc(d) for d in marker.path.target_descs]
@@ -429,15 +442,19 @@ def _compile_sfc_actions(
 ) -> dict[str, dict[str, list[Action]]]:
     """Compile all action bodies into a step-keyed, slot-keyed dict."""
     step_actions: dict[str, dict[str, list[Action]]] = {
-        name: {"action": [], "entry": [], "exit": []}
-        for name in step_descriptors
+        name: {"action": [], "entry": [], "exit": []} for name in step_descriptors
     }
 
     for method_name, method_func, step_name, qualifier, slot, duration, action_name in action_infos:
         statements = _compile_action_body(
-            cls, method_name, method_func,
-            declared_vars, static_var_types, source_file,
-            generated_static, generated_temp,
+            cls,
+            method_name,
+            method_func,
+            declared_vars,
+            static_var_types,
+            source_file,
+            generated_static,
+            generated_temp,
         )
         action = Action(
             name=method_name,
@@ -464,15 +481,22 @@ def _compile_sfc_transitions(
     transitions: list[Transition] = []
     for method_name, method_func, source_names, target_names in transition_infos:
         condition = _compile_transition_condition(
-            cls, method_name, method_func,
-            declared_vars, static_var_types, source_file,
-            generated_static, generated_temp,
+            cls,
+            method_name,
+            method_func,
+            declared_vars,
+            static_var_types,
+            source_file,
+            generated_static,
+            generated_temp,
         )
-        transitions.append(Transition(
-            source_steps=source_names,
-            target_steps=target_names,
-            condition=condition,
-        ))
+        transitions.append(
+            Transition(
+                source_steps=source_names,
+                target_steps=target_names,
+                condition=condition,
+            )
+        )
     return transitions
 
 
@@ -484,19 +508,22 @@ def _build_sfc_steps(
     steps: list[Step] = []
     for name, desc in step_descriptors.items():
         actions = step_actions[name]
-        steps.append(Step(
-            name=name,
-            is_initial=desc.initial,
-            actions=actions["action"],
-            entry_actions=actions["entry"],
-            exit_actions=actions["exit"],
-        ))
+        steps.append(
+            Step(
+                name=name,
+                is_initial=desc.initial,
+                actions=actions["action"],
+                entry_actions=actions["entry"],
+                exit_actions=actions["exit"],
+            )
+        )
     return steps
 
 
 # ---------------------------------------------------------------------------
 # Core SFC compilation orchestrator
 # ---------------------------------------------------------------------------
+
 
 def _compile_sfc_class(cls: type, pou_type: POUType, folder: str = "") -> type:
     """Compile an @sfc-decorated class into a POU with sfc_body."""
@@ -505,9 +532,9 @@ def _compile_sfc_class(cls: type, pou_type: POUType, folder: str = "") -> type:
 
     if "logic" in cls.__dict__:
         raise CompileError(
-            f"@sfc class '{cls.__name__}' must not define a logic() method. "
-            f"SFC uses steps and transitions instead.",
-            source_file=source_file, pou_name=cls.__name__,
+            f"@sfc class '{cls.__name__}' must not define a logic() method. SFC uses steps and transitions instead.",
+            source_file=source_file,
+            pou_name=cls.__name__,
         )
 
     extends = _detect_parent_pou(cls)
@@ -515,21 +542,32 @@ def _compile_sfc_class(cls: type, pou_type: POUType, folder: str = "") -> type:
 
     step_descriptors, desc_to_name = _collect_and_validate_steps(cls, source_file)
     action_infos, transition_infos = _categorize_sfc_methods(
-        cls, desc_to_name, set(step_descriptors.keys()),
+        cls,
+        desc_to_name,
+        set(step_descriptors.keys()),
     )
 
     all_generated_static: list[Variable] = []
     all_generated_temp: list[Variable] = []
 
     step_actions = _compile_sfc_actions(
-        action_infos, cls,
-        declared_vars, static_var_types, source_file,
-        step_descriptors, all_generated_static, all_generated_temp,
+        action_infos,
+        cls,
+        declared_vars,
+        static_var_types,
+        source_file,
+        step_descriptors,
+        all_generated_static,
+        all_generated_temp,
     )
     transition_ir_nodes = _compile_sfc_transitions(
-        transition_infos, cls,
-        declared_vars, static_var_types, source_file,
-        all_generated_static, all_generated_temp,
+        transition_infos,
+        cls,
+        declared_vars,
+        static_var_types,
+        source_file,
+        all_generated_static,
+        all_generated_temp,
     )
 
     sfc_body = SFCBody(
@@ -537,10 +575,16 @@ def _compile_sfc_class(cls: type, pou_type: POUType, folder: str = "") -> type:
         transitions=transition_ir_nodes,
     )
     compiled_methods = _compile_all_methods(
-        cls, declared_vars, static_var_types, source_file,
+        cls,
+        declared_vars,
+        static_var_types,
+        source_file,
     )
     compiled_properties = _compile_all_properties(
-        cls, declared_vars, static_var_types, source_file,
+        cls,
+        declared_vars,
+        static_var_types,
+        source_file,
     )
 
     interface = POUInterface(
@@ -589,13 +633,18 @@ def _compile_action_body(
     """Compile an action method's body into IR statements."""
     context_name = f"{cls.__name__}.{method_name}()"
     func_def, _, start_lineno = _parse_function_source(
-        method_func, context_name, validate_self_only=True,
+        method_func,
+        context_name,
+        validate_self_only=True,
     )
 
     ctx = _build_compile_context(
-        method_func, cls,
-        dict(declared_vars), dict(static_var_types),
-        start_lineno, source_file,
+        method_func,
+        cls,
+        dict(declared_vars),
+        dict(static_var_types),
+        start_lineno,
+        source_file,
     )
 
     compiler = ASTCompiler(ctx)
@@ -620,15 +669,19 @@ def _compile_transition_condition(
     """Compile a transition method to an IR Expression (the condition)."""
     context_name = f"Transition '{method_name}' in @sfc class '{cls.__name__}'"
     func_def, _, start_lineno = _parse_function_source(
-        method_func, context_name,
+        method_func,
+        context_name,
         validate_self_only=True,
         validate_single_return=True,
     )
 
     ctx = _build_compile_context(
-        method_func, cls,
-        dict(declared_vars), dict(static_var_types),
-        start_lineno, source_file,
+        method_func,
+        cls,
+        dict(declared_vars),
+        dict(static_var_types),
+        start_lineno,
+        source_file,
     )
 
     compiler = ASTCompiler(ctx)
@@ -644,7 +697,8 @@ def _compile_transition_condition(
 # Public decorator
 # ---------------------------------------------------------------------------
 
-def sfc(cls: type = None, *, pou_type: str = "PROGRAM", folder: str = "") -> Any:
+
+def sfc(cls: type | None = None, *, pou_type: str = "PROGRAM", folder: str = "") -> Any:
     """Decorate a class as an SFC POU.
 
     Can be used as ``@sfc`` or ``@sfc(pou_type="FB")``.
@@ -680,6 +734,7 @@ def sfc(cls: type = None, *, pou_type: str = "PROGRAM", folder: str = "") -> Any
 
     def decorator(c: type) -> type:
         return _compile_sfc_class(c, resolved_type, folder=folder)
+
     return decorator
 
 
@@ -690,10 +745,5 @@ def _resolve_sfc_pou_type(pou_type: str) -> POUType:
     if pou_type in ("FB", "FUNCTION_BLOCK"):
         return POUType.FUNCTION_BLOCK
     if pou_type == "FUNCTION":
-        raise CompileError(
-            "SFC cannot be used with FUNCTION POUs (SFC requires state)"
-        )
-    raise CompileError(
-        f"Invalid pou_type '{pou_type}' for @sfc. "
-        f"Valid options: 'PROGRAM', 'FB', 'FUNCTION_BLOCK'"
-    )
+        raise CompileError("SFC cannot be used with FUNCTION POUs (SFC requires state)")
+    raise CompileError(f"Invalid pou_type '{pou_type}' for @sfc. Valid options: 'PROGRAM', 'FB', 'FUNCTION_BLOCK'")

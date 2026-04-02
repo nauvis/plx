@@ -16,10 +16,10 @@ from plx.framework._descriptors import Input, Output
 from plx.framework._library import LibraryFB
 from plx.framework._types import BOOL, DINT, WORD
 
-
 # ===================================================================
 # Program Alarm
 # ===================================================================
+
 
 class Program_Alarm(LibraryFB, vendor="siemens", library="siemens_alarms"):
     """Generate a program alarm with up to 10 associated data values.
@@ -49,8 +49,7 @@ class Program_Alarm(LibraryFB, vendor="siemens", library="siemens_alarms"):
             pressure_value: Input[DINT]
 
             def logic(self):
-                self.alarm(SIG=self.pressure_high,
-                           SD_1=self.pressure_value)
+                self.alarm(SIG=self.pressure_high, SD_1=self.pressure_value)
     """
 
     # --- Inputs ---

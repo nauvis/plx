@@ -21,10 +21,10 @@ from plx.framework._descriptors import InOut, Input, Output
 from plx.framework._library import LibraryFB
 from plx.framework._types import BOOL, DINT, DWORD, TIME
 
-
 # ===================================================================
 # OPC UA Client
 # ===================================================================
+
 
 class OPC_UA_Connect(LibraryFB, vendor="siemens", library="siemens_opc_ua"):
     """Establish an OPC UA client connection to a remote server.
@@ -51,8 +51,7 @@ class OPC_UA_Connect(LibraryFB, vendor="siemens", library="siemens_opc_ua"):
             connected: Output[BOOL]
 
             def logic(self):
-                self.connect(Execute=self.connect_req,
-                             ServerEndpointURL='opc.tcp://192.168.1.100:4840')
+                self.connect(Execute=self.connect_req, ServerEndpointURL="opc.tcp://192.168.1.100:4840")
                 self.connected = self.connect.Done
                 self.connection_handle = self.connect.ConnectionHdl
     """
@@ -87,8 +86,7 @@ class OPC_UA_Disconnect(LibraryFB, vendor="siemens", library="siemens_opc_ua"):
             disconnected: Output[BOOL]
 
             def logic(self):
-                self.disconnect(Execute=self.disconnect_req,
-                                ConnectionHdl=self.connection_handle)
+                self.disconnect(Execute=self.disconnect_req, ConnectionHdl=self.connection_handle)
                 self.disconnected = self.disconnect.Done
     """
 
@@ -127,8 +125,7 @@ class OPC_UA_ReadList(LibraryFB, vendor="siemens", library="siemens_opc_ua"):
             read_done: Output[BOOL]
 
             def logic(self):
-                self.reader(Execute=self.read_trigger,
-                            ConnectionHdl=self.connection_handle)
+                self.reader(Execute=self.read_trigger, ConnectionHdl=self.connection_handle)
                 self.read_done = self.reader.Done
     """
 
@@ -173,8 +170,7 @@ class OPC_UA_WriteList(LibraryFB, vendor="siemens", library="siemens_opc_ua"):
             write_done: Output[BOOL]
 
             def logic(self):
-                self.writer(Execute=self.write_trigger,
-                            ConnectionHdl=self.connection_handle)
+                self.writer(Execute=self.write_trigger, ConnectionHdl=self.connection_handle)
                 self.write_done = self.writer.Done
     """
 
@@ -220,8 +216,7 @@ class OPC_UA_MethodCall(LibraryFB, vendor="siemens", library="siemens_opc_ua"):
             call_done: Output[BOOL]
 
             def logic(self):
-                self.method_call(Execute=self.call_trigger,
-                                 ConnectionHdl=self.connection_handle)
+                self.method_call(Execute=self.call_trigger, ConnectionHdl=self.connection_handle)
                 self.call_done = self.method_call.Done
     """
 

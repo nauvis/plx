@@ -8,22 +8,18 @@ to assert the corrected behavior.
 import ast
 import inspect
 
-import pytest
-
 from plx.framework import (
     BOOL,
-    INT,
+    Input,
+    Output,
     count_down,
     count_up,
     fb,
-    Input,
-    Output,
     reset_dominant,
     set_dominant,
 )
-from plx.simulate import simulate
 from plx.framework._library import get_library_fb
-
+from plx.simulate import simulate
 
 # ---------------------------------------------------------------------------
 # Class 1: Missing builtins — sentinels generate FB types the simulator
@@ -42,9 +38,7 @@ class TestBuiltinCoverage:
         """All sentinel FB types are present in the library registry."""
         from plx.framework._compiler_core import SENTINEL_REGISTRY
 
-        sentinel_fb_types = {
-            sd.fb_type for sd in SENTINEL_REGISTRY.values() if sd.fb_type
-        }
+        sentinel_fb_types = {sd.fb_type for sd in SENTINEL_REGISTRY.values() if sd.fb_type}
 
         missing = {name for name in sentinel_fb_types if get_library_fb(name) is None}
         assert missing == set(), f"Missing library FBs: {missing}"
@@ -133,9 +127,7 @@ class TestLayerViolations:
         source = inspect.getsource(fw)
         tree = ast.parse(source)
         export_imports = [
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, ast.ImportFrom) and node.module == "plx.export.py"
+            node for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) and node.module == "plx.export.py"
         ]
         assert len(export_imports) >= 1
 
@@ -150,8 +142,7 @@ class TestLayerViolations:
         protocol_imports = [
             node
             for node in ast.walk(tree)
-            if isinstance(node, ast.ImportFrom)
-            and node.module == "plx.framework._protocols"
+            if isinstance(node, ast.ImportFrom) and node.module == "plx.framework._protocols"
         ]
         assert len(protocol_imports) >= 1
 
@@ -187,8 +178,7 @@ class TestModuleComplexity:
         public_defs = [
             node
             for node in ast.iter_child_nodes(tree)
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-            and not node.name.startswith("_")
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and not node.name.startswith("_")
         ]
         assert len(public_defs) >= 5
 
@@ -196,9 +186,7 @@ class TestModuleComplexity:
         """Count '# ---...' separator lines (>= 20 chars), expect >= 10."""
         source = self._get_decorators_source()
         separators = [
-            line
-            for line in source.splitlines()
-            if line.strip().startswith("# ---") and len(line.strip()) > 20
+            line for line in source.splitlines() if line.strip().startswith("# ---") and len(line.strip()) > 20
         ]
         assert len(separators) >= 10
 
@@ -206,13 +194,13 @@ class TestModuleComplexity:
         """_extract_comments works on pure string input with no framework imports."""
         from plx.framework._decorators import _extract_comments
 
-        source = '''\
+        source = """\
 def logic(self):
     # Start motor
     self.running = True
     # Stop motor
     self.running = False
-'''
+"""
         comments = _extract_comments(source)
         assert isinstance(comments, dict)
         assert len(comments) > 0
@@ -224,13 +212,13 @@ def logic(self):
             _split_body_by_comments,
         )
 
-        source = '''\
+        source = """\
 def logic(self):
     # Network 1
     x = 1
     # Network 2
     y = 2
-'''
+"""
         comments = _extract_comments(source)
         tree = ast.parse(source)
         func_def = tree.body[0]

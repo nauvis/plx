@@ -1,9 +1,8 @@
 """Tests for AST compiler — statement handlers."""
 
 from conftest import compile_stmts
-
 from plx.framework._compiler import CompileContext
-from plx.framework._descriptors import Field, VarDirection
+from plx.framework._descriptors import VarDirection
 from plx.model.expressions import (
     BinaryExpr,
     BinaryOp,
@@ -13,22 +12,20 @@ from plx.model.expressions import (
 )
 from plx.model.statements import (
     Assignment,
-    CaseBranch,
     CaseStatement,
     ContinueStatement,
     ExitStatement,
     ForStatement,
-    IfBranch,
     IfStatement,
     ReturnStatement,
     WhileStatement,
 )
 from plx.model.types import PrimitiveType, PrimitiveTypeRef
 
-
 # ---------------------------------------------------------------------------
 # Assignment
 # ---------------------------------------------------------------------------
+
 
 class TestAssignment:
     def test_self_attr_assign(self):
@@ -81,7 +78,9 @@ class TestAssignment:
     def test_bare_name_undeclared_no_inference_raises(self):
         """Bare assignment where type cannot be inferred still raises."""
         import pytest
+
         from plx.framework._compiler import CompileError
+
         # fn_call() return type is unknown — cannot infer
         with pytest.raises(CompileError, match="Undeclared variable"):
             compile_stmts("x = self.unknown_fb.call()")
@@ -90,6 +89,7 @@ class TestAssignment:
 # ---------------------------------------------------------------------------
 # Augmented assignment
 # ---------------------------------------------------------------------------
+
 
 class TestAugAssign:
     def test_add_assign(self):
@@ -114,6 +114,7 @@ class TestAugAssign:
 # ---------------------------------------------------------------------------
 # Annotated assignment (temp vars)
 # ---------------------------------------------------------------------------
+
 
 class TestAnnAssign:
     def test_typed_temp_with_value(self):
@@ -144,6 +145,7 @@ class TestAnnAssign:
 # ---------------------------------------------------------------------------
 # If statements
 # ---------------------------------------------------------------------------
+
 
 class TestIfStatement:
     def test_simple_if(self):
@@ -196,6 +198,7 @@ if self.a:
 # ---------------------------------------------------------------------------
 # For loops
 # ---------------------------------------------------------------------------
+
 
 class TestForStatement:
     def test_range_one_arg(self):
@@ -262,16 +265,21 @@ for i in range(0, 20, 2):
 
     def test_loop_var_auto_declared(self):
         ctx = CompileContext()
-        compile_stmts("""\
+        compile_stmts(
+            """\
 for i in range(10):
     self.x = i
-""", ctx)
+""",
+            ctx,
+        )
         assert "i" in ctx.declared_vars
         assert len(ctx.generated_temp_vars) == 1
 
     def test_for_else_rejected(self):
         import pytest
+
         from plx.framework._compiler import CompileError
+
         with pytest.raises(CompileError, match="for/else is not supported"):
             compile_stmts("""\
 for i in range(10):
@@ -284,6 +292,7 @@ else:
 # ---------------------------------------------------------------------------
 # While loops
 # ---------------------------------------------------------------------------
+
 
 class TestWhileStatement:
     def test_basic(self):
@@ -299,7 +308,9 @@ while self.running:
 
     def test_while_else_rejected(self):
         import pytest
+
         from plx.framework._compiler import CompileError
+
         with pytest.raises(CompileError, match="while/else is not supported"):
             compile_stmts("""\
 while self.running:
@@ -312,6 +323,7 @@ else:
 # ---------------------------------------------------------------------------
 # Match/case
 # ---------------------------------------------------------------------------
+
 
 class TestMatchStatement:
     def test_basic_match(self):
@@ -360,6 +372,7 @@ match self.state:
 # Control flow
 # ---------------------------------------------------------------------------
 
+
 class TestControlFlow:
     def test_return_none(self):
         stmts = compile_stmts("return")
@@ -392,6 +405,7 @@ class TestControlFlow:
 # Multiple statements
 # ---------------------------------------------------------------------------
 
+
 class TestMultipleStatements:
     def test_sequence(self):
         stmts = compile_stmts("""\
@@ -406,6 +420,7 @@ self.c = self.a + self.b
 # ---------------------------------------------------------------------------
 # Bit access as assignment target
 # ---------------------------------------------------------------------------
+
 
 class TestBitAccessAssignment:
     def test_bit_access_write(self):

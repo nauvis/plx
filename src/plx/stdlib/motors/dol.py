@@ -6,12 +6,10 @@ safety interlocking (E-stop), overload detection, and run feedback.
 
 from plx.framework import (
     BOOL,
-    TIME,
-    fb,
+    Field,
     Input,
     Output,
-    delayed,
-    Field,
+    fb,
 )
 
 
@@ -31,6 +29,7 @@ class DOLStarter:
         running: Confirmed running (feedback received)
         faulted: Fault condition active
     """
+
     run_cmd: Input[BOOL] = Field(description="Start command")
     stop_cmd: Input[BOOL] = Field(description="Stop command")
     e_stop: Input[BOOL] = Field(initial=True, description="E-stop healthy (True=OK)")

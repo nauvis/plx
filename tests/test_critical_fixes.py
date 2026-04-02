@@ -4,11 +4,9 @@ Each test class corresponds to one critical fix and would have failed
 before the fix was applied.
 """
 
-import pytest
 from enum import IntEnum
 
 from conftest import make_pou
-
 from plx.model.expressions import (
     BinaryExpr,
     BinaryOp,
@@ -20,7 +18,7 @@ from plx.model.expressions import (
     UnaryOp,
     VariableRef,
 )
-from plx.model.pou import Network, POU, POUInterface, POUType
+from plx.model.pou import POU, Network, POUInterface, POUType
 from plx.model.statements import (
     Assignment,
     CaseBranch,
@@ -28,10 +26,9 @@ from plx.model.statements import (
     FBInvocation,
     ReturnStatement,
 )
-from plx.model.types import NamedTypeRef, PrimitiveType, PrimitiveTypeRef
+from plx.model.types import PrimitiveType, PrimitiveTypeRef
 from plx.model.variables import Variable
 from plx.simulate._executor import ExecutionEngine
-from plx.simulate._values import SimulationError
 
 
 def _run(pou, state, clock_ms=0, **kwargs):
@@ -43,84 +40,95 @@ def _run(pou, state, clock_ms=0, **kwargs):
 # Fix #1: Dynamic bit_index (Expression) must be evaluated, not compared raw
 # ---------------------------------------------------------------------------
 
+
 class TestDynamicBitAccess:
     """BitAccessExpr.bit_index can be an Expression (dynamic bit access)."""
 
     def test_read_dynamic_bit_index(self):
         """Reading a bit via a variable index should evaluate the expression."""
-        pou = make_pou([
-            Assignment(
-                target=VariableRef(name="result"),
-                value=BitAccessExpr(
-                    target=VariableRef(name="word"),
-                    bit_index=VariableRef(name="idx"),
+        pou = make_pou(
+            [
+                Assignment(
+                    target=VariableRef(name="result"),
+                    value=BitAccessExpr(
+                        target=VariableRef(name="word"),
+                        bit_index=VariableRef(name="idx"),
+                    ),
                 ),
-            ),
-        ])
+            ]
+        )
         state = {"word": 0b1010, "idx": 3, "result": False}
         _run(pou, state)
         assert state["result"] is True
 
     def test_read_dynamic_bit_index_clear(self):
         """Dynamic bit read returns False when the target bit is 0."""
-        pou = make_pou([
-            Assignment(
-                target=VariableRef(name="result"),
-                value=BitAccessExpr(
-                    target=VariableRef(name="word"),
-                    bit_index=VariableRef(name="idx"),
+        pou = make_pou(
+            [
+                Assignment(
+                    target=VariableRef(name="result"),
+                    value=BitAccessExpr(
+                        target=VariableRef(name="word"),
+                        bit_index=VariableRef(name="idx"),
+                    ),
                 ),
-            ),
-        ])
+            ]
+        )
         state = {"word": 0b1010, "idx": 2, "result": True}
         _run(pou, state)
         assert state["result"] is False
 
     def test_write_dynamic_bit_index(self):
         """Writing a bit via a variable index should evaluate the expression."""
-        pou = make_pou([
-            Assignment(
-                target=BitAccessExpr(
-                    target=VariableRef(name="word"),
-                    bit_index=VariableRef(name="idx"),
+        pou = make_pou(
+            [
+                Assignment(
+                    target=BitAccessExpr(
+                        target=VariableRef(name="word"),
+                        bit_index=VariableRef(name="idx"),
+                    ),
+                    value=LiteralExpr(value="TRUE"),
                 ),
-                value=LiteralExpr(value="TRUE"),
-            ),
-        ])
+            ]
+        )
         state = {"word": 0b0000, "idx": 5, "result": 0}
         _run(pou, state)
         assert state["word"] == 0b100000
 
     def test_write_dynamic_bit_index_clear(self):
         """Clearing a bit via a dynamic index."""
-        pou = make_pou([
-            Assignment(
-                target=BitAccessExpr(
-                    target=VariableRef(name="word"),
-                    bit_index=VariableRef(name="idx"),
+        pou = make_pou(
+            [
+                Assignment(
+                    target=BitAccessExpr(
+                        target=VariableRef(name="word"),
+                        bit_index=VariableRef(name="idx"),
+                    ),
+                    value=LiteralExpr(value="FALSE"),
                 ),
-                value=LiteralExpr(value="FALSE"),
-            ),
-        ])
+            ]
+        )
         state = {"word": 0b11111111, "idx": 3}
         _run(pou, state)
         assert state["word"] == 0b11110111
 
     def test_dynamic_bit_index_with_expression(self):
         """Bit index is a computed expression (e.g. idx + 1)."""
-        pou = make_pou([
-            Assignment(
-                target=VariableRef(name="result"),
-                value=BitAccessExpr(
-                    target=VariableRef(name="word"),
-                    bit_index=BinaryExpr(
-                        op=BinaryOp.ADD,
-                        left=VariableRef(name="idx"),
-                        right=LiteralExpr(value="1"),
+        pou = make_pou(
+            [
+                Assignment(
+                    target=VariableRef(name="result"),
+                    value=BitAccessExpr(
+                        target=VariableRef(name="word"),
+                        bit_index=BinaryExpr(
+                            op=BinaryOp.ADD,
+                            left=VariableRef(name="idx"),
+                            right=LiteralExpr(value="1"),
+                        ),
                     ),
                 ),
-            ),
-        ])
+            ]
+        )
         # word = 0b0100 → bit 2 is set; idx=1, so idx+1=2
         state = {"word": 0b0100, "idx": 1, "result": False}
         _run(pou, state)
@@ -130,6 +138,7 @@ class TestDynamicBitAccess:
 # ---------------------------------------------------------------------------
 # Fix #2: CASE branches with enum literal strings must resolve to int
 # ---------------------------------------------------------------------------
+
 
 class TestCaseEnumLiterals:
     """CaseBranch.values can contain 'EnumName#MEMBER' strings."""
@@ -142,34 +151,42 @@ class TestCaseEnumLiterals:
             GREEN = 1
             BLUE = 2
 
-        pou = make_pou([
-            CaseStatement(
-                selector=VariableRef(name="sel"),
-                branches=[
-                    CaseBranch(
-                        values=["Color#RED"],
-                        body=[Assignment(
-                            target=VariableRef(name="x"),
-                            value=LiteralExpr(value="10"),
-                        )],
-                    ),
-                    CaseBranch(
-                        values=["Color#GREEN"],
-                        body=[Assignment(
-                            target=VariableRef(name="x"),
-                            value=LiteralExpr(value="20"),
-                        )],
-                    ),
-                    CaseBranch(
-                        values=["Color#BLUE"],
-                        body=[Assignment(
-                            target=VariableRef(name="x"),
-                            value=LiteralExpr(value="30"),
-                        )],
-                    ),
-                ],
-            ),
-        ])
+        pou = make_pou(
+            [
+                CaseStatement(
+                    selector=VariableRef(name="sel"),
+                    branches=[
+                        CaseBranch(
+                            values=["Color#RED"],
+                            body=[
+                                Assignment(
+                                    target=VariableRef(name="x"),
+                                    value=LiteralExpr(value="10"),
+                                )
+                            ],
+                        ),
+                        CaseBranch(
+                            values=["Color#GREEN"],
+                            body=[
+                                Assignment(
+                                    target=VariableRef(name="x"),
+                                    value=LiteralExpr(value="20"),
+                                )
+                            ],
+                        ),
+                        CaseBranch(
+                            values=["Color#BLUE"],
+                            body=[
+                                Assignment(
+                                    target=VariableRef(name="x"),
+                                    value=LiteralExpr(value="30"),
+                                )
+                            ],
+                        ),
+                    ],
+                ),
+            ]
+        )
         state = {"sel": 1, "x": 0}
         _run(pou, state, enum_registry={"Color": Color})
         assert state["x"] == 20
@@ -181,26 +198,30 @@ class TestCaseEnumLiterals:
             IDLE = 0
             RUNNING = 1
 
-        pou = make_pou([
-            CaseStatement(
-                selector=VariableRef(name="sel"),
-                branches=[
-                    CaseBranch(
-                        values=["State#IDLE"],
-                        body=[Assignment(
+        pou = make_pou(
+            [
+                CaseStatement(
+                    selector=VariableRef(name="sel"),
+                    branches=[
+                        CaseBranch(
+                            values=["State#IDLE"],
+                            body=[
+                                Assignment(
+                                    target=VariableRef(name="x"),
+                                    value=LiteralExpr(value="1"),
+                                )
+                            ],
+                        ),
+                    ],
+                    else_body=[
+                        Assignment(
                             target=VariableRef(name="x"),
-                            value=LiteralExpr(value="1"),
-                        )],
-                    ),
-                ],
-                else_body=[
-                    Assignment(
-                        target=VariableRef(name="x"),
-                        value=LiteralExpr(value="99"),
-                    ),
-                ],
-            ),
-        ])
+                            value=LiteralExpr(value="99"),
+                        ),
+                    ],
+                ),
+            ]
+        )
         state = {"sel": 1, "x": 0}
         _run(pou, state, enum_registry={"State": State})
         assert state["x"] == 99
@@ -212,20 +233,24 @@ class TestCaseEnumLiterals:
             AUTO = 10
             MANUAL = 20
 
-        pou = make_pou([
-            CaseStatement(
-                selector=VariableRef(name="sel"),
-                branches=[
-                    CaseBranch(
-                        values=[10, "Mode#AUTO"],
-                        body=[Assignment(
-                            target=VariableRef(name="x"),
-                            value=LiteralExpr(value="1"),
-                        )],
-                    ),
-                ],
-            ),
-        ])
+        pou = make_pou(
+            [
+                CaseStatement(
+                    selector=VariableRef(name="sel"),
+                    branches=[
+                        CaseBranch(
+                            values=[10, "Mode#AUTO"],
+                            body=[
+                                Assignment(
+                                    target=VariableRef(name="x"),
+                                    value=LiteralExpr(value="1"),
+                                )
+                            ],
+                        ),
+                    ],
+                ),
+            ]
+        )
         # Integer 10 matches the plain int value before the enum literal
         state = {"sel": 10, "x": 0}
         _run(pou, state, enum_registry={"Mode": Mode})
@@ -236,6 +261,7 @@ class TestCaseEnumLiterals:
 # Fix #3: Abstract POU ST export must use END_FUNCTION_BLOCK, not
 #          END_FUNCTION_BLOCK ABSTRACT
 # ---------------------------------------------------------------------------
+
 
 class TestAbstractPOUSTExport:
     """ST exporter must produce valid closing tags for abstract POUs."""
@@ -295,6 +321,7 @@ class TestAbstractPOUSTExport:
 # Fix #4: _call_user_function must allocate output_vars and constant_vars
 # ---------------------------------------------------------------------------
 
+
 class TestFunctionOutputVars:
     """User-defined FUNCTIONs with output_vars must be simulable."""
 
@@ -312,36 +339,42 @@ class TestFunctionOutputVars:
                     Variable(name="low_byte", data_type=PrimitiveTypeRef(type=PrimitiveType.INT)),
                 ],
             ),
-            networks=[Network(statements=[
-                Assignment(
-                    target=VariableRef(name="high_byte"),
-                    value=BinaryExpr(
-                        op=BinaryOp.DIV,
-                        left=VariableRef(name="raw"),
-                        right=LiteralExpr(value="256"),
-                    ),
-                ),
-                Assignment(
-                    target=VariableRef(name="low_byte"),
-                    value=BinaryExpr(
-                        op=BinaryOp.MOD,
-                        left=VariableRef(name="raw"),
-                        right=LiteralExpr(value="256"),
-                    ),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="high_byte"),
+                            value=BinaryExpr(
+                                op=BinaryOp.DIV,
+                                left=VariableRef(name="raw"),
+                                right=LiteralExpr(value="256"),
+                            ),
+                        ),
+                        Assignment(
+                            target=VariableRef(name="low_byte"),
+                            value=BinaryExpr(
+                                op=BinaryOp.MOD,
+                                left=VariableRef(name="raw"),
+                                right=LiteralExpr(value="256"),
+                            ),
+                        ),
+                    ]
+                )
+            ],
         )
 
         # Call the function from an outer POU via FunctionCallExpr
         # We use a FunctionCallStatement + output read pattern
-        outer_pou = make_pou([
-            FBInvocation(
-                instance_name="split_inst",
-                fb_type="SplitValue",
-                inputs={"raw": LiteralExpr(value="770")},
-                outputs={"high_byte": VariableRef(name="h"), "low_byte": VariableRef(name="l")},
-            ),
-        ])
+        outer_pou = make_pou(
+            [
+                FBInvocation(
+                    instance_name="split_inst",
+                    fb_type="SplitValue",
+                    inputs={"raw": LiteralExpr(value="770")},
+                    outputs={"high_byte": VariableRef(name="h"), "low_byte": VariableRef(name="l")},
+                ),
+            ]
+        )
         state = {"split_inst": {"raw": 0, "high_byte": 0, "low_byte": 0}, "h": 0, "l": 0}
         _run(outer_pou, state, pou_registry={"SplitValue": func_pou})
         assert state["h"] == 3
@@ -368,26 +401,32 @@ class TestFunctionOutputVars:
                     ),
                 ],
             ),
-            networks=[Network(statements=[
-                ReturnStatement(
-                    value=BinaryExpr(
-                        op=BinaryOp.ADD,
-                        left=VariableRef(name="raw"),
-                        right=VariableRef(name="OFFSET"),
-                    ),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        ReturnStatement(
+                            value=BinaryExpr(
+                                op=BinaryOp.ADD,
+                                left=VariableRef(name="raw"),
+                                right=VariableRef(name="OFFSET"),
+                            ),
+                        ),
+                    ]
+                )
+            ],
         )
 
-        outer_pou = make_pou([
-            Assignment(
-                target=VariableRef(name="result"),
-                value=FunctionCallExpr(
-                    function_name="AddOffset",
-                    args=[CallArg(value=LiteralExpr(value="5"))],
+        outer_pou = make_pou(
+            [
+                Assignment(
+                    target=VariableRef(name="result"),
+                    value=FunctionCallExpr(
+                        function_name="AddOffset",
+                        args=[CallArg(value=LiteralExpr(value="5"))],
+                    ),
                 ),
-            ),
-        ])
+            ]
+        )
         state = {"result": 0}
         # Should not raise KeyError — OFFSET is allocated (default 0)
         _run(outer_pou, state, pou_registry={"AddOffset": func_pou})
@@ -397,6 +436,7 @@ class TestFunctionOutputVars:
 # ---------------------------------------------------------------------------
 # Fix #5: LD export NOT(function_call) must preserve the negation
 # ---------------------------------------------------------------------------
+
 
 class TestLDNotFunctionCall:
     """NOT applied to a function call must not be silently dropped."""

@@ -1,20 +1,15 @@
 """Tests for array-subscripted FB invocations (self.fb_array[i](...))."""
 
-import ast
-import textwrap
-
 import pytest
 
 from conftest import compile_stmts, make_pou
-
 from plx.model.expressions import (
     ArrayAccessExpr,
-    Expression,
     LiteralExpr,
     MemberAccessExpr,
     VariableRef,
 )
-from plx.model.pou import Network, POU, POUInterface, POUType
+from plx.model.pou import POU, Network, POUInterface, POUType
 from plx.model.statements import FBInvocation
 from plx.model.types import (
     ArrayTypeRef,
@@ -25,7 +20,6 @@ from plx.model.types import (
 )
 from plx.model.variables import Variable
 
-
 BOOL_REF = PrimitiveTypeRef(type=PrimitiveType.BOOL)
 INT_REF = PrimitiveTypeRef(type=PrimitiveType.INT)
 DINT_REF = PrimitiveTypeRef(type=PrimitiveType.DINT)
@@ -35,6 +29,7 @@ TIME_REF = PrimitiveTypeRef(type=PrimitiveType.TIME)
 # ---------------------------------------------------------------------------
 # IR model: str | Expression instance_name
 # ---------------------------------------------------------------------------
+
 
 class TestFBInvocationModel:
     """FBInvocation accepts both str and Expression for instance_name."""
@@ -95,6 +90,7 @@ class TestFBInvocationModel:
 # ST export
 # ---------------------------------------------------------------------------
 
+
 class TestSTExportFBArray:
     def test_export_array_access_instance(self):
         from plx.export.st import format_statement
@@ -131,6 +127,7 @@ class TestSTExportFBArray:
 # Python export
 # ---------------------------------------------------------------------------
 
+
 class TestPyExportFBArray:
     def test_export_array_access_instance(self):
         from plx.export.py import PyWriter
@@ -157,6 +154,7 @@ class TestPyExportFBArray:
 # LD transform
 # ---------------------------------------------------------------------------
 
+
 class TestLDTransformFBArray:
     def test_fb_array_box_label(self):
         from plx.export.ld._transform import ir_to_ld
@@ -179,10 +177,12 @@ class TestLDTransformFBArray:
 # Framework compiler
 # ---------------------------------------------------------------------------
 
+
 class TestFrameworkCompilerFBArray:
     def _make_ctx(self):
         from plx.framework._compiler import CompileContext
         from plx.framework._descriptors import VarDirection
+
         ctx = CompileContext()
         ctx.static_var_types["timers"] = ArrayTypeRef(
             element_type=NamedTypeRef(name="TON"),
@@ -234,6 +234,7 @@ class TestFrameworkCompilerFBArray:
         """Subscript on a non-FB-array type should raise CompileError."""
         from plx.framework._compiler import CompileContext, CompileError
         from plx.framework._descriptors import VarDirection
+
         ctx = CompileContext()
         ctx.static_var_types["data"] = ArrayTypeRef(
             element_type=PrimitiveTypeRef(type=PrimitiveType.INT),
@@ -250,11 +251,12 @@ class TestFrameworkCompilerFBArray:
 # Simulator
 # ---------------------------------------------------------------------------
 
+
 class TestSimulatorFBArray:
     def test_execute_array_fb_invocation(self):
         """Execute an FBInvocation with ArrayAccessExpr instance_name."""
-        from plx.simulate._executor import ExecutionEngine
         from plx.framework._iec_builtins import TON
+        from plx.simulate._executor import ExecutionEngine
 
         inv = FBInvocation(
             instance_name=ArrayAccessExpr(
@@ -284,8 +286,8 @@ class TestSimulatorFBArray:
 
     def test_array_fb_timed_output(self):
         """Array FB timer should produce Q=True after PT elapsed."""
-        from plx.simulate._executor import ExecutionEngine
         from plx.framework._iec_builtins import TON
+        from plx.simulate._executor import ExecutionEngine
 
         inv = FBInvocation(
             instance_name=ArrayAccessExpr(

@@ -10,9 +10,6 @@ import asyncio
 import logging
 from typing import Any
 
-from plx.model.project import Project
-from plx.model.types import PrimitiveTypeRef
-
 from ._engine import RuntimeEngine
 
 logger = logging.getLogger("plx.runtime")
@@ -94,10 +91,7 @@ class OPCUAServer:
         endpoint: str | None = None,
     ) -> None:
         if not _HAS_ASYNCUA:
-            raise RuntimeError(
-                "asyncua is not installed. "
-                "Install with: pip install plx-controls[runtime]"
-            )
+            raise RuntimeError("asyncua is not installed. Install with: pip install plx-controls[runtime]")
 
         self._engine = engine
         self._port = port
@@ -132,7 +126,11 @@ class OPCUAServer:
         for prog_name, ctx in self._engine._sim._programs.items():
             prog_folder = await programs_folder.add_folder(idx, prog_name)
             await self._add_state_variables(
-                idx, prog_folder, ctx._state, ctx._known_vars, f"{prog_name}",
+                idx,
+                prog_folder,
+                ctx._state,
+                ctx._known_vars,
+                f"{prog_name}",
             )
 
         # Create GVLs folder
@@ -140,7 +138,11 @@ class OPCUAServer:
         for gvl_name, gvl_state in self._engine._sim._global_state.items():
             gvl_folder = await gvls_folder.add_folder(idx, gvl_name)
             await self._add_state_variables(
-                idx, gvl_folder, gvl_state, set(gvl_state.keys()), f"GVLs.{gvl_name}",
+                idx,
+                gvl_folder,
+                gvl_state,
+                set(gvl_state.keys()),
+                f"GVLs.{gvl_name}",
             )
 
         self._server = server
@@ -190,14 +192,21 @@ class OPCUAServer:
                 # FB instance or struct — create a folder
                 folder = await parent_node.add_folder(idx, var_name)
                 await self._add_state_variables(
-                    idx, folder, value, set(value.keys()), full_path,
+                    idx,
+                    folder,
+                    value,
+                    set(value.keys()),
+                    full_path,
                 )
             else:
                 # Scalar — create a variable node
                 vtype = _python_value_to_variant_type(value)
                 if vtype is not None:
                     node = await parent_node.add_variable(
-                        idx, var_name, value, vtype,
+                        idx,
+                        var_name,
+                        value,
+                        vtype,
                     )
                     await node.set_writable()
                     self._nodes[full_path] = node
@@ -282,14 +291,22 @@ class OPCUAServer:
         for prog_name, ctx in self._engine._sim._programs.items():
             prog_folder = await programs_folder.add_folder(idx, prog_name)
             await self._add_state_variables(
-                idx, prog_folder, ctx._state, ctx._known_vars, f"{prog_name}",
+                idx,
+                prog_folder,
+                ctx._state,
+                ctx._known_vars,
+                f"{prog_name}",
             )
 
         gvls_folder = await plx_folder.add_folder(idx, "GVLs")
         for gvl_name, gvl_state in self._engine._sim._global_state.items():
             gvl_folder = await gvls_folder.add_folder(idx, gvl_name)
             await self._add_state_variables(
-                idx, gvl_folder, gvl_state, set(gvl_state.keys()), f"GVLs.{gvl_name}",
+                idx,
+                gvl_folder,
+                gvl_state,
+                set(gvl_state.keys()),
+                f"GVLs.{gvl_name}",
             )
 
         # Restart sync tasks

@@ -5,49 +5,40 @@ would have failed) and 'after' test (verifying the fix works correctly).
 """
 
 import pytest
-from enum import IntEnum
+from pydantic import ValidationError
 
 from conftest import make_pou
-
 from plx.model.expressions import (
     BinaryExpr,
     BinaryOp,
-    CallArg,
-    FunctionCallExpr,
     LiteralExpr,
     MemberAccessExpr,
     VariableRef,
 )
 from plx.model.pou import (
+    POU,
     AccessSpecifier,
     Method,
     Network,
-    POU,
     POUAction,
     POUInterface,
     POUType,
-    Property,
-    PropertyAccessor,
 )
-from plx.model.project import GlobalVariableList, Project
+from plx.model.project import Project
 from plx.model.statements import (
     Assignment,
-    CaseBranch,
-    CaseStatement,
     FBInvocation,
     ForStatement,
-    FunctionCallStatement,
-    ReturnStatement,
 )
+from plx.model.task import PeriodicTask
 from plx.model.types import (
     NamedTypeRef,
     PrimitiveType,
     PrimitiveTypeRef,
-    StructType,
     StructMember,
+    StructType,
 )
 from plx.model.variables import Variable
-from plx.model.task import PeriodicTask
 from plx.simulate._executor import ExecutionEngine
 from plx.simulate._values import SimulationError
 
@@ -79,17 +70,19 @@ def _make_project_pou(name, stmts=None, **iface_kwargs):
 # Fix #6: Dotted string instance_name traversal in simulator
 # ---------------------------------------------------------------------------
 
-class TestDottedInstanceName:
 
+class TestDottedInstanceName:
     def test_dotted_instance_name_resolved(self):
         """'parent.child' should traverse nested state dicts."""
-        pou = make_pou([
-            FBInvocation(
-                instance_name="parent.child",
-                fb_type="TON",
-                inputs={"IN": LiteralExpr(value="TRUE")},
-            ),
-        ])
+        pou = make_pou(
+            [
+                FBInvocation(
+                    instance_name="parent.child",
+                    fb_type="TON",
+                    inputs={"IN": LiteralExpr(value="TRUE")},
+                ),
+            ]
+        )
         state = {
             "parent": {
                 "child": {"IN": False, "Q": False, "ET": 0, "PT": 0, "_prev_in": False, "_start_time": None},
@@ -101,26 +94,30 @@ class TestDottedInstanceName:
 
     def test_flat_instance_name_still_works(self):
         """Plain (non-dotted) instance names should still work as before."""
-        pou = make_pou([
-            FBInvocation(
-                instance_name="timer",
-                fb_type="TON",
-                inputs={"IN": LiteralExpr(value="TRUE")},
-            ),
-        ])
+        pou = make_pou(
+            [
+                FBInvocation(
+                    instance_name="timer",
+                    fb_type="TON",
+                    inputs={"IN": LiteralExpr(value="TRUE")},
+                ),
+            ]
+        )
         state = {"timer": {"IN": False, "Q": False, "ET": 0, "PT": 0, "_prev_in": False, "_start_time": None}}
         _run(pou, state)
         assert state["timer"]["IN"] is True
 
     def test_dotted_instance_name_not_found(self):
         """Missing nested path should raise SimulationError."""
-        pou = make_pou([
-            FBInvocation(
-                instance_name="parent.missing",
-                fb_type="TON",
-                inputs={},
-            ),
-        ])
+        pou = make_pou(
+            [
+                FBInvocation(
+                    instance_name="parent.missing",
+                    fb_type="TON",
+                    inputs={},
+                ),
+            ]
+        )
         state = {"parent": {"other": {}}}
         with pytest.raises(SimulationError, match="not found"):
             _run(pou, state)
@@ -130,47 +127,51 @@ class TestDottedInstanceName:
 # Fix #7: FOR loop iteration guard
 # ---------------------------------------------------------------------------
 
-class TestForLoopIterationGuard:
 
+class TestForLoopIterationGuard:
     def test_normal_for_loop_works(self):
         """A normal FOR loop should complete without hitting the guard."""
-        pou = make_pou([
-            Assignment(target=VariableRef(name="sum"), value=LiteralExpr(value="0")),
-            ForStatement(
-                loop_var="i",
-                from_expr=LiteralExpr(value="1"),
-                to_expr=LiteralExpr(value="10"),
-                body=[
-                    Assignment(
-                        target=VariableRef(name="sum"),
-                        value=BinaryExpr(
-                            op=BinaryOp.ADD,
-                            left=VariableRef(name="sum"),
-                            right=VariableRef(name="i"),
+        pou = make_pou(
+            [
+                Assignment(target=VariableRef(name="sum"), value=LiteralExpr(value="0")),
+                ForStatement(
+                    loop_var="i",
+                    from_expr=LiteralExpr(value="1"),
+                    to_expr=LiteralExpr(value="10"),
+                    body=[
+                        Assignment(
+                            target=VariableRef(name="sum"),
+                            value=BinaryExpr(
+                                op=BinaryOp.ADD,
+                                left=VariableRef(name="sum"),
+                                right=VariableRef(name="i"),
+                            ),
                         ),
-                    ),
-                ],
-            ),
-        ])
+                    ],
+                ),
+            ]
+        )
         state = {"sum": 0, "i": 0}
         _run(pou, state)
         assert state["sum"] == 55
 
     def test_excessive_for_loop_raises(self):
         """A FOR loop exceeding MAX_LOOP_ITERATIONS should raise SimulationError."""
-        pou = make_pou([
-            ForStatement(
-                loop_var="i",
-                from_expr=LiteralExpr(value="0"),
-                to_expr=LiteralExpr(value="2000000"),
-                body=[
-                    Assignment(
-                        target=VariableRef(name="x"),
-                        value=LiteralExpr(value="0"),
-                    ),
-                ],
-            ),
-        ])
+        pou = make_pou(
+            [
+                ForStatement(
+                    loop_var="i",
+                    from_expr=LiteralExpr(value="0"),
+                    to_expr=LiteralExpr(value="2000000"),
+                    body=[
+                        Assignment(
+                            target=VariableRef(name="x"),
+                            value=LiteralExpr(value="0"),
+                        ),
+                    ],
+                ),
+            ]
+        )
         state = {"i": 0, "x": 0}
         with pytest.raises(SimulationError, match="FOR loop exceeded"):
             _run(pou, state)
@@ -180,16 +181,17 @@ class TestForLoopIterationGuard:
 # Fix #8: _build_var_context records types for all var directions
 # ---------------------------------------------------------------------------
 
-class TestInferTypeAllDirections:
 
+class TestInferTypeAllDirections:
     def test_input_string_concat_rejected(self):
         """String += on an INPUT var should be caught by type inference."""
-        from plx.framework import fb, Input, STRING
+        from plx.framework import STRING, Input, fb
         from plx.framework._errors import PlxError
 
         # @fb compiles logic() at decoration time, so the error is raised
         # by the decorator itself, not by .compile()
-        with pytest.raises(PlxError, match="[Ss]tring|f-string"):
+        with pytest.raises(PlxError, match=r"[Ss]tring|f-string"):
+
             @fb
             class StringInputFB:
                 msg: Input[STRING]
@@ -199,8 +201,9 @@ class TestInferTypeAllDirections:
 
     def test_static_fb_invocation_still_works(self):
         """FB invocation detection should still work for STATIC vars."""
-        from plx.framework import fb, Static, TON
         from datetime import timedelta
+
+        from plx.framework import TON, Static, fb
 
         @fb
         class TimerFB:
@@ -220,8 +223,8 @@ class TestInferTypeAllDirections:
 # Fix #9: PlxProject.compile() is idempotent
 # ---------------------------------------------------------------------------
 
-class TestCompileIdempotent:
 
+class TestCompileIdempotent:
     def test_compile_twice_no_error(self):
         """Calling compile() twice on the same PlxProject should not raise."""
         from plx.framework import fb, program, project
@@ -229,6 +232,7 @@ class TestCompileIdempotent:
         @fb
         class HelperFB:
             x: int = 0
+
             def logic(self):
                 pass
 
@@ -249,8 +253,8 @@ class TestCompileIdempotent:
 # Fix #10: _format_init_param raises on None instead of producing "None"
 # ---------------------------------------------------------------------------
 
-class TestFormatInitParamNone:
 
+class TestFormatInitParamNone:
     def test_none_value_raises(self):
         """Passing None as a dict value to _format_init_param should raise."""
         from plx.framework._descriptors import _format_init_param
@@ -272,8 +276,8 @@ class TestFormatInitParamNone:
 # Fix #11: FOR loop var escaped with _safe_name() in Python export
 # ---------------------------------------------------------------------------
 
-class TestForLoopVarSafeName:
 
+class TestForLoopVarSafeName:
     def test_python_keyword_loop_var_escaped(self):
         """A FOR loop var that is a Python keyword should be escaped."""
         from plx.export.py import generate
@@ -284,19 +288,23 @@ class TestForLoopVarSafeName:
             interface=POUInterface(
                 temp_vars=[Variable(name="in_", data_type=_int_type())],
             ),
-            networks=[Network(statements=[
-                ForStatement(
-                    loop_var="in",
-                    from_expr=LiteralExpr(value="0"),
-                    to_expr=LiteralExpr(value="10"),
-                    body=[
-                        Assignment(
-                            target=VariableRef(name="x"),
-                            value=LiteralExpr(value="0"),
+            networks=[
+                Network(
+                    statements=[
+                        ForStatement(
+                            loop_var="in",
+                            from_expr=LiteralExpr(value="0"),
+                            to_expr=LiteralExpr(value="10"),
+                            body=[
+                                Assignment(
+                                    target=VariableRef(name="x"),
+                                    value=LiteralExpr(value="0"),
+                                ),
+                            ],
                         ),
-                    ],
-                ),
-            ])],
+                    ]
+                )
+            ],
         )
         proj = Project(name="Test", pous=[pou])
         code = generate(proj)
@@ -314,19 +322,23 @@ class TestForLoopVarSafeName:
             interface=POUInterface(
                 temp_vars=[Variable(name="i", data_type=_int_type())],
             ),
-            networks=[Network(statements=[
-                ForStatement(
-                    loop_var="i",
-                    from_expr=LiteralExpr(value="0"),
-                    to_expr=LiteralExpr(value="10"),
-                    body=[
-                        Assignment(
-                            target=VariableRef(name="x"),
-                            value=LiteralExpr(value="0"),
+            networks=[
+                Network(
+                    statements=[
+                        ForStatement(
+                            loop_var="i",
+                            from_expr=LiteralExpr(value="0"),
+                            to_expr=LiteralExpr(value="10"),
+                            body=[
+                                Assignment(
+                                    target=VariableRef(name="x"),
+                                    value=LiteralExpr(value="0"),
+                                ),
+                            ],
                         ),
-                    ],
-                ),
-            ])],
+                    ]
+                )
+            ],
         )
         proj = Project(name="Test", pous=[pou])
         code = generate(proj)
@@ -337,8 +349,8 @@ class TestForLoopVarSafeName:
 # Fix #12: _try_format_fb_init bails on unrepresentable nested values
 # ---------------------------------------------------------------------------
 
-class TestTryFormatFBInit:
 
+class TestTryFormatFBInit:
     def test_unrepresentable_nested_value_returns_none(self):
         """An unrepresentable nested value should make the whole function bail."""
         from plx.export.py._helpers import _try_format_fb_init
@@ -362,8 +374,8 @@ class TestTryFormatFBInit:
 # Fix #13: SFCBody rejects orphan transitions when steps=[]
 # ---------------------------------------------------------------------------
 
-class TestSFCOrphanTransitions:
 
+class TestSFCOrphanTransitions:
     def test_orphan_transition_with_empty_steps_rejected(self):
         """Transitions referencing nonexistent steps should be rejected."""
         from plx.model.sfc import SFCBody, Transition
@@ -412,22 +424,22 @@ class TestSFCOrphanTransitions:
 # Fix #14: FBInvocation._validate_instance_name rejects malformed paths
 # ---------------------------------------------------------------------------
 
-class TestFBInvocationInstanceNameValidation:
 
+class TestFBInvocationInstanceNameValidation:
     def test_leading_dot_rejected(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             FBInvocation(instance_name=".a", fb_type="TON")
 
     def test_trailing_dot_rejected(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             FBInvocation(instance_name="a.", fb_type="TON")
 
     def test_double_dot_rejected(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             FBInvocation(instance_name="a..b", fb_type="TON")
 
     def test_bare_caret_rejected(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             FBInvocation(instance_name="^", fb_type="TON")
 
     def test_valid_dotted_path_accepted(self):
@@ -447,15 +459,18 @@ class TestFBInvocationInstanceNameValidation:
 # Fix #15: TempFBInstanceRule no false positives on structs
 # ---------------------------------------------------------------------------
 
-class TestTempFBInstanceRuleStructs:
 
+class TestTempFBInstanceRuleStructs:
     def test_temp_struct_no_finding(self):
         """A VAR_TEMP of a struct type should NOT be flagged."""
         from plx.analyze import TempFBInstanceRule
 
-        struct_type = StructType(name="MyStruct", members=[
-            StructMember(name="x", data_type=_int_type()),
-        ])
+        struct_type = StructType(
+            name="MyStruct",
+            members=[
+                StructMember(name="x", data_type=_int_type()),
+            ],
+        )
         pou = POU(
             pou_type=POUType.FUNCTION_BLOCK,
             name="TestPOU",
@@ -502,8 +517,8 @@ class TestTempFBInstanceRuleStructs:
 # Fix #16: RecursiveCallRule and UnusedPOURule find calls in methods
 # ---------------------------------------------------------------------------
 
-class TestCallDetectionInMethods:
 
+class TestCallDetectionInMethods:
     def _make_fb_with_method_call(self, caller_name, callee_name):
         """Create an FB that calls callee_name from inside a method."""
         return POU(
@@ -517,9 +532,13 @@ class TestCallDetectionInMethods:
                     name="DoWork",
                     access=AccessSpecifier.PUBLIC,
                     interface=POUInterface(),
-                    networks=[Network(statements=[
-                        FBInvocation(instance_name="inst", fb_type=callee_name),
-                    ])],
+                    networks=[
+                        Network(
+                            statements=[
+                                FBInvocation(instance_name="inst", fb_type=callee_name),
+                            ]
+                        )
+                    ],
                 ),
             ],
             networks=[Network(statements=[])],
@@ -554,9 +573,13 @@ class TestCallDetectionInMethods:
                     name="Run",
                     access=AccessSpecifier.PUBLIC,
                     interface=POUInterface(),
-                    networks=[Network(statements=[
-                        FBInvocation(instance_name="b", fb_type="B"),
-                    ])],
+                    networks=[
+                        Network(
+                            statements=[
+                                FBInvocation(instance_name="b", fb_type="B"),
+                            ]
+                        )
+                    ],
                 ),
             ],
             networks=[Network(statements=[])],
@@ -567,9 +590,13 @@ class TestCallDetectionInMethods:
             interface=POUInterface(
                 static_vars=[Variable(name="a", data_type=NamedTypeRef(name="A"))],
             ),
-            networks=[Network(statements=[
-                FBInvocation(instance_name="a", fb_type="A"),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        FBInvocation(instance_name="a", fb_type="A"),
+                    ]
+                )
+            ],
         )
         project = Project(name="Test", pous=[fb_a, fb_b])
         rule = RecursiveCallRule()
@@ -582,8 +609,8 @@ class TestCallDetectionInMethods:
 # Fix #17: IgnoredFBOutputRule finds invocations in actions
 # ---------------------------------------------------------------------------
 
-class TestIgnoredFBOutputRuleActions:
 
+class TestIgnoredFBOutputRuleActions:
     def test_invocation_in_action_detected(self):
         """FB invoked in a POU action should be included in the invoked set."""
         from plx.analyze import IgnoredFBOutputRule
@@ -599,25 +626,33 @@ class TestIgnoredFBOutputRuleActions:
             actions=[
                 POUAction(
                     name="RunTimers",
-                    body=[Network(statements=[
-                        FBInvocation(
-                            instance_name="timer",
-                            fb_type="TON",
-                            inputs={"IN": LiteralExpr(value="TRUE")},
-                        ),
-                    ])],
+                    body=[
+                        Network(
+                            statements=[
+                                FBInvocation(
+                                    instance_name="timer",
+                                    fb_type="TON",
+                                    inputs={"IN": LiteralExpr(value="TRUE")},
+                                ),
+                            ]
+                        )
+                    ],
                 ),
             ],
             # Read timer.Q in the main network so it's not "ignored"
-            networks=[Network(statements=[
-                Assignment(
-                    target=VariableRef(name="done"),
-                    value=MemberAccessExpr(
-                        struct=VariableRef(name="timer"),
-                        member="Q",
-                    ),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="done"),
+                            value=MemberAccessExpr(
+                                struct=VariableRef(name="timer"),
+                                member="Q",
+                            ),
+                        ),
+                    ]
+                )
+            ],
         )
         project = Project(name="Test", pous=[pou])
         rule = IgnoredFBOutputRule()
@@ -630,8 +665,8 @@ class TestIgnoredFBOutputRuleActions:
 # Fix #18: CrossTaskWriteRule no false positives on output vars
 # ---------------------------------------------------------------------------
 
-class TestCrossTaskWriteOutputVars:
 
+class TestCrossTaskWriteOutputVars:
     def test_output_vars_not_flagged_as_cross_task(self):
         """Output vars with the same name in different POUs should not conflict."""
         from plx.analyze import CrossTaskWriteRule
@@ -642,12 +677,16 @@ class TestCrossTaskWriteOutputVars:
             interface=POUInterface(
                 output_vars=[Variable(name="valve", data_type=_bool_type())],
             ),
-            networks=[Network(statements=[
-                Assignment(
-                    target=VariableRef(name="valve"),
-                    value=LiteralExpr(value="TRUE"),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="valve"),
+                            value=LiteralExpr(value="TRUE"),
+                        ),
+                    ]
+                )
+            ],
         )
         prog_b = POU(
             pou_type=POUType.PROGRAM,
@@ -655,12 +694,16 @@ class TestCrossTaskWriteOutputVars:
             interface=POUInterface(
                 output_vars=[Variable(name="valve", data_type=_bool_type())],
             ),
-            networks=[Network(statements=[
-                Assignment(
-                    target=VariableRef(name="valve"),
-                    value=LiteralExpr(value="FALSE"),
-                ),
-            ])],
+            networks=[
+                Network(
+                    statements=[
+                        Assignment(
+                            target=VariableRef(name="valve"),
+                            value=LiteralExpr(value="FALSE"),
+                        ),
+                    ]
+                )
+            ],
         )
         project = Project(
             name="Test",

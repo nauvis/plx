@@ -34,10 +34,10 @@ from plx.framework._descriptors import Input, Output
 from plx.framework._library import LibraryFB, LibraryStruct
 from plx.framework._types import BOOL, DINT, REAL
 
-
 # ===================================================================
 # Backing Structs
 # ===================================================================
+
 
 class FBD_TIMER(LibraryStruct, vendor="ab", library="ab_drives"):
     """Backing structure for enhanced timer instructions (TONR, TOFR, RTOR).
@@ -67,6 +67,7 @@ class FBD_ONESHOT(LibraryStruct, vendor="ab", library="ab_drives"):
 # ===================================================================
 # Enhanced Timers (AB-specific, ST/FBD only)
 # ===================================================================
+
 
 class TONR(LibraryFB, vendor="ab", library="ab_drives"):
     """Non-retentive timer on delay with built-in reset input.
@@ -132,6 +133,7 @@ class RTOR(LibraryFB, vendor="ab", library="ab_drives"):
 # One-Shot (AB-specific, ST/FBD only)
 # ===================================================================
 
+
 class OSRI(LibraryFB, vendor="ab", library="ab_drives"):
     """One-shot rising with input.
 
@@ -163,6 +165,7 @@ class OSFI(LibraryFB, vendor="ab", library="ab_drives"):
 # ===================================================================
 # Filters (1756-RM006, ST/FBD only)
 # ===================================================================
+
 
 class HPF(LibraryFB, vendor="ab", library="ab_drives"):
     """First-order high pass filter.
@@ -246,6 +249,7 @@ class INTG(LibraryFB, vendor="ab", library="ab_drives"):
 # Statistics (1756-RM006, ST/FBD only)
 # ===================================================================
 
+
 class MAVE(LibraryFB, vendor="ab", library="ab_drives"):
     """Moving average over a configurable sample window.
 
@@ -306,6 +310,7 @@ class MINC(LibraryFB, vendor="ab", library="ab_drives"):
 # ===================================================================
 # Drives / Control (1756-RM006, ST/FBD only)
 # ===================================================================
+
 
 class PMUL(LibraryFB, vendor="ab", library="ab_drives"):
     """Pulse multiplier.
@@ -416,6 +421,7 @@ class CC(LibraryFB, vendor="ab", library="ab_drives"):
 # I/O — MESSAGE struct and MSG instruction
 # ===================================================================
 
+
 class MESSAGE(LibraryStruct, vendor="ab", library="ab_io"):
     """MESSAGE structure for the MSG instruction.
 
@@ -424,7 +430,7 @@ class MESSAGE(LibraryStruct, vendor="ab", library="ab_io"):
     on the MESSAGE tag in user logic.
     """
 
-    pass  # Complex internal structure -- key status accessed via .DN, .ER, .EN, .ERR
+    # Complex internal structure -- key status accessed via .DN, .ER, .EN, .ERR
 
 
 class MSG(LibraryFB, vendor="ab", library="ab_drives"):

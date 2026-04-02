@@ -7,9 +7,17 @@ for the Python framework and the interchange format between vendor layers.
 Usage example::
 
     from plx.model import (
-        POU, POUType, POUInterface, Network, Variable,
-        Assignment, VariableRef, LiteralExpr,
-        PrimitiveTypeRef, PrimitiveType, Project,
+        POU,
+        POUType,
+        POUInterface,
+        Network,
+        Variable,
+        Assignment,
+        VariableRef,
+        LiteralExpr,
+        PrimitiveTypeRef,
+        PrimitiveType,
+        Project,
     )
 
     # Create a variable
@@ -25,12 +33,14 @@ Usage example::
         name="Main",
         interface=POUInterface(output_vars=[speed]),
         networks=[
-            Network(statements=[
-                Assignment(
-                    target=VariableRef(name="speed"),
-                    value=LiteralExpr(value="100.0"),
-                ),
-            ]),
+            Network(
+                statements=[
+                    Assignment(
+                        target=VariableRef(name="speed"),
+                        value=LiteralExpr(value="100.0"),
+                    ),
+                ]
+            ),
         ],
     )
 
@@ -79,6 +89,8 @@ from .sfc import (
     ActionQualifier,
     SFCBody,
     Step,
+)
+from .sfc import (
     Transition as SFCTransition,
 )
 from .statements import (
@@ -132,9 +144,9 @@ from .types import (
 from .variables import Variable
 from .walk import (
     walk_expressions,
-    walk_statements,
     walk_pou,
     walk_project,
+    walk_statements,
 )
 
 __all__ = [

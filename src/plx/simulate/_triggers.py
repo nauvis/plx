@@ -264,11 +264,7 @@ class ScanTrigger:
         ctx = self._ctx
         trace = ScanTrace()
 
-        has_termination = (
-            self._max_scans is not None
-            or self._condition is not None
-            or self._changed_vars is not None
-        )
+        has_termination = self._max_scans is not None or self._condition is not None or self._changed_vars is not None
         if not has_termination and self._timeout_ms is None:
             raise ValueError(
                 "ScanTrigger has no termination condition. "
@@ -325,8 +321,7 @@ class ScanTrigger:
                     # If there's no other termination condition, this is an error
                     if self._condition is not None or self._changed_vars is not None:
                         raise SimulationTimeout(
-                            f"Trigger timed out after {self._timeout_ms}ms simulated time "
-                            f"({scans_done} scans)"
+                            f"Trigger timed out after {self._timeout_ms}ms simulated time ({scans_done} scans)"
                         )
                     # timeout-only trigger: just stop
                     break

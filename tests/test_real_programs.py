@@ -4,39 +4,30 @@ These are fully functional programs — not unit tests of individual features,
 but complete control systems that exercise the framework end-to-end.
 """
 
-import pytest
-
 from datetime import timedelta
 
+import pytest
+
 from plx.framework import (
-    ARRAY,
     BOOL,
     DINT,
     INT,
     REAL,
-    STRING,
-    delayed,
-    enumeration,
-    fb,
-    falling,
-    function,
     Input,
     Output,
+    delayed,
+    fb,
     program,
+    project,
     pulse,
     rising,
     sfc,
     step,
     struct,
-    sustained,
-    Temp,
-    transition,
-    project,
     task,
-    Field,
+    transition,
 )
 from plx.simulate import simulate
-
 
 # ==========================================================================
 # Program 1: Conveyor Sorting System
@@ -195,16 +186,10 @@ class SortingSystem:
         self.gate_right = self.diverter.gate_right
 
         # --- System-level fault ---
-        self.system_fault = (
-            self.conv1.fault or self.conv2.fault or self.conv3.fault
-        )
+        self.system_fault = self.conv1.fault or self.conv2.fault or self.conv3.fault
 
         # --- Total product count ---
-        self.total_product_count = (
-            self.conv1.product_count
-            + self.conv2.product_count
-            + self.conv3.product_count
-        )
+        self.total_product_count = self.conv1.product_count + self.conv2.product_count + self.conv3.product_count
 
 
 class TestSortingSystem:
@@ -1749,7 +1734,7 @@ class HVACZone:
     enable: Input[BOOL]
 
     # Setpoints
-    heat_sp_occ: Input[REAL] = 70.0    # Occupied heating setpoint (F)
+    heat_sp_occ: Input[REAL] = 70.0  # Occupied heating setpoint (F)
     cool_sp_occ: Input[REAL] = 75.0  # Occupied cooling setpoint
     heat_sp_unocc: Input[REAL] = 60.0  # Unoccupied heating setpoint
     cool_sp_unocc: Input[REAL] = 85.0  # Unoccupied cooling setpoint

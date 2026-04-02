@@ -26,10 +26,9 @@ import sys
 from enum import IntEnum
 from typing import Any
 
+from plx.framework._protocols import CompiledDataType, CompiledPOU
 from plx.model.pou import POU
 from plx.model.types import EnumType, StructType
-
-from plx.framework._protocols import CompiledDataType, CompiledPOU
 
 from ._context import SimulationContext
 from ._project_context import ProjectSimulationContext
@@ -121,10 +120,7 @@ def _resolve_pou(target: Any) -> POU:
         return target
     if isinstance(target, CompiledPOU):
         return target._compiled_pou
-    raise TypeError(
-        f"simulate() expects a @fb/@program/@sfc class or POU IR, "
-        f"got {type(target).__name__}"
-    )
+    raise TypeError(f"simulate() expects a @fb/@program/@sfc class or POU IR, got {type(target).__name__}")
 
 
 def _resolve_typedef(dt: Any) -> StructType | EnumType:
@@ -136,12 +132,12 @@ def _resolve_typedef(dt: Any) -> StructType | EnumType:
     # Auto-compile bare IntEnum that hasn't been compiled yet
     if isinstance(dt, type):
         from plx.framework._data_types import _ensure_enum_compiled
+
         _ensure_enum_compiled(dt)
         if isinstance(dt, CompiledDataType):
             return dt._compiled_type
     raise TypeError(
-        f"data_types entries must be @struct/@enumeration classes or TypeDefinition IR, "
-        f"got {type(dt).__name__}"
+        f"data_types entries must be @struct/@enumeration classes or TypeDefinition IR, got {type(dt).__name__}"
     )
 
 
@@ -180,16 +176,13 @@ def simulate_project(
     ProjectSimulationContext
         The project simulation context with per-program attribute access.
     """
-    from plx.model.project import Project
     from plx.framework._project import PlxProject
+    from plx.model.project import Project
 
     if isinstance(target, PlxProject):
         target = target.compile()
     if not isinstance(target, Project):
-        raise TypeError(
-            f"simulate_project() expects a Project IR or PlxProject builder, "
-            f"got {type(target).__name__}"
-        )
+        raise TypeError(f"simulate_project() expects a Project IR or PlxProject builder, got {type(target).__name__}")
     return ProjectSimulationContext(target, scan_period_ms=scan_period_ms)
 
 

@@ -8,39 +8,32 @@ Covers:
   cycles, simultaneous divergence/convergence, and initial-step-only reachability.
 """
 
-import pytest
-
 from plx.analyze import analyze
 from plx.analyze._rules import DeadSfcStepRule, UnguardedOutputRule
 from plx.analyze._visitor import AnalysisVisitor
 from plx.framework import (
     BOOL,
     DINT,
-    INT,
-    REAL,
     Input,
     Output,
-    Static,
     fb,
     program,
-    struct,
 )
 from plx.model.expressions import (
     ArrayAccessExpr,
-    BinaryExpr,
-    BinaryOp,
     BitAccessExpr,
     DerefExpr,
     LiteralExpr,
     MemberAccessExpr,
     VariableRef,
 )
-from plx.model.pou import Network, POU, POUInterface, POUType
+from plx.model.pou import POU, Network, POUInterface, POUType
 from plx.model.sfc import Action, ActionQualifier, SFCBody, Step, Transition
 from plx.model.statements import (
     Assignment,
     CaseBranch,
     CaseStatement,
+    EmptyStatement,
     FBInvocation,
     ForStatement,
     IfBranch,
@@ -48,15 +41,14 @@ from plx.model.statements import (
     RepeatStatement,
     TryCatchStatement,
     WhileStatement,
-    EmptyStatement,
 )
 from plx.model.types import NamedTypeRef, PrimitiveType, PrimitiveTypeRef
 from plx.model.variables import Variable
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _bool_type() -> PrimitiveTypeRef:
     return PrimitiveTypeRef(type=PrimitiveType.BOOL)
@@ -78,18 +70,9 @@ def _pou_with_stmts(
         pou_type=POUType.FUNCTION_BLOCK,
         name=name,
         interface=POUInterface(
-            output_vars=[
-                Variable(name=n, data_type=_bool_type())
-                for n in output_vars
-            ],
-            input_vars=[
-                Variable(name=n, data_type=_bool_type())
-                for n in input_vars
-            ],
-            static_vars=[
-                Variable(name=n, data_type=_dint_type())
-                for n in static_vars
-            ],
+            output_vars=[Variable(name=n, data_type=_bool_type()) for n in output_vars],
+            input_vars=[Variable(name=n, data_type=_bool_type()) for n in input_vars],
+            static_vars=[Variable(name=n, data_type=_dint_type()) for n in static_vars],
         ),
         networks=[Network(statements=list(stmts))],
     )
@@ -138,10 +121,12 @@ class TestUnguardedOutputInLoops:
 
     def test_output_in_while_loop_is_guarded(self):
         """Output written inside WHILE loop body -- no finding."""
+
         @fb
         class WhileGuardedFB:
             running: Input[BOOL]
             valve: Output[BOOL]
+
             def logic(self):
                 while self.running:
                     self.valve = True
@@ -195,7 +180,8 @@ class TestUnguardedOutputInLoops:
             value=LiteralExpr(value="TRUE"),
         )
         findings = _run_unguarded_rule(
-            stmt_while, stmt_unguarded,
+            stmt_while,
+            stmt_unguarded,
             output_vars=("valve",),
             input_vars=("run",),
         )
@@ -256,18 +242,24 @@ class TestUnguardedOutputInCase:
         stmt = CaseStatement(
             selector=VariableRef(name="state"),
             branches=[
-                CaseBranch(values=[1], body=[
-                    Assignment(
-                        target=VariableRef(name="valve"),
-                        value=LiteralExpr(value="TRUE"),
-                    ),
-                ]),
-                CaseBranch(values=[2], body=[
-                    Assignment(
-                        target=VariableRef(name="valve"),
-                        value=LiteralExpr(value="FALSE"),
-                    ),
-                ]),
+                CaseBranch(
+                    values=[1],
+                    body=[
+                        Assignment(
+                            target=VariableRef(name="valve"),
+                            value=LiteralExpr(value="TRUE"),
+                        ),
+                    ],
+                ),
+                CaseBranch(
+                    values=[2],
+                    body=[
+                        Assignment(
+                            target=VariableRef(name="valve"),
+                            value=LiteralExpr(value="FALSE"),
+                        ),
+                    ],
+                ),
             ],
         )
         findings = _run_unguarded_rule(stmt, output_vars=("valve",))
@@ -299,25 +291,28 @@ class TestUnguardedOutputInCase:
         case_stmt = CaseStatement(
             selector=VariableRef(name="state"),
             branches=[
-                CaseBranch(values=[1], body=[
-                    Assignment(
-                        target=VariableRef(name="valve"),
-                        value=LiteralExpr(value="TRUE"),
-                    ),
-                ]),
+                CaseBranch(
+                    values=[1],
+                    body=[
+                        Assignment(
+                            target=VariableRef(name="valve"),
+                            value=LiteralExpr(value="TRUE"),
+                        ),
+                    ],
+                ),
             ],
         )
-        findings = _run_unguarded_rule(
-            unguarded_assign, case_stmt, output_vars=("valve",)
-        )
+        findings = _run_unguarded_rule(unguarded_assign, case_stmt, output_vars=("valve",))
         assert len(findings) == 1
 
     def test_case_with_match_syntax(self):
         """Framework match/case compiles to CaseStatement -- guarded."""
+
         @fb
         class MatchCaseFB:
             state: Input[DINT]
             valve: Output[BOOL]
+
             def logic(self):
                 match self.state:
                     case 0:
@@ -622,9 +617,11 @@ class TestMultipleOutputPatterns:
 
     def test_program_pou_outputs_detected(self):
         """UnguardedOutputRule works on PROGRAM POUs, not just FBs."""
+
         @program
         class UnguardedProgram:
             valve: Output[BOOL]
+
             def logic(self):
                 self.valve = True
 
@@ -638,9 +635,7 @@ class TestMultipleOutputPatterns:
             target=VariableRef(name="count"),
             value=LiteralExpr(value="0"),
         )
-        findings = _run_unguarded_rule(
-            stmt, output_vars=(), static_vars=("count",)
-        )
+        findings = _run_unguarded_rule(stmt, output_vars=(), static_vars=("count",))
         assert len(findings) == 0
 
 
@@ -712,15 +707,18 @@ class TestDeadSfcStepEdgeCases:
             ],
             transitions=[
                 Transition(
-                    source_steps=["A"], target_steps=["B"],
+                    source_steps=["A"],
+                    target_steps=["B"],
                     condition=LiteralExpr(value="TRUE"),
                 ),
                 Transition(
-                    source_steps=["B"], target_steps=["C"],
+                    source_steps=["B"],
+                    target_steps=["C"],
                     condition=LiteralExpr(value="TRUE"),
                 ),
                 Transition(
-                    source_steps=["C"], target_steps=["A"],
+                    source_steps=["C"],
+                    target_steps=["A"],
                     condition=LiteralExpr(value="TRUE"),
                 ),
             ],
@@ -744,7 +742,8 @@ class TestDeadSfcStepEdgeCases:
             ],
             transitions=[
                 Transition(
-                    source_steps=["Start"], target_steps=["End"],
+                    source_steps=["Start"],
+                    target_steps=["End"],
                     condition=LiteralExpr(value="TRUE"),
                 ),
             ],
@@ -815,12 +814,14 @@ class TestDeadSfcStepEdgeCases:
             transitions=[
                 # Loop -> Loop (self-transition targets "Loop", so it IS in targeted set)
                 Transition(
-                    source_steps=["Loop"], target_steps=["Loop"],
+                    source_steps=["Loop"],
+                    target_steps=["Loop"],
                     condition=LiteralExpr(value="TRUE"),
                 ),
                 # But Init needs a transition too for valid SFC
                 Transition(
-                    source_steps=["Init"], target_steps=["Init"],
+                    source_steps=["Init"],
+                    target_steps=["Init"],
                     condition=LiteralExpr(value="TRUE"),
                 ),
             ],
@@ -860,7 +861,8 @@ class TestDeadSfcStepEdgeCases:
             ],
             transitions=[
                 Transition(
-                    source_steps=["Init"], target_steps=["Init"],
+                    source_steps=["Init"],
+                    target_steps=["Init"],
                     condition=LiteralExpr(value="TRUE"),
                 ),
             ],
@@ -932,12 +934,15 @@ class TestNestingDepthAccuracy:
         case_stmt = CaseStatement(
             selector=VariableRef(name="state"),
             branches=[
-                CaseBranch(values=[1], body=[
-                    Assignment(
-                        target=VariableRef(name="inside"),
-                        value=LiteralExpr(value="TRUE"),
-                    ),
-                ]),
+                CaseBranch(
+                    values=[1],
+                    body=[
+                        Assignment(
+                            target=VariableRef(name="inside"),
+                            value=LiteralExpr(value="TRUE"),
+                        ),
+                    ],
+                ),
             ],
         )
         after_stmt = Assignment(

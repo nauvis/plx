@@ -3,7 +3,6 @@
 import pytest
 
 from conftest import compile_expr, compile_stmts
-
 from plx.framework._compiler import CompileContext, CompileError
 from plx.model.expressions import (
     CallArg,
@@ -31,6 +30,7 @@ def _ctx_with_vars(**var_types):
 # ---------------------------------------------------------------------------
 # Basic f-string compilation
 # ---------------------------------------------------------------------------
+
 
 class TestFStringBasic:
     def test_literal_only(self):
@@ -65,6 +65,7 @@ class TestFStringBasic:
 # ---------------------------------------------------------------------------
 # CONCAT generation
 # ---------------------------------------------------------------------------
+
 
 class TestFStringConcat:
     def test_text_and_int(self):
@@ -145,25 +146,29 @@ class TestFStringConcat:
 # Type conversions for various primitive types
 # ---------------------------------------------------------------------------
 
+
 class TestFStringTypeConversions:
-    @pytest.mark.parametrize("ptype,expected_source_type", [
-        (PrimitiveType.BOOL, PrimitiveType.BOOL),
-        (PrimitiveType.INT, PrimitiveType.INT),
-        (PrimitiveType.DINT, PrimitiveType.DINT),
-        (PrimitiveType.SINT, PrimitiveType.SINT),
-        (PrimitiveType.LINT, PrimitiveType.LINT),
-        (PrimitiveType.UINT, PrimitiveType.UINT),
-        (PrimitiveType.UDINT, PrimitiveType.UDINT),
-        (PrimitiveType.USINT, PrimitiveType.USINT),
-        (PrimitiveType.ULINT, PrimitiveType.ULINT),
-        (PrimitiveType.REAL, PrimitiveType.REAL),
-        (PrimitiveType.LREAL, PrimitiveType.LREAL),
-        (PrimitiveType.BYTE, PrimitiveType.BYTE),
-        (PrimitiveType.WORD, PrimitiveType.WORD),
-        (PrimitiveType.DWORD, PrimitiveType.DWORD),
-        (PrimitiveType.LWORD, PrimitiveType.LWORD),
-        (PrimitiveType.TIME, PrimitiveType.TIME),
-    ])
+    @pytest.mark.parametrize(
+        "ptype,expected_source_type",
+        [
+            (PrimitiveType.BOOL, PrimitiveType.BOOL),
+            (PrimitiveType.INT, PrimitiveType.INT),
+            (PrimitiveType.DINT, PrimitiveType.DINT),
+            (PrimitiveType.SINT, PrimitiveType.SINT),
+            (PrimitiveType.LINT, PrimitiveType.LINT),
+            (PrimitiveType.UINT, PrimitiveType.UINT),
+            (PrimitiveType.UDINT, PrimitiveType.UDINT),
+            (PrimitiveType.USINT, PrimitiveType.USINT),
+            (PrimitiveType.ULINT, PrimitiveType.ULINT),
+            (PrimitiveType.REAL, PrimitiveType.REAL),
+            (PrimitiveType.LREAL, PrimitiveType.LREAL),
+            (PrimitiveType.BYTE, PrimitiveType.BYTE),
+            (PrimitiveType.WORD, PrimitiveType.WORD),
+            (PrimitiveType.DWORD, PrimitiveType.DWORD),
+            (PrimitiveType.LWORD, PrimitiveType.LWORD),
+            (PrimitiveType.TIME, PrimitiveType.TIME),
+        ],
+    )
     def test_primitive_to_string(self, ptype, expected_source_type):
         """Each primitive type gets wrapped in TypeConversionExpr(target=STRING)."""
         ctx = _ctx_with_vars(val=PrimitiveTypeRef(type=ptype))
@@ -178,6 +183,7 @@ class TestFStringTypeConversions:
 # ---------------------------------------------------------------------------
 # Expressions inside f-strings
 # ---------------------------------------------------------------------------
+
 
 class TestFStringExpressions:
     def test_arithmetic_expression(self):
@@ -233,6 +239,7 @@ class TestFStringExpressions:
 # Error cases
 # ---------------------------------------------------------------------------
 
+
 class TestFStringErrors:
     def test_format_spec_rejected(self):
         """f"{self.x:.2f}" → CompileError"""
@@ -274,6 +281,7 @@ class TestFStringErrors:
 # String + operator rejected
 # ---------------------------------------------------------------------------
 
+
 class TestStringPlusRejected:
     def test_string_literal_plus_string_literal(self):
         """'a' + 'b' → CompileError pointing to f-strings"""
@@ -301,6 +309,7 @@ class TestStringPlusRejected:
     def test_int_plus_int_still_works(self):
         """self.x + self.y where both DINT → BinaryExpr(ADD) as usual"""
         from plx.model.expressions import BinaryExpr, BinaryOp
+
         ctx = _ctx_with_vars(
             x=PrimitiveTypeRef(type=PrimitiveType.DINT),
             y=PrimitiveTypeRef(type=PrimitiveType.DINT),
@@ -312,6 +321,7 @@ class TestStringPlusRejected:
     def test_unknown_plus_unknown_still_works(self):
         """a + b where types unknown → ADD (no false positive)"""
         from plx.model.expressions import BinaryExpr, BinaryOp
+
         result = compile_expr("a + b")
         assert isinstance(result, BinaryExpr)
         assert result.op == BinaryOp.ADD
@@ -333,6 +343,7 @@ class TestStringPlusRejected:
 # In assignment context (full statement compilation)
 # ---------------------------------------------------------------------------
 
+
 class TestFStringInStatements:
     def test_assign_fstring_to_output(self):
         """self.msg = f"axis {self.id}" compiles to AssignmentStatement"""
@@ -352,11 +363,12 @@ class TestFStringInStatements:
 # ST export integration
 # ---------------------------------------------------------------------------
 
+
 class TestFStringSTExport:
     def test_concat_renders_correctly(self):
         """Verify the IR from f-string renders to expected ST."""
         from plx.export.st import to_structured_text
-        from plx.model.pou import Network, POU, POUInterface, POUType
+        from plx.model.pou import POU, Network, POUInterface, POUType
         from plx.model.statements import Assignment
         from plx.model.variables import Variable
 
@@ -367,11 +379,13 @@ class TestFStringSTExport:
                 function_name="CONCAT",
                 args=[
                     CallArg(value=LiteralExpr(value="'Fault: '")),
-                    CallArg(value=TypeConversionExpr(
-                        target_type=StringTypeRef(),
-                        source=VariableRef(name="error_code"),
-                        source_type=PrimitiveTypeRef(type=PrimitiveType.DINT),
-                    )),
+                    CallArg(
+                        value=TypeConversionExpr(
+                            target_type=StringTypeRef(),
+                            source=VariableRef(name="error_code"),
+                            source_type=PrimitiveTypeRef(type=PrimitiveType.DINT),
+                        )
+                    ),
                 ],
             ),
         )
@@ -392,6 +406,7 @@ class TestFStringSTExport:
 # CONCAT rejected in framework Python
 # ---------------------------------------------------------------------------
 
+
 class TestConcatRejected:
     def test_concat_call_rejected(self):
         """CONCAT() is not available directly — use f-strings."""
@@ -403,11 +418,12 @@ class TestConcatRejected:
 # Python export reconstructs f-strings from CONCAT IR
 # ---------------------------------------------------------------------------
 
+
 class TestFStringPyExport:
     def _generate(self, value_expr):
         """Build a POU with a single assignment and generate Python."""
         from plx.export.py import generate
-        from plx.model.pou import Network, POU, POUInterface, POUType
+        from plx.model.pou import POU, Network, POUInterface, POUType
         from plx.model.project import Project
         from plx.model.statements import Assignment
         from plx.model.variables import Variable
@@ -431,75 +447,93 @@ class TestFStringPyExport:
 
     def test_simple_concat_to_fstring(self):
         """CONCAT('prefix ', DINT_TO_STRING(x)) → f"prefix {self.error_code}" """
-        py = self._generate(FunctionCallExpr(
-            function_name="CONCAT",
-            args=[
-                CallArg(value=LiteralExpr(value="'prefix '")),
-                CallArg(value=TypeConversionExpr(
-                    target_type=StringTypeRef(),
-                    source=VariableRef(name="error_code"),
-                    source_type=PrimitiveTypeRef(type=PrimitiveType.DINT),
-                )),
-            ],
-        ))
+        py = self._generate(
+            FunctionCallExpr(
+                function_name="CONCAT",
+                args=[
+                    CallArg(value=LiteralExpr(value="'prefix '")),
+                    CallArg(
+                        value=TypeConversionExpr(
+                            target_type=StringTypeRef(),
+                            source=VariableRef(name="error_code"),
+                            source_type=PrimitiveTypeRef(type=PrimitiveType.DINT),
+                        )
+                    ),
+                ],
+            )
+        )
         assert 'f"prefix {self.error_code}"' in py
 
     def test_multiple_interpolations(self):
         """Multiple parts reconstruct correctly."""
-        py = self._generate(FunctionCallExpr(
-            function_name="CONCAT",
-            args=[
-                CallArg(value=LiteralExpr(value="'Fault: '")),
-                CallArg(value=TypeConversionExpr(
-                    target_type=StringTypeRef(),
-                    source=VariableRef(name="error_code"),
-                    source_type=PrimitiveTypeRef(type=PrimitiveType.DINT),
-                )),
-                CallArg(value=LiteralExpr(value="' on '")),
-                CallArg(value=VariableRef(name="name")),
-            ],
-        ))
+        py = self._generate(
+            FunctionCallExpr(
+                function_name="CONCAT",
+                args=[
+                    CallArg(value=LiteralExpr(value="'Fault: '")),
+                    CallArg(
+                        value=TypeConversionExpr(
+                            target_type=StringTypeRef(),
+                            source=VariableRef(name="error_code"),
+                            source_type=PrimitiveTypeRef(type=PrimitiveType.DINT),
+                        )
+                    ),
+                    CallArg(value=LiteralExpr(value="' on '")),
+                    CallArg(value=VariableRef(name="name")),
+                ],
+            )
+        )
         assert 'f"Fault: {self.error_code} on {self.name}"' in py
 
     def test_string_only_concat(self):
         """CONCAT of pure string literals → plain string (no f-string)."""
-        py = self._generate(FunctionCallExpr(
-            function_name="CONCAT",
-            args=[
-                CallArg(value=LiteralExpr(value="'hello '")),
-                CallArg(value=LiteralExpr(value="'world'")),
-            ],
-        ))
+        py = self._generate(
+            FunctionCallExpr(
+                function_name="CONCAT",
+                args=[
+                    CallArg(value=LiteralExpr(value="'hello '")),
+                    CallArg(value=LiteralExpr(value="'world'")),
+                ],
+            )
+        )
         assert "'hello world'" in py
-        assert "f\"" not in py
+        assert 'f"' not in py
 
     def test_curly_braces_escaped(self):
         """Literal curly braces in string segments are escaped."""
-        py = self._generate(FunctionCallExpr(
-            function_name="CONCAT",
-            args=[
-                CallArg(value=LiteralExpr(value="'val={'")),
-                CallArg(value=TypeConversionExpr(
-                    target_type=StringTypeRef(),
-                    source=VariableRef(name="error_code"),
-                    source_type=PrimitiveTypeRef(type=PrimitiveType.DINT),
-                )),
-                CallArg(value=LiteralExpr(value="'}'")),
-            ],
-        ))
+        py = self._generate(
+            FunctionCallExpr(
+                function_name="CONCAT",
+                args=[
+                    CallArg(value=LiteralExpr(value="'val={'")),
+                    CallArg(
+                        value=TypeConversionExpr(
+                            target_type=StringTypeRef(),
+                            source=VariableRef(name="error_code"),
+                            source_type=PrimitiveTypeRef(type=PrimitiveType.DINT),
+                        )
+                    ),
+                    CallArg(value=LiteralExpr(value="'}'")),
+                ],
+            )
+        )
         assert 'f"val={{{self.error_code}}}"' in py
 
     def test_double_quote_fallback(self):
         """Literal containing double quote falls back to CONCAT()."""
-        py = self._generate(FunctionCallExpr(
-            function_name="CONCAT",
-            args=[
-                CallArg(value=LiteralExpr(value="""'say "hi"'""")),
-                CallArg(value=TypeConversionExpr(
-                    target_type=StringTypeRef(),
-                    source=VariableRef(name="error_code"),
-                    source_type=PrimitiveTypeRef(type=PrimitiveType.DINT),
-                )),
-            ],
-        ))
+        py = self._generate(
+            FunctionCallExpr(
+                function_name="CONCAT",
+                args=[
+                    CallArg(value=LiteralExpr(value="""'say "hi"'""")),
+                    CallArg(
+                        value=TypeConversionExpr(
+                            target_type=StringTypeRef(),
+                            source=VariableRef(name="error_code"),
+                            source_type=PrimitiveTypeRef(type=PrimitiveType.DINT),
+                        )
+                    ),
+                ],
+            )
+        )
         assert "CONCAT(" in py

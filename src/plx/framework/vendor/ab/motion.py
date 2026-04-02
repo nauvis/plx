@@ -39,10 +39,10 @@ from plx.framework._descriptors import InOut, Input, Output
 from plx.framework._library import LibraryEnum, LibraryFB, LibraryStruct
 from plx.framework._types import BOOL, DINT, REAL
 
-
 # ===================================================================
 # Enums (defined first — FBs reference these as parameter types)
 # ===================================================================
+
 
 class MC_AB_Direction(LibraryEnum, vendor="ab", library="ab_motion"):
     """Motion direction for AB motion instructions.
@@ -84,28 +84,21 @@ class MC_AB_StopType(LibraryEnum, vendor="ab", library="ab_motion"):
 # Structs (defined before FBs that reference them)
 # ===================================================================
 
+
 class AXIS_SERVO(LibraryStruct, vendor="ab", library="ab_motion"):
     """Servo axis tag for CIP-connected servo drive axes."""
-
-    pass
 
 
 class AXIS_SERVO_DRIVE(LibraryStruct, vendor="ab", library="ab_motion"):
     """Servo drive axis tag for integrated motion on CIP drives."""
 
-    pass
-
 
 class AXIS_CIP_DRIVE(LibraryStruct, vendor="ab", library="ab_motion"):
     """CIP drive axis tag. The standard axis type for modern CIP Motion systems."""
 
-    pass
-
 
 class AXIS_VIRTUAL(LibraryStruct, vendor="ab", library="ab_motion"):
     """Virtual axis tag for simulated axes with no physical drive."""
-
-    pass
 
 
 class MOTION_INSTRUCTION(LibraryStruct, vendor="ab", library="ab_motion"):
@@ -128,18 +121,15 @@ class MOTION_INSTRUCTION(LibraryStruct, vendor="ab", library="ab_motion"):
 class MOTION_GROUP(LibraryStruct, vendor="ab", library="ab_motion"):
     """Motion group tag. Groups axes for coordinated motion."""
 
-    pass
-
 
 class COORDINATE_SYSTEM(LibraryStruct, vendor="ab", library="ab_motion"):
     """Coordinate system tag for multi-axis coordinated motion."""
-
-    pass
 
 
 # ===================================================================
 # Function Blocks — Motion State
 # ===================================================================
+
 
 class MSO(LibraryFB, vendor="ab", library="ab_motion"):
     """Motion Servo On — enables the servo drive.
@@ -231,6 +221,7 @@ class MAFR(LibraryFB, vendor="ab", library="ab_motion"):
 # ===================================================================
 # Function Blocks — Motion Move
 # ===================================================================
+
 
 class MAJ(LibraryFB, vendor="ab", library="ab_motion"):
     """Motion Axis Jog — continuous jog at specified speed.
@@ -400,6 +391,7 @@ class MAHD(LibraryFB, vendor="ab", library="ab_motion"):
 # Function Blocks — Cam / Position Cam
 # ===================================================================
 
+
 class MAPC(LibraryFB, vendor="ab", library="ab_motion"):
     """Motion Axis Position Cam — position-based cam profile.
 
@@ -441,6 +433,7 @@ class MATC(LibraryFB, vendor="ab", library="ab_motion"):
 # ===================================================================
 # Function Blocks — Motion Group
 # ===================================================================
+
 
 class MGS(LibraryFB, vendor="ab", library="ab_motion"):
     """Motion Group Stop — stops all axes in a motion group.
@@ -510,6 +503,7 @@ class MGSP(LibraryFB, vendor="ab", library="ab_motion"):
 # ===================================================================
 # Function Blocks — Motion Events
 # ===================================================================
+
 
 class MAW(LibraryFB, vendor="ab", library="ab_motion"):
     """Motion Arm Watch — arm a watch position event.
@@ -611,6 +605,7 @@ class MDOC(LibraryFB, vendor="ab", library="ab_motion"):
 # ===================================================================
 # Function Blocks — Coordinated Motion
 # ===================================================================
+
 
 class MCLM(LibraryFB, vendor="ab", library="ab_motion"):
     """Motion Coordinated Linear Move — linear multi-axis move.

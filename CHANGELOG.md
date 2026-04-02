@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.5] - 2026-04-01
+
+### Added
+- Ruff linting and formatting with 15 rule sets, enforced in CI
+- `py.typed` marker for PEP 561 typed package compliance
+- CI lint job (`ruff check` + `ruff format --check`) on all pushes and PRs
+
+### Changed
+- All source and test files formatted with ruff (consistent quotes, trailing commas, import ordering)
+- 14 `str, Enum` classes migrated to `StrEnum` (Python 3.11+)
+- 5 implicit `Optional` parameters made explicit (`str = None` → `str | None = None`)
+- Unused imports and dead assignments removed across src/ and tests/
+- `pytest.raises(match=...)` patterns use raw strings for regex clarity
+- `pytest.raises(Exception)` narrowed to specific exception types
+
 ## [0.2.4] - 2026-04-01
 
 ### Fixed
