@@ -298,14 +298,28 @@ class UnusedOutputRule(AnalysisVisitor):
 class TempFBInstanceRule(AnalysisVisitor):
     """Flag function block instances declared as VAR_TEMP.
 
+    Only flags ``NamedTypeRef`` types that are known POU types (FBs),
+    not structs, enums, or other named data types.
+
     rule_id: ``"temp-fb-instance"``
     """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._data_type_names: set[str] = set()
+
+    def analyze_project(self, project: "Project") -> "AnalysisResult":
+        self._data_type_names = {dt.name for dt in project.data_types}
+        return super().analyze_project(project)
 
     def on_pou_enter(self, ctx: AnalysisContext) -> None:
         if "." in ctx.pou_name:
             return
         for var in ctx.pou.interface.temp_vars:
             if isinstance(var.data_type, NamedTypeRef):
+                # Skip structs, enums, and other non-FB named types
+                if var.data_type.name in self._data_type_names:
+                    continue
                 ctx.findings.append(Finding(
                     rule_id="temp-fb-instance",
                     severity=Severity.WARNING,
@@ -778,6 +792,20 @@ class RecursiveCallRule(AnalysisVisitor):
                 for action in step.actions + step.entry_actions + step.exit_actions:
                     for stmt in action.body:
                         self._walk_stmt(pou.name, stmt)
+        for method in pou.methods:
+            for network in method.networks:
+                for stmt in network.statements:
+                    self._walk_stmt(pou.name, stmt)
+        for prop in pou.properties:
+            for accessor in (prop.getter, prop.setter):
+                if accessor is not None:
+                    for network in accessor.networks:
+                        for stmt in network.statements:
+                            self._walk_stmt(pou.name, stmt)
+        for action in pou.actions:
+            for network in action.body:
+                for stmt in network.statements:
+                    self._walk_stmt(pou.name, stmt)
 
     def _walk_stmt(self, caller: str, stmt: object) -> None:
         if isinstance(stmt, FBInvocation):
@@ -893,10 +921,11 @@ class CrossTaskWriteRule(AnalysisVisitor):
             for action in pou.actions:
                 for network in action.body:
                     self._visit_network(ctx, network)
-            # Local/temp/static/constant/inout vars can't cause cross-task races
+            # POU-local vars can't cause cross-task races
             iface = pou.interface
             local_names = (
                 {v.name for v in iface.input_vars}
+                | {v.name for v in iface.output_vars}
                 | {v.name for v in iface.static_vars}
                 | {v.name for v in iface.temp_vars}
                 | {v.name for v in iface.constant_vars}
@@ -985,6 +1014,20 @@ class UnusedPOURule(AnalysisVisitor):
                 for action in step.actions + step.entry_actions + step.exit_actions:
                     for stmt in action.body:
                         self._walk(stmt, pou_names, out)
+        for method in pou.methods:
+            for network in method.networks:
+                for stmt in network.statements:
+                    self._walk(stmt, pou_names, out)
+        for prop in pou.properties:
+            for accessor in (prop.getter, prop.setter):
+                if accessor is not None:
+                    for network in accessor.networks:
+                        for stmt in network.statements:
+                            self._walk(stmt, pou_names, out)
+        for action in pou.actions:
+            for network in action.body:
+                for stmt in network.statements:
+                    self._walk(stmt, pou_names, out)
 
     def _walk(self, stmt: object, pou_names: set[str], out: set[str]) -> None:
         if isinstance(stmt, FBInvocation) and isinstance(stmt.fb_type, NamedTypeRef):
@@ -1094,6 +1137,15 @@ class IgnoredFBOutputRule(AnalysisVisitor):
         for network in ctx.pou.networks:
             for stmt in network.statements:
                 self._collect_invocations(stmt, invoked)
+        if ctx.pou.sfc_body:
+            for step in ctx.pou.sfc_body.steps:
+                for action in step.actions + step.entry_actions + step.exit_actions:
+                    for stmt in action.body:
+                        self._collect_invocations(stmt, invoked)
+        for action in ctx.pou.actions:
+            for network in action.body:
+                for stmt in network.statements:
+                    self._collect_invocations(stmt, invoked)
 
         if not invoked:
             return

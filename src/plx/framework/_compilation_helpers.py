@@ -252,7 +252,17 @@ def _detect_parent_pou(cls: type) -> str | None:
 def _build_var_context(
     cls: type,
 ) -> tuple[dict[str, list], dict[str, VarDirection], dict[str, TypeRef]]:
-    """Collect descriptors and build declared_vars + static_var_types maps."""
+    """Collect descriptors and build declared_vars + static_var_types maps.
+
+    ``static_var_types`` records types for ALL declared variables (input,
+    output, inout, static, etc.) so that ``_infer_type()`` can resolve
+    ``self.x`` regardless of direction — needed for string-concat
+    rejection, bit-access validation, and other type-aware compile checks.
+
+    The FB-invocation detection path (``_build_fb_invocation`` in
+    ``_compiler.py``) further filters by ``declared_vars`` direction to
+    ensure only STATIC vars are treated as FB instances.
+    """
     var_groups = _collect_descriptors(cls)
     declared_vars: dict[str, VarDirection] = {}
     static_var_types: dict[str, TypeRef] = {}
@@ -261,7 +271,6 @@ def _build_var_context(
         direction = VarDirection(direction_str)
         for v in var_list:
             declared_vars[v.name] = direction
-            if direction is VarDirection.STATIC:
-                static_var_types[v.name] = v.data_type
+            static_var_types[v.name] = v.data_type
 
     return var_groups, declared_vars, static_var_types

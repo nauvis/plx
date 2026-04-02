@@ -191,39 +191,46 @@ class PlxProject:
             ``PortabilityWarning(round_trippable=False)``.  The resulting
             vendor code will be valid but cannot be round-tripped.
         """
+        # Work on copies so compile() is idempotent — a second call
+        # won't re-append discovered items and trigger duplicate errors.
+        pou_classes = list(self._pou_classes)
+        data_type_classes = list(self._data_type_classes)
+        gvl_classes = list(self._gvl_classes)
+        tasks = list(self._tasks)
+
         # Merge discovered items from packages (if any)
         if self._packages:
             from ._discover import discover
             discovered = discover(*self._packages)
             # Dedup by compiled name — explicit entries take priority
-            explicit_pou_names = {c._compiled_pou.name for c in self._pou_classes if hasattr(c, "_compiled_pou")}
-            explicit_type_names = {c._compiled_type.name for c in self._data_type_classes if hasattr(c, "_compiled_type")}
-            explicit_gvl_names = {c._compiled_gvl.name for c in self._gvl_classes if hasattr(c, "_compiled_gvl")}
-            explicit_task_ids = {id(t) for t in self._tasks}
+            explicit_pou_names = {c._compiled_pou.name for c in pou_classes if hasattr(c, "_compiled_pou")}
+            explicit_type_names = {c._compiled_type.name for c in data_type_classes if hasattr(c, "_compiled_type")}
+            explicit_gvl_names = {c._compiled_gvl.name for c in gvl_classes if hasattr(c, "_compiled_gvl")}
+            explicit_task_ids = {id(t) for t in tasks}
             for cls in discovered.pous:
                 if cls._compiled_pou.name not in explicit_pou_names:
-                    self._pou_classes.append(cls)
+                    pou_classes.append(cls)
                     explicit_pou_names.add(cls._compiled_pou.name)
             for cls in discovered.data_types:
                 if cls._compiled_type.name not in explicit_type_names:
-                    self._data_type_classes.append(cls)
+                    data_type_classes.append(cls)
                     explicit_type_names.add(cls._compiled_type.name)
             for cls in discovered.global_var_lists:
                 if cls._compiled_gvl.name not in explicit_gvl_names:
-                    self._gvl_classes.append(cls)
+                    gvl_classes.append(cls)
                     explicit_gvl_names.add(cls._compiled_gvl.name)
             for t in discovered.tasks:
                 if id(t) not in explicit_task_ids:
-                    self._tasks.append(t)
+                    tasks.append(t)
                     explicit_task_ids.add(id(t))
 
         # Resolve transitive dependencies — auto-include POUs and types
         # referenced via NamedTypeRef in static vars, extends, implements, etc.
-        _resolve_transitive_deps(self._pou_classes, self._data_type_classes)
+        _resolve_transitive_deps(pou_classes, data_type_classes)
 
         # Compile data types
         compiled_data_types = []
-        for cls in self._data_type_classes:
+        for cls in data_type_classes:
             # Auto-compile IntEnum types
             from enum import IntEnum
             if isinstance(cls, type) and issubclass(cls, IntEnum) and cls is not IntEnum:
@@ -239,7 +246,7 @@ class PlxProject:
 
         # Compile global variable lists
         compiled_gvls = []
-        for cls in self._gvl_classes:
+        for cls in gvl_classes:
             if not isinstance(cls, CompiledGlobalVarList):
                 raise ProjectAssemblyError(
                     f"{cls.__name__} is not a global variable list "
@@ -250,7 +257,7 @@ class PlxProject:
 
         # Compile POUs
         compiled_pous: list[POU] = []
-        for cls in self._pou_classes:
+        for cls in pou_classes:
             if not isinstance(cls, CompiledPOU):
                 raise ProjectAssemblyError(
                     f"{cls.__name__} is not a compiled POU class "
@@ -260,7 +267,7 @@ class PlxProject:
 
         # Also collect POUs referenced in tasks but not in the explicit pous list
         pou_names = {p.name for p in compiled_pous}
-        for t in self._tasks:
+        for t in tasks:
             for cls in t._pou_classes:
                 if isinstance(cls, CompiledPOU):
                     pou = cls.compile()
@@ -270,7 +277,7 @@ class PlxProject:
 
         _check_duplicates(compiled_pous, "name", "POU", self.name)
 
-        compiled_tasks = [t.compile() for t in self._tasks]
+        compiled_tasks = [t.compile() for t in tasks]
         _check_duplicates(compiled_tasks, "name", "task", self.name)
 
         result = Project(

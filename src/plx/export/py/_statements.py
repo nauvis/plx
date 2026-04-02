@@ -187,11 +187,12 @@ class _StatementWriterMixin:
         else:
             to_str = f"{self._expr(stmt.to_expr)} + 1"
 
+        loop_var = _safe_name(stmt.loop_var)
         if stmt.by_expr is not None:
             by_str = self._expr(stmt.by_expr)
-            self._line(f"for {stmt.loop_var} in range({from_str}, {to_str}, {by_str}):")
+            self._line(f"for {loop_var} in range({from_str}, {to_str}, {by_str}):")
         else:
-            self._line(f"for {stmt.loop_var} in range({from_str}, {to_str}):")
+            self._line(f"for {loop_var} in range({from_str}, {to_str}):")
 
         self._indent_inc()
         self._write_body(stmt.body)
