@@ -899,7 +899,7 @@ class TestNOTExpressions:
         assert rung.input_circuit == Contact(variable="TRUE", contact_type=ContactType.NC)
 
     def test_not_function_call(self):
-        """y := NOT IsValid(x)  →  Box negation, not STBox fallback"""
+        """y := NOT IsValid(x)  →  STBox preserving the NOT"""
         stmt = Assignment(
             target=_ref("y"),
             value=UnaryExpr(
@@ -912,11 +912,11 @@ class TestNOTExpressions:
         )
         ld = ir_to_ld([_net(stmt)])
 
-        # Should at minimum not be an STBox — function call box with
-        # a negated coil output is acceptable
+        # NOT must be preserved — STBox fallback with negation is correct
         rung = ld.rungs[0]
         assert rung.input_circuit is not None
-        assert not isinstance(rung.input_circuit, STBox)
+        assert isinstance(rung.input_circuit, STBox)
+        assert "NOT" in rung.input_circuit.st_text
 
 
 # ---------------------------------------------------------------------------

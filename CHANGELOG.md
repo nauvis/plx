@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.2.4] - 2026-04-01
+
+### Fixed
+- Simulator: dynamic bit access (`var.[idx]`) now evaluates Expression indices instead of crashing with TypeError
+- Simulator: CASE statement now resolves `"EnumName#MEMBER"` string literals to integers for matching
+- Simulator: user-defined FUNCTIONs now allocate `output_vars` and `constant_vars` (prevents KeyError)
+- Simulator: dotted string `instance_name` paths (e.g. `"parent.child"`) now traverse nested state dicts
+- Simulator: FOR loops now have an iteration guard matching WHILE/REPEAT (`MAX_LOOP_ITERATIONS`)
+- ST export: abstract POUs no longer emit invalid `END_FUNCTION_BLOCK ABSTRACT` closing tag
+- LD export: `NOT(function_call)` no longer silently drops the negation
+- Python export: FOR loop variable now escaped with `_safe_name()` for Python keyword collisions
+- Python export: `_try_format_fb_init` now bails on unrepresentable nested values instead of embedding `None`
+- Framework: `_format_init_param` now raises `DeclarationError` on `None` instead of producing `"None"` string
+- Framework: `_infer_type()` now resolves types for INPUT/OUTPUT/INOUT vars (not just STATIC)
+- Framework: `PlxProject.compile()` is now idempotent — no longer mutates instance state on repeated calls
+- IR model: `SFCBody` now rejects orphan transitions when `steps=[]`
+- IR model: `FBInvocation._validate_instance_name` now rejects malformed paths (`.a`, `a.`, `a..b`, bare `^`)
+- Analysis: `TempFBInstanceRule` no longer false-positives on structs/enums (only flags FB types)
+- Analysis: `RecursiveCallRule` and `UnusedPOURule` now detect calls in methods, properties, and actions
+- Analysis: `IgnoredFBOutputRule` now finds FB invocations in SFC actions and POU actions
+- Analysis: `CrossTaskWriteRule` no longer false-positives on output vars (they are POU-local)
+
 ## [0.2.2] - 2026-03-29
 
 ### Changed

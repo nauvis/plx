@@ -438,8 +438,16 @@ class ExecutionEngine:
 
         for branch in stmt.branches:
             matched = False
-            if selector_int in branch.values:
-                matched = True
+            for val in branch.values:
+                if isinstance(val, str) and "#" in val:
+                    # Enum literal "EnumName#MEMBER" — resolve to int
+                    resolved = parse_literal(val, enum_registry=self.enum_registry)
+                    if int(resolved) == selector_int:
+                        matched = True
+                        break
+                elif val == selector_int:
+                    matched = True
+                    break
             if not matched:
                 for rng in branch.ranges:
                     if rng.start <= selector_int <= rng.end:
@@ -460,12 +468,19 @@ class ExecutionEngine:
         if by_val == 0:
             raise SimulationError("FOR loop step (BY) cannot be zero")
 
+        iterations = 0
         i = from_val
         while True:
             if by_val > 0 and i > to_val:
                 break
             if by_val < 0 and i < to_val:
                 break
+
+            iterations += 1
+            if iterations > self.MAX_LOOP_ITERATIONS:
+                raise SimulationError(
+                    f"FOR loop exceeded {self.MAX_LOOP_ITERATIONS} iterations"
+                )
 
             self.state[stmt.loop_var] = i
             try:
@@ -523,11 +538,23 @@ class ExecutionEngine:
         # 1. Resolve instance state
         if isinstance(stmt.instance_name, str):
             instance_name = stmt.instance_name
-            if instance_name not in self.state:
+            # Support dotted paths like "parent.child" by traversing nested dicts
+            if "." in instance_name:
+                parts = instance_name.split(".")
+                obj = self.state
+                for part in parts:
+                    if not isinstance(obj, dict) or part not in obj:
+                        raise SimulationError(
+                            f"FB instance '{instance_name}' not found in state"
+                        )
+                    obj = obj[part]
+                instance_state = obj
+            elif instance_name not in self.state:
                 raise SimulationError(
                     f"FB instance '{instance_name}' not found in state"
                 )
-            instance_state = self.state[instance_name]
+            else:
+                instance_state = self.state[instance_name]
             display_name = instance_name
         else:
             # Expression instance_name (e.g. ArrayAccessExpr for arr[i])
@@ -1050,7 +1077,11 @@ class ExecutionEngine:
         # Initialize all vars to defaults
         for var in pou.interface.input_vars:
             func_state[var.name] = type_default(var.data_type)
+        for var in pou.interface.output_vars:
+            func_state[var.name] = type_default(var.data_type)
         for var in pou.interface.temp_vars:
+            func_state[var.name] = type_default(var.data_type)
+        for var in pou.interface.constant_vars:
             func_state[var.name] = type_default(var.data_type)
 
         # Map args to input vars (positional or named)
@@ -1171,6 +1202,8 @@ class ExecutionEngine:
     def _eval_bit_access(self, expr: BitAccessExpr) -> object:
         value = self._eval(expr.target)
         bit_index = expr.bit_index
+        if not isinstance(bit_index, int):
+            bit_index = int(self._eval(bit_index))
         if bit_index < 0 or bit_index > 63:
             raise SimulationError(f"Bit index {bit_index} out of range (0..63)")
         return bool((int(value) >> bit_index) & 1)
@@ -1283,6 +1316,8 @@ class ExecutionEngine:
         elif target.kind == "bit_access":
             current = int(self._eval(target.target))
             bit_index = target.bit_index
+            if not isinstance(bit_index, int):
+                bit_index = int(self._eval(bit_index))
             if bit_index < 0 or bit_index > 63:
                 raise SimulationError(f"Bit index {bit_index} out of range (0..63)")
             if value:

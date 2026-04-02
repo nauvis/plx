@@ -230,8 +230,19 @@ class FBInvocation(IRModel):
             # Allow dotted paths (e.g. "parent.child.Method") and caret
             # deref (e.g. "SUPER^") — each segment must be a valid identifier
             clean = self.instance_name.replace("^", "")
-            for segment in clean.split("."):
-                if segment and not _IEC_IDENT_RE.match(segment):
+            if not clean:
+                raise ValueError(
+                    f"FBInvocation.instance_name '{self.instance_name}' "
+                    f"has no identifier segments"
+                )
+            segments = clean.split(".")
+            for segment in segments:
+                if not segment:
+                    raise ValueError(
+                        f"FBInvocation.instance_name '{self.instance_name}' "
+                        f"contains empty segment"
+                    )
+                if not _IEC_IDENT_RE.match(segment):
                     raise ValueError(
                         f"FBInvocation.instance_name '{self.instance_name}' "
                         f"contains invalid segment '{segment}'"

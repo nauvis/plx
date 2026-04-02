@@ -160,7 +160,7 @@ class SFCBody(IRModel):
 
     @model_validator(mode="after")
     def _transition_refs_valid(self):
-        if not self.steps or not self.transitions:
+        if not self.transitions:
             return self
         step_names = {s.name for s in self.steps}
         for t in self.transitions:

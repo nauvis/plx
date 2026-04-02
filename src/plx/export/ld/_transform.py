@@ -448,14 +448,7 @@ class _LDTransformer:
                 contact_type=ContactType.NC,
             )
 
-        # NOT func_call() → transform inner, it becomes the input circuit
-        # with a negated view. Best we can do is Box for the function.
-        if isinstance(operand, FunctionCallExpr):
-            inner = self._transform_expr(operand)
-            return inner  # The box result feeds into the coil; semantics
-                          # are approximate but better than STBox
-
-        # NOT of complex expression → STBox fallback
+        # NOT of function call or complex expression → STBox fallback
         return STBox(st_text=f"NOT ({format_expression(operand)})")
 
     # -- Box constructors --------------------------------------------------

@@ -290,7 +290,13 @@ def _format_init_param(value: object) -> str:
 
     Unlike ``_format_initial``, string values are wrapped in IEC single quotes
     since they represent parameter values inside ``(Param := 'value')`` syntax.
+
+    Raises ``DeclarationError`` if the value cannot be represented.
     """
+    if value is None:
+        raise DeclarationError(
+            "Cannot use None as an FB/struct init parameter value"
+        )
     if isinstance(value, str):
         # Already an IEC literal (time, hex, etc.) — pass through
         if (value.startswith("T#") or value.startswith("16#") or

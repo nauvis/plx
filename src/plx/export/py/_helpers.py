@@ -500,6 +500,8 @@ def _try_format_fb_init(value: str) -> str | None:
             return None
         # Recursively format the value
         py_val = _format_initial_value(val)
+        if py_val is None:
+            return None  # Unrepresentable nested value -- bail
         py_params.append(f'"{name}": {py_val}')
 
     return "{" + ", ".join(py_params) + "}"

@@ -196,9 +196,8 @@ class STWriter(_ExpressionWriterMixin, _StatementWriterMixin):
             return
 
         # Header
-        keyword = pou.pou_type.value
-        if pou.abstract:
-            keyword = f"{keyword} ABSTRACT"
+        base_keyword = pou.pou_type.value
+        keyword = f"{base_keyword} ABSTRACT" if pou.abstract else base_keyword
         header = f"{keyword} {pou.name}"
         if pou.extends:
             header += f" EXTENDS {pou.extends}"
@@ -218,7 +217,7 @@ class STWriter(_ExpressionWriterMixin, _StatementWriterMixin):
             self._write_networks(pou.networks)
 
         # End
-        self._line(f"END_{keyword}")
+        self._line(f"END_{base_keyword}")
 
         # Actions (after POU body, before methods)
         for action in pou.actions:

@@ -519,6 +519,10 @@ class ASTCompiler(_StatementMixin, _ExpressionMixin, _SentinelMixin):
         """Build an FBInvocation if *instance_name* is a known static FB instance."""
         if instance_name not in self.ctx.static_var_types:
             return None
+        # Only STATIC vars can be FB instances — skip input/output/etc.
+        from plx.framework._compiler_core import VarDirection
+        if self.ctx.declared_vars.get(instance_name) is not VarDirection.STATIC:
+            return None
         type_ref = self.ctx.static_var_types[instance_name]
         fb_type = type_ref if isinstance(type_ref, NamedTypeRef) else None
         inputs = self._compile_call_kwargs(call_node)
@@ -533,6 +537,10 @@ class ASTCompiler(_StatementMixin, _ExpressionMixin, _SentinelMixin):
     ) -> FBInvocation | None:
         """Build an FBInvocation for an array-subscripted FB: ``self.timers[i](...)``."""
         if array_name not in self.ctx.static_var_types:
+            return None
+        # Only STATIC vars can be FB arrays
+        from plx.framework._compiler_core import VarDirection
+        if self.ctx.declared_vars.get(array_name) is not VarDirection.STATIC:
             return None
         type_ref = self.ctx.static_var_types[array_name]
         if not isinstance(type_ref, ArrayTypeRef):
