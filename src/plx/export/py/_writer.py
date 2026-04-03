@@ -5,6 +5,7 @@ from __future__ import annotations
 import warnings
 from io import StringIO
 
+from plx.model.init_pattern import INIT_FLAG_NAME, detect_init_pattern
 from plx.model.pou import (
     POU,
     AccessSpecifier,
@@ -16,6 +17,7 @@ from plx.model.pou import (
 )
 from plx.model.project import GlobalVariableList, Project
 from plx.model.sfc import Action, ActionQualifier, Transition
+from plx.model.statements import Statement
 from plx.model.task import (
     ContinuousTask,
     EventTask,
@@ -326,8 +328,11 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
 
         self._indent_inc()
 
+        # Detect init pattern before emitting vars (so we can hide _plx_initialized)
+        init_body, emit_interface, emit_networks = self._extract_init_pattern(pou)
+
         # Variable declarations
-        has_vars = self._write_var_descriptors(pou.interface)
+        has_vars = self._write_var_descriptors(emit_interface)
 
         # Methods
         for m in pou.methods:
@@ -350,6 +355,13 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
             self._write_action_comment(action)
             has_vars = True
 
+        # init() method (reconstructed from init pattern)
+        if init_body is not None:
+            if has_vars:
+                self._line()
+            self._write_init_method(init_body)
+            has_vars = True
+
         # logic() method
         if has_vars:
             self._line()
@@ -361,7 +373,7 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
 
         self._indent_inc()
         stmts = []
-        for net in pou.networks:
+        for net in emit_networks:
             if net.comment:
                 stmts.append(("comment", net.comment))
             for s in net.statements:
@@ -726,6 +738,61 @@ class PyWriter(_ExpressionWriterMixin, _StatementWriterMixin):
                 stacklevel=2,
             )
             self._line(f"# (body omitted — {len(action.body)} network(s))")
+
+    # ======================================================================
+    # Init pattern
+    # ======================================================================
+
+    def _extract_init_pattern(self, pou: POU) -> tuple[list[Statement] | None, POUInterface, list]:
+        """Detect and extract the ``def init(self)`` pattern from a POU.
+
+        Returns ``(init_body_or_None, interface_to_emit, networks_to_emit)``.
+        When the pattern is detected, ``_plx_initialized`` is removed from
+        static vars and the IF guard is removed from networks.
+        """
+        if pou.pou_type != POUType.FUNCTION_BLOCK:
+            return None, pou.interface, pou.networks
+
+        pattern = detect_init_pattern(pou.interface.static_vars, pou.networks)
+        if pattern is None:
+            return None, pou.interface, pou.networks
+
+        # Build a new interface without the _plx_initialized flag
+        filtered_static = [v for v in pou.interface.static_vars if v.name != INIT_FLAG_NAME]
+        new_interface = POUInterface(
+            input_vars=pou.interface.input_vars,
+            output_vars=pou.interface.output_vars,
+            inout_vars=pou.interface.inout_vars,
+            static_vars=filtered_static,
+            temp_vars=pou.interface.temp_vars,
+            constant_vars=pou.interface.constant_vars,
+            external_vars=pou.interface.external_vars,
+        )
+
+        # Build new networks without the IF guard
+        new_networks = list(pou.networks)
+        net = new_networks[pattern.network_index]
+        remaining_stmts = list(net.statements)
+        remaining_stmts.pop(pattern.stmt_index)
+        if remaining_stmts:
+            from plx.model.pou import Network as NetModel
+
+            new_networks[pattern.network_index] = NetModel(comment=net.comment, statements=remaining_stmts)
+        else:
+            new_networks.pop(pattern.network_index)
+
+        return pattern.init_body, new_interface, new_networks
+
+    def _write_init_method(self, init_body: list[Statement]) -> None:
+        """Emit ``def init(self):`` with the extracted init body."""
+        self._line("def init(self):")
+        self._indent_inc()
+        if not init_body:
+            self._line("pass")
+        else:
+            for stmt in init_body:
+                self._write_stmt(stmt)
+        self._indent_dec()
 
     # ======================================================================
     # SFC POUs
