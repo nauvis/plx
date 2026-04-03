@@ -1140,23 +1140,6 @@ def register_vendor_check(check_fn) -> None:
     _CHECKS.append(check_fn)
 
 
-def register_lossy_check(check_fn) -> None:
-    """Register an additional lossy validation check.
-
-    Lossy checks are hard errors by default but downgraded to
-    non-round-trippable warnings when the user passes
-    ``allow_lossy=True``.
-
-    Parameters
-    ----------
-    check_fn : Callable[[Project, Vendor, list[str]], None]
-        Validation function with the same signature as
-        ``register_vendor_check``.  Appends error strings for
-        transforms that produce valid vendor code but cannot be
-        round-tripped back to the original source.
-    """
-    _LOSSY_CHECKS.append(check_fn)
-
 
 def register_vendor_warning(warning_fn) -> None:
     """Register an additional vendor portability warning.

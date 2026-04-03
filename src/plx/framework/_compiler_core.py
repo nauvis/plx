@@ -139,10 +139,6 @@ _BINOP_MAP: dict[type, BinaryOp] = {
     ast.Pow: BinaryOp.EXPT,
 }
 
-_REJECTED_BINOP_MESSAGES: dict[type, str] = {}
-
-_REJECTED_AUGOP_MESSAGES: dict[type, str] = {}
-
 _CMPOP_MAP: dict[type, BinaryOp] = {
     ast.Eq: BinaryOp.EQ,
     ast.NotEq: BinaryOp.NE,

@@ -29,7 +29,8 @@ import os
 _profile = os.environ.get("HYPOTHESIS_PROFILE", "default")
 settings.load_profile(_profile)
 
-from plx.framework._compiler import ASTCompiler, CompileContext
+from plx.framework._compiler import ASTCompiler
+from plx.framework._compiler_core import CompileContext
 from plx.framework._registry import _restore_registries, _snapshot_registries
 from plx.model.pou import POU, Network, POUInterface, POUType
 from plx.model.types import PrimitiveTypeRef

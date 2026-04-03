@@ -227,8 +227,8 @@ def logic(self):
         assert len(networks) >= 2
 
     def test_all_five_capabilities_in_one_module(self):
-        """method, interface, fb, _extract_comments, _compile_pou_class all on one module."""
+        """fb_method, interface, fb, _extract_comments, _compile_pou_class all on one module."""
         import plx.framework._decorators as mod
 
-        for name in ("method", "interface", "fb", "_extract_comments", "_compile_pou_class"):
+        for name in ("fb_method", "interface", "fb", "_extract_comments", "_compile_pou_class"):
             assert hasattr(mod, name), f"{name} not found on _decorators module"

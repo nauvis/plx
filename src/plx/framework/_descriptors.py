@@ -550,15 +550,14 @@ def _resolve_declaration(
 # ---------------------------------------------------------------------------
 
 
-def _collect_descriptors(cls: type, *, own_only: bool = False) -> dict[str, list[Variable]]:
+def _collect_descriptors(cls: type) -> dict[str, list[Variable]]:
     """Find variable declarations on *cls* and return
     IR ``Variable`` nodes grouped by direction.
 
-    When *own_only* is False (default), walks the MRO so that a
-    derived class inherits its parent's descriptors.  Parent
-    descriptors appear first, then the child's.  If the child
-    redefines a name that the parent declared, the child's version
-    wins (override).
+    Walks the MRO so that a derived class inherits its parent's
+    descriptors.  Parent descriptors appear first, then the child's.
+    If the child redefines a name that the parent declared, the
+    child's version wins (override).
 
     Returns a dict with keys: ``"input"``, ``"output"``, ``"inout"``,
     ``"static"``, ``"temp"``, ``"constant"``, ``"external"``
@@ -574,12 +573,9 @@ def _collect_descriptors(cls: type, *, own_only: bool = False) -> dict[str, list
         "external": [],
     }
 
-    if own_only:
-        sources = [cls.__dict__]
-    else:
-        # Walk MRO in reverse so parent attrs come first and child
-        # overrides replace them via the ``seen`` set.
-        sources = [base.__dict__ for base in reversed(cls.__mro__) if base is not object]
+    # Walk MRO in reverse so parent attrs come first and child
+    # overrides replace them via the ``seen`` set.
+    sources = [base.__dict__ for base in reversed(cls.__mro__) if base is not object]
 
     seen: set[str] = set()
     collected: list[tuple[str, VarDescriptor]] = []

@@ -776,7 +776,3 @@ def interface(cls: type | None = None, *, folder: str = "") -> Any:
     if cls is not None:
         return _apply(cls)
     return _apply
-
-
-# Backward-compat alias — will be removed in a future version
-method = fb_method

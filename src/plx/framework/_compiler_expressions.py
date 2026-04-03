@@ -41,7 +41,6 @@ from ._compiler_core import (
     _MATH_FUNC_MAP,
     _PYTHON_BUILTIN_MAP,
     _PYTHON_TYPE_CONV_MAP,
-    _REJECTED_BINOP_MESSAGES,
     _REJECTED_BUILTINS,
     _REJECTED_CMPOP_MESSAGES,
     _TYPE_CONV_RE,
@@ -189,9 +188,6 @@ class _ExpressionMixin:
 
     def _compile_binop(self, node: ast.BinOp) -> Expression:
         """Compile binary operator. Handles // as TRUNC(a/b) and rejects string +."""
-        rejected_msg = _REJECTED_BINOP_MESSAGES.get(type(node.op))
-        if rejected_msg is not None:
-            raise CompileError(rejected_msg, node, self.ctx)
         # Reject string concatenation via + — use f-strings instead
         if isinstance(node.op, ast.Add):
             left_type = _infer_type(node.left, self.ctx)
