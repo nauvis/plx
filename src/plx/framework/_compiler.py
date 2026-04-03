@@ -36,7 +36,7 @@ from plx.model.types import (
     NamedTypeRef,
 )
 
-from ._compiler_core import (  # noqa: F401
+from ._compiler_core import (
     _REJECTED_NODES,
     CompileContext,
     CompileError,
