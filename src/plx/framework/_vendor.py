@@ -1140,7 +1140,6 @@ def register_vendor_check(check_fn) -> None:
     _CHECKS.append(check_fn)
 
 
-
 def register_vendor_warning(warning_fn) -> None:
     """Register an additional vendor portability warning.
 
