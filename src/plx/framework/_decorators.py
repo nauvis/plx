@@ -18,6 +18,13 @@ import warnings
 from dataclasses import dataclass
 from typing import Any
 
+from plx.model.expressions import (
+    LiteralExpr,
+    UnaryExpr,
+    UnaryOp,
+    VariableRef,
+)
+from plx.model.init_pattern import INIT_FLAG_NAME
 from plx.model.pou import (
     POU,
     AccessSpecifier,
@@ -27,7 +34,8 @@ from plx.model.pou import (
     POUInterface,
     POUType,
 )
-from plx.model.types import TypeRef
+from plx.model.statements import Assignment, IfBranch, IfStatement
+from plx.model.types import PrimitiveType, PrimitiveTypeRef, TypeRef
 from plx.model.variables import Variable
 
 from ._compilation_helpers import (
@@ -430,6 +438,93 @@ def _compile_all_properties(
     return compiled
 
 
+def _compile_init_method(
+    cls: type,
+    pou_type: POUType,
+    declared_vars: dict[str, str],
+    static_var_types: dict[str, TypeRef],
+    source_file: str,
+) -> tuple[Variable, Network] | None:
+    """Compile ``def init(self)`` into a ``_plx_initialized`` flag + IF guard.
+
+    Returns ``(flag_variable, network)`` or ``None`` if the class has no
+    ``init()`` method.  Raises ``CompileError`` for invalid usage.
+    """
+    if not hasattr(cls, "init"):
+        return None
+
+    # Don't treat @fb_method-decorated init as the init pattern
+    if _is_method(cls.init):
+        return None
+
+    # Only valid on @fb
+    if pou_type != POUType.FUNCTION_BLOCK:
+        raise CompileError(
+            f"def init(self) is only supported on @fb classes, not {pou_type.value}",
+            source_file=source_file,
+            pou_name=cls.__name__,
+        )
+
+    context_name = f"{cls.__name__}.init()"
+    func_def, _, start_lineno = _parse_function_source(
+        cls.init,
+        context_name,
+        validate_self_only=True,
+    )
+
+    # Build a separate compile context for init — sentinels are not allowed
+    ctx = _build_compile_context(
+        cls.init,
+        cls,
+        dict(declared_vars),  # copy to avoid mutation
+        static_var_types,
+        start_lineno,
+        source_file,
+    )
+
+    compiler = ASTCompiler(ctx)
+    init_stmts = compiler.compile_body(func_def)
+
+    # Reject sentinels in init — they are cyclic constructs
+    if ctx.generated_static_vars:
+        for v in ctx.generated_static_vars:
+            # Check if it's a sentinel-generated var (starts with _plx_)
+            if v.name.startswith("_plx_"):
+                raise CompileError(
+                    "Sentinel functions (delayed, rising, etc.) cannot be used in init() — "
+                    "they are cyclic constructs that require every-scan execution. "
+                    "Move them to logic() instead.",
+                    source_file=source_file,
+                    pou_name=cls.__name__,
+                )
+
+    # Build the IF NOT _plx_initialized guard
+    flag_var = Variable(
+        name=INIT_FLAG_NAME,
+        data_type=PrimitiveTypeRef(type=PrimitiveType.BOOL),
+        initial_value="FALSE",
+    )
+
+    # Append: _plx_initialized := TRUE
+    set_flag = Assignment(
+        target=VariableRef(name=INIT_FLAG_NAME),
+        value=LiteralExpr(value="TRUE"),
+    )
+    guarded_body = [*init_stmts, set_flag]
+
+    if_stmt = IfStatement(
+        if_branch=IfBranch(
+            condition=UnaryExpr(
+                op=UnaryOp.NOT,
+                operand=VariableRef(name=INIT_FLAG_NAME),
+            ),
+            body=guarded_body,
+        ),
+    )
+
+    return flag_var, Network(statements=[if_stmt])
+
+
 def _compile_pou_class(
     cls: type,
     pou_type: POUType,
@@ -503,6 +598,13 @@ def _compile_pou_class(
             source_file = inspect.getfile(cls)
         except (TypeError, OSError):
             source_file = "<unknown>"
+
+    # Compile init() if present — wraps body in IF NOT _plx_initialized guard
+    init_networks = _compile_init_method(cls, pou_type, declared_vars, static_var_types, source_file)
+    if init_networks is not None:
+        init_flag_var, init_if_network = init_networks
+        generated_static_vars.append(init_flag_var)
+        networks = [init_if_network, *networks]
 
     compiled_methods = _compile_all_methods(cls, descriptor_vars, static_var_types, source_file)
     compiled_properties = _compile_all_properties(cls, descriptor_vars, static_var_types, source_file)

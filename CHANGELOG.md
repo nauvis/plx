@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.7] - 2026-04-03
+
+### Added
+- `def init(self)` support on `@fb` classes — one-shot initialization that runs on the first scan
+- Shared init pattern detection helper (`plx.model.init_pattern`) for round-trip fidelity
+- Python exporter reconstructs `def init(self):` from the flattened IR pattern
+- 20 tests covering compilation, error cases, pattern detection, Python export, and simulation
+
 ## [0.2.6] - 2026-04-03
 
 ### Removed
