@@ -36,21 +36,10 @@ from plx.model.types import (
     NamedTypeRef,
 )
 
-# Re-export shared definitions so existing imports continue to work.
-# Test files and __init__.py import from ._compiler — this keeps them valid.
-from ._compiler_core import (  # noqa: F401
-    _BINOP_MAP,
-    _BIT_ACCESS_RE,
-    _BUILTIN_FUNCS,
-    _CMPOP_MAP,
-    _PYTHON_BUILTIN_MAP,
-    _REJECTED_BINOP_MESSAGES,
+from ._compiler_core import (
     _REJECTED_NODES,
-    _TYPE_CONV_RE,
-    SENTINEL_REGISTRY,
     CompileContext,
     CompileError,
-    resolve_annotation,
 )
 from ._compiler_expressions import _ExpressionMixin
 

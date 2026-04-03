@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.6] - 2026-04-03
+
+### Removed
+- Dead `_REJECTED_BINOP_MESSAGES` and `_REJECTED_AUGOP_MESSAGES` empty dicts and unreachable check branches
+- Dead `method` backward-compat alias for `fb_method` (no consumers)
+- Dead `register_lossy_check()` registration function (never called)
+- Dead `own_only` parameter on `_collect_descriptors()` (never passed as `True`)
+- Dead re-exports in `_compiler.py` (8 underscore-prefixed symbols already imported from `_compiler_core` directly)
+
 ## [0.2.5] - 2026-04-01
 
 ### Added

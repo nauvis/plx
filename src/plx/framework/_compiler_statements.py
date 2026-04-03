@@ -45,7 +45,6 @@ from plx.model.variables import Variable
 from ._compiler_core import (
     _BINOP_MAP,
     _PYTHON_BUILTIN_MAP,
-    _REJECTED_AUGOP_MESSAGES,
     _REJECTED_BUILTINS,
     SENTINEL_REGISTRY,
     CompileError,
@@ -145,9 +144,6 @@ class _StatementMixin:
             value, pending = self._compile_expr_and_flush(node.value)
             pending.append(Assignment(target=target, value=value, ref_assign=True))
             return pending
-        rejected_msg = _REJECTED_AUGOP_MESSAGES.get(type(node.op))
-        if rejected_msg is not None:
-            raise CompileError(rejected_msg, node, self.ctx)
         # Reject string += — use f-strings instead
         if isinstance(node.op, ast.Add):
             target_type = _infer_type(node.target, self.ctx)

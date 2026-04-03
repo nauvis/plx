@@ -46,7 +46,6 @@ from ._decorators import (
     fb_method,
     function,
     interface,
-    method,  # backward-compat alias — will be removed
     program,
 )
 from ._descriptors import (
@@ -305,7 +304,6 @@ __all__ = [
     "program",
     "function",
     "fb_method",
-    "method",  # backward-compat alias — will be removed
     "interface",
     "fb_property",
     "AccessSpecifier",
